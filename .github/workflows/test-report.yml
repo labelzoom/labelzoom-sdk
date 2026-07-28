@@ -1,0 +1,33 @@
+# Caller stub. The reporter itself lives in labelzoom/.github.
+#
+# The .NET BUILD stays local: one consumer means a reusable workflow would buy
+# indirection without deduplication. The reporter is genuinely shared.
+name: 'Test Report'
+
+# zizmor flags workflow_run as fundamentally dangerous, and for the usual usage it
+# is: the job runs in the BASE repo's context with its secrets, so checking out and
+# executing PR code would be arbitrary code execution. This job checks out nothing
+# and runs nothing but dorny/test-reporter, which downloads an artifact and parses
+# the result file. The residual risk is confined to that parser.
+on:  # zizmor: ignore[dangerous-triggers]
+  workflow_run:
+    workflows: ['.NET Tests']
+    types:
+      - completed
+
+permissions: {}
+
+jobs:
+  report:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' ||
+      github.event.workflow_run.conclusion == 'failure'
+    uses: labelzoom/.github/.github/workflows/test-report.yml@v1
+    with:
+      check-name: '.NET Tests'
+      path: '**/*.trx'
+      reporter: dotnet-trx
+    permissions:
+      contents: read
+      actions: read
+      checks: write
