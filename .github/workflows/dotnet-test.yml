@@ -5,12 +5,12 @@ permissions:
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'dotnet/**'
       - '.github/workflows/dotnet-test.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'dotnet/**'
       - '.github/workflows/dotnet-test.yml'

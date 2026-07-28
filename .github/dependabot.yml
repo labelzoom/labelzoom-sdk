@@ -10,15 +10,34 @@ updates:
     directory: "/dotnet/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "nuget"
+    groups:
+      # Collapses the per-project PRs (src/ and tests/ are discovered separately)
+      # into one. Majors stay individual so they get read rather than rubber-stamped.
+      nuget-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
-    directory: "/.github/workflows/"
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      # One PR for every action bump, majors included. Ungrouped action updates
+      # are the mechanism that let the pinned SHAs drift apart across the fleet.
+      actions-all:
+        patterns:
+          - "*"
