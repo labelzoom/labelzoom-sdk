@@ -1,8 +1,5 @@
 name: .NET Tests
 
-permissions:
-  contents: read
-
 on:
   push:
     branches: [ main ]
@@ -15,29 +12,69 @@ on:
       - 'dotnet/**'
       - '.github/workflows/dotnet-test.yml'
 
+# Cancel in-progress runs for the same workflow and branch/PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
 jobs:
   test:
+    name: Build and Test
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-    
+    - name: Checkout code
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        persist-credentials: false
+
     - name: Setup .NET
       uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
       with:
+        # Matches the test project's net8.0. src targets netstandard2.0, which
+        # this SDK can still build.
         dotnet-version: '8.0.x'
-    
+
+    # setup-dotnet's built-in `cache: true` needs a packages.lock.json, and this
+    # solution has none. Keying on the csproj files is the workable alternative;
+    # switch to the built-in cache if lock files are ever adopted.
+    - name: Cache NuGet packages
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('dotnet/**/*.csproj') }}
+        restore-keys: |
+          nuget-${{ runner.os }}-
+
     - name: Restore dependencies
       run: dotnet restore
       working-directory: ./dotnet
-    
+
     - name: Build
       run: dotnet build --no-restore --configuration Release
       working-directory: ./dotnet
-    
+
+    # These secrets are absent on pull requests from forks -- this repo is public.
+    # Tests that need a live endpoint must skip themselves when the vars are unset
+    # rather than fail, or fork contributions can never go green.
     - name: Test
-      run: dotnet test --no-build --configuration Release --verbosity normal
+      run: >-
+        dotnet test --no-build --configuration Release --verbosity normal
+        --logger "trx;LogFileName=test-results.trx"
+        --results-directory ../test-results
       working-directory: ./dotnet
       env:
         LABELZOOM_API_TOKEN: ${{ secrets.LABELZOOM_API_TOKEN }}
         LABELZOOM_ENDPOINT: ${{ secrets.LABELZOOM_ENDPOINT }}
+
+    - name: Upload test results
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: (!cancelled())
+      with:
+        name: test-results
+        path: test-results/**/*.trx

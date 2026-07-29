@@ -35,6 +35,11 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    ignore:
+      # @v1 is a MOVING major alias, moved only by a human running
+      # labelzoom/.github's script/cut-release.sh. Left alone, Dependabot would
+      # "helpfully" pin it to @v1.0.0 and silently undo that design.
+      - dependency-name: "labelzoom/.github/*"
     groups:
       # One PR for every action bump, majors included. Ungrouped action updates
       # are the mechanism that let the pinned SHAs drift apart across the fleet.
