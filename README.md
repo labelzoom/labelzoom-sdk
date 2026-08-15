@@ -12,8 +12,8 @@ The SDKs are being rebuilt around a shared, machine-checked
 
 | Language | Package | Status |
 |---|---|---|
-| [.NET](dotnet/) | `LabelZoom.Sdk` | rebuilding — the reference implementation |
-| Node / TypeScript | `@labelzoom/sdk` | planned |
+| [.NET](dotnet/) | `LabelZoom.Sdk` | built, unpublished — the reference implementation |
+| [Node / TypeScript](node/) | `@labelzoom/sdk` | built, unpublished |
 | Java | `com.labelzoom:labelzoom-sdk` | planned |
 | Python | `labelzoom` | planned |
 | Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |

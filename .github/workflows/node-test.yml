@@ -1,0 +1,71 @@
+name: Node Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'node/**'
+      - 'conformance/**'
+      - '.github/workflows/node-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'node/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/node-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: node/.nvmrc
+          cache: npm
+          cache-dependency-path: node/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./node
+
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: ./node
+
+      - name: Build
+        run: npm run build
+        working-directory: ./node
+
+      # No secrets, no network: `fetch` is replaced with a recording stub, so this passes
+      # identically on a fork pull request.
+      - name: Test
+        run: npx vitest run --reporter=junit --outputFile="${{ github.workspace }}/test-results/node.xml"
+        working-directory: ./node
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled())
+        with:
+          name: node-test-results
+          path: test-results/
