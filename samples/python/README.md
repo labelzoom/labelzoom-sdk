@@ -56,7 +56,7 @@ image_path = 'LabelZoom_Logo_f_400px.png'
 with open(image_path, 'rb') as f:
     image_bytes = f.read()
 
-url = 'https://www.labelzoom.net/api/v2/convert/png/to/zpl'
+url = 'https://api.labelzoom.com/api/v2/convert/png/to/zpl'
 headers = { 'Content-Type': 'image/png', 'Accept': 'text/plain' }
 response = requests.post(url, data=image_bytes, headers=headers)
 
@@ -116,7 +116,7 @@ image_path = 'my_label.png'
 with open(image_path, 'rb') as f:
     image_bytes = f.read()
 
-url = 'https://www.labelzoom.net/api/v2/convert/png/to/zpl'
+url = 'https://api.labelzoom.com/api/v2/convert/png/to/zpl'
 headers = { 'Content-Type': 'image/png', 'Accept': 'text/plain' }
 response = requests.post(url, data=image_bytes, headers=headers)
 zpl = response.text
@@ -133,7 +133,7 @@ print("Label printed successfully!")
 
 ## API Endpoints
 
-- **PNG to ZPL**: `POST https://www.labelzoom.net/api/v2/convert/png/to/zpl`
+- **PNG to ZPL**: `POST https://api.labelzoom.com/api/v2/convert/png/to/zpl`
   - Content-Type: `image/png`
   - Accept: `text/plain`
 
@@ -149,13 +149,13 @@ Most Zebra printers support raw TCP/IP printing on port 9100 by default.
 
 ## Authentication
 
-The PNG to ZPL conversion endpoint shown in these samples does not require authentication. For other API endpoints or features, you may need an API token. Contact [LabelZoom](https://www.labelzoom.net) for more information.
+The PNG to ZPL conversion endpoint shown in these samples does not require authentication. For other API endpoints or features, you may need an API token. Contact [LabelZoom](https://www.labelzoom.com) for more information.
 
 ## License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](../LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
 
 ## Support
 
-For questions or support, visit [LabelZoom](https://www.labelzoom.net) or contact the LabelZoom team.
+For questions or support, visit [LabelZoom](https://www.labelzoom.com) or contact the LabelZoom team.
 

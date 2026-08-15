@@ -1,0 +1,10 @@
+{
+  "id": "typecheck/epl-is-not-a-target",
+  "note": "1.1: EPL is source-only. In a statically typed language there is no TargetFormat.EPL to name, so this must not compile.",
+  "given": {
+    "snippet": "client.convert().fromZpl(body).to(EPL)"
+  },
+  "expect": {
+    "compileError": true
+  }
+}

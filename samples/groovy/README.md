@@ -57,7 +57,7 @@ Converts a PNG image to ZPL format using the LabelZoom API.
 def fileName = 'LabelZoom_Logo_f_400px.png'
 
 def file = new File(fileName)
-def post = new URL('https://www.labelzoom.net/api/v2/convert/png/to/zpl').openConnection();
+def post = new URL('https://api.labelzoom.com/api/v2/convert/png/to/zpl').openConnection();
 post.setRequestMethod('POST')
 post.setDoOutput(true)
 post.setRequestProperty('Content-Type', 'image/png')
@@ -113,7 +113,7 @@ Here's how to convert an image to ZPL and print it in a single script:
 // Step 1: Convert PNG to ZPL
 def fileName = 'my_label.png'
 def file = new File(fileName)
-def post = new URL('https://www.labelzoom.net/api/v2/convert/png/to/zpl').openConnection()
+def post = new URL('https://api.labelzoom.com/api/v2/convert/png/to/zpl').openConnection()
 post.setRequestMethod('POST')
 post.setDoOutput(true)
 post.setRequestProperty('Content-Type', 'image/png')
@@ -138,7 +138,7 @@ println("Label printed successfully!")
 
 ## API Endpoints
 
-- **PNG to ZPL**: `POST https://www.labelzoom.net/api/v2/convert/png/to/zpl`
+- **PNG to ZPL**: `POST https://api.labelzoom.com/api/v2/convert/png/to/zpl`
   - Content-Type: `image/png`
   - Accept: `text/plain`
 
@@ -154,13 +154,13 @@ Most Zebra printers support raw TCP/IP printing on port 9100 by default.
 
 ## Authentication
 
-The PNG to ZPL conversion endpoint shown in these samples does not require authentication. For other API endpoints or features, you may need an API token. Contact [LabelZoom](https://www.labelzoom.net) for more information.
+The PNG to ZPL conversion endpoint shown in these samples does not require authentication. For other API endpoints or features, you may need an API token. Contact [LabelZoom](https://www.labelzoom.com) for more information.
 
 ## License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](../LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
 
 ## Support
 
-For questions or support, visit [LabelZoom](https://www.labelzoom.net) or contact the LabelZoom team.
+For questions or support, visit [LabelZoom](https://www.labelzoom.com) or contact the LabelZoom team.
 

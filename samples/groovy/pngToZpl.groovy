@@ -4,7 +4,7 @@
 def fileName = 'LabelZoom_Logo_f_400px.png' // TODO: Replace this with the relative or absolute path of the image you want to convert
 
 def file = new File(fileName)
-def post = new URL('https://www.labelzoom.net/api/v2/convert/png/to/zpl').openConnection();
+def post = new URL('https://api.labelzoom.com/api/v2/convert/png/to/zpl').openConnection();
 post.setRequestMethod('POST')
 post.setDoOutput(true)
 post.setRequestProperty('Content-Type', 'image/png')

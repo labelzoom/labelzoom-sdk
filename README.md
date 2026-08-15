@@ -1,52 +1,106 @@
 ![LabelZoom Logo](docs/LabelZoom_Logo_f_400px.png)
 
-# LabelZoom ZPL SDK
+# LabelZoom SDK
 
-LabelZoom SDK and code samples to facilitate conversion between ZPL and other popular formats.
+Official client libraries for the [LabelZoom API](https://api.labelzoom.com) — convert barcode
+labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
 
-## Overview
+## Status
 
-This repository provides SDKs and code samples for integrating with the [LabelZoom API](https://api.labelzoom.net) to convert documents and images to Zebra Programming Language (ZPL) format. ZPL is the primary language used by Zebra label printers.
+The SDKs are being rebuilt around a shared, machine-checked
+[API contract](docs/API_CONTRACT.md). This table is the honest state of play, not a roadmap:
 
-## Features
+| Language | Package | Status |
+|---|---|---|
+| [.NET](dotnet/) | `LabelZoom.Sdk` | rebuilding — the reference implementation |
+| Node / TypeScript | `@labelzoom/sdk` | planned |
+| Java | `com.labelzoom:labelzoom-sdk` | planned |
+| Python | `labelzoom` | planned |
+| Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
+| PHP | `labelzoom/sdk` | planned |
+| Ruby | `labelzoom` | planned |
 
-- **PDF to ZPL Conversion**: Convert PDF documents to ZPL format
-- **PNG to ZPL Conversion**: Convert PNG images to ZPL format
-- **Multiple Language Support**: SDKs and samples available for .NET, Python, and Groovy
-- **Streaming Support**: Handle large multi-page documents efficiently with streaming APIs
-- **Direct Printer Integration**: Sample code for sending ZPL directly to Zebra printers
+Nothing is published to a package registry yet. Until then, build from source.
 
-## Table of Contents
+For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
+friends — see [`samples/`](samples/).
 
-Choose your preferred language or platform:
+## What the API does
 
-| Language/Platform | Description | Documentation |
-|-------------------|-------------|---------------|
-| [.NET](dotnet/) | Full-featured SDK with async support for .NET Standard 2.0+ | [.NET README](dotnet/README.md) |
-| [Python](python/) | Simple Python scripts for quick integration | [Python README](python/README.md) |
-| [Groovy](groovy/) | Groovy scripts for JVM-based environments | [Groovy README](groovy/README.md) |
+One endpoint covers almost everything:
 
-## Getting Started
+```
+POST https://api.labelzoom.com/api/v2/convert/{sourceFormat}/to/{targetFormat}
+```
 
-1. Clone this repository
-2. Choose your preferred language from the table above
-3. Follow the language-specific README for detailed instructions
-4. Obtain an API token from LabelZoom (if required for your use case)
+**Sources (12, plus `url`):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg` `jpeg`
+
+**Targets (8):** `zpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+
+`epl`, `tspl`, and `dpl` are **source-only** — you can convert from them, never to them. Every SDK
+enforces that at compile time where the language allows it.
+
+**Authentication is optional.** Without a key you get the free tier: watermarked output, first
+label only, a 1 MB request cap, and no multi-page, JSON-target, or image-to-image conversion. With
+a key you get the rest. Every SDK works with no credential configured — that is a contract
+requirement, not an accident.
+
+```csharp
+// No API key: this works, and returns a watermarked label.
+using var client = new LabelZoomClient();
+
+var result = await client.Convert()
+    .FromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")
+    .ToPng()
+    .WithDpi(300)
+    .WithLabelSize(widthInches: 4f, heightInches: 6f)
+    .ExecuteAsync();
+
+await File.WriteAllBytesAsync("label.png", result.Bytes);
+```
+
+Set `LABELZOOM_API_KEY` and every SDK picks it up automatically.
+
+## Repository layout
+
+```
+docs/API_CONTRACT.md   what every SDK must do, stated once
+docs/CONFORMANCE.md    how to add a language
+conformance/           language-neutral fixtures all SDKs are tested against
+dotnet/ node/ java/ …  one directory per SDK
+samples/               copy-paste snippets for languages without a package
+```
+
+## Why a conformance suite
+
+Seven independent implementations of one wire protocol drift, and they drift quietly. So the
+behavior lives in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) as numbered rules, the
+machine-checkable subset lives in [`conformance/`](conformance/) as language-neutral JSON, and
+every language's test suite runs the same cases and asserts it ran all of them.
+
+The rules exist because each one was gotten wrong at least once. Two examples:
+
+- **`Accept: */*`, always.** The server's `produces` list omits `image/gif`, `image/bmp`, and
+  `image/jpeg`, so sending the target's exact media type returns **406** for those three targets.
+- **`pdf.pageNumber` is 0-based** and `label.width` / `label.height` are **inches**. Both are
+  routinely misread; both are pinned by fixtures.
+
+```sh
+node conformance/lint.mjs
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit issues or pull requests.
+Read [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) first, then
+[`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). Changing SDK behavior means changing a fixture, and
+changing a fixture re-runs every language.
 
 ## License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For API access, questions, or support, visit [LabelZoom](https://www.labelzoom.net) or contact the LabelZoom team.
+MIT — see [LICENSE](LICENSE).
 
 ## Links
 
-- [LabelZoom Website](https://www.labelzoom.net)
-- [API Documentation](https://api.labelzoom.net)
-- [GitHub Repository](https://github.com/labelzoom/labelzoom-zpl-sdk)
+- [LabelZoom](https://www.labelzoom.com)
+- [API documentation](https://docs.labelzoom.com)
+- [OpenAPI spec](https://api.labelzoom.com/v3/api-docs) · [Swagger UI](https://api.labelzoom.com/swagger-ui/)
