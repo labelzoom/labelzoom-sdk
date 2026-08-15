@@ -184,7 +184,10 @@ public sealed class ConformanceTests
         var handler = new StubHttpMessageHandler();
         EnqueueScripted(handler, given);
 
-        using var client = BuildClient(given, handler);
+        // Response cases queue exactly one response and assert how it maps. Retry is the
+        // subject of retry/*, and leaving it on here would consume responses that do not
+        // exist for the 429 and 5xx cases.
+        using var client = BuildClient(given, handler, defaultMaxRetries: 0);
 
         var call = client.Convert().FromZpl("^XA^XZ").ToZpl().ExecuteAsync();
 
@@ -327,7 +330,8 @@ public sealed class ConformanceTests
     private static LabelZoomClient BuildClient(
         JsonElement given,
         StubHttpMessageHandler handler,
-        Func<TimeSpan, Task>? onSleep = null)
+        Func<TimeSpan, Task>? onSleep = null,
+        int? defaultMaxRetries = null)
     {
         var options = new LabelZoomClientOptions
         {
@@ -361,6 +365,10 @@ public sealed class ConformanceTests
         if (given.TryGetProperty("maxRetries", out var maxRetries))
         {
             options.MaxRetries = maxRetries.GetInt32();
+        }
+        else if (defaultMaxRetries.HasValue)
+        {
+            options.MaxRetries = defaultMaxRetries.Value;
         }
 
         return new LabelZoomClient(options);

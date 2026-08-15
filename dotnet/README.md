@@ -70,7 +70,7 @@ var result = await client.Convert()
 
 ## Formats
 
-**Sources (12, plus `Url`):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg`
+**Sources (12, plus `Url`):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`)
 
 **Targets (8):** `Zpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
