@@ -53,10 +53,12 @@ jobs:
           ACTIONLINT_SHA256: '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757'
         run: |
           set -euo pipefail
-          # shellcheck must be on PATH; ubuntu-latest ships it. Running actionlint with
-          # `-shellcheck=` disables the shell linting entirely and reports a false
-          # all-clear, so do not "fix" a shellcheck failure that way.
-          command -v shellcheck >/dev/null || { echo "::error::shellcheck missing"; exit 1; }
+          # NOTE: actionlint shells out to shellcheck, which must be on PATH;
+          # ubuntu-latest ships it. Passing `-shellcheck=` disables shell linting
+          # entirely and reports a false all-clear, so do not silence a finding that
+          # way. (This comment cannot begin with the word shellcheck after the '#' --
+          # that syntax is a shellcheck directive and fails to parse.)
+          command -v shellcheck >/dev/null || { echo "::error::shellcheck is missing"; exit 1; }
           url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           curl -fsSL -o actionlint.tgz "$url"
           echo "${ACTIONLINT_SHA256}  actionlint.tgz" | sha256sum -c -
