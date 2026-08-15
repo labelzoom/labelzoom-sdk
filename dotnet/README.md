@@ -2,145 +2,190 @@
 
 # LabelZoom .NET SDK
 
-A full-featured .NET SDK for converting documents and images to ZPL format using the LabelZoom API.
+Official .NET client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
+between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
 
-## Features
+Targets **netstandard2.0** (so .NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+) and **net8.0**.
 
-- **PDF to ZPL Conversion**: Convert PDF documents to ZPL format
-- **Synchronous and Asynchronous APIs**: Choose the best approach for your use case
-- **Streaming Support**: Efficiently handle large multi-page documents with streaming callbacks
-- **.NET Standard 2.0**: Compatible with .NET Framework 4.6.1+, .NET Core 2.0+, and .NET 5+
-- **Cancellation Token Support**: Cancel long-running operations gracefully
-- **Configurable Endpoint**: Override the default API endpoint if needed
+## Install
 
-## Installation
+Not yet published to NuGet. Build from source:
 
-### From Source
-
-```bash
+```sh
 git clone https://github.com/labelzoom/labelzoom-zpl-sdk.git
 cd labelzoom-zpl-sdk/dotnet
-dotnet build LabelzoomDotnetSdk.sln
+dotnet build LabelZoom.Sdk.sln
 ```
 
-### NuGet Package
+## Quick start
 
-*(Coming soon)*
-
-## Quick Start
-
-### Basic PDF to ZPL Conversion
+**An API key is optional.** Without one you get the free tier — watermarked output, first label
+only, a 1 MB request cap, and no multi-page, JSON-target, or image-to-image conversion.
 
 ```csharp
-using LabelzoomDotnetSdk;
+using LabelZoom.Sdk;
 
-using (var client = new LabelzoomClient("YOUR_AUTH_TOKEN"))
+using var client = new LabelZoomClient();          // anonymous; this works
+
+var result = await client.Convert()
+    .FromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")
+    .ToPng()
+    .WithDpi(300)
+    .ExecuteAsync();
+
+result.Save("label.png");
+```
+
+With a key — passed explicitly, or picked up from `LABELZOOM_API_KEY`:
+
+```csharp
+using var client = new LabelZoomClient("lz_live_...");
+using var fromEnvironment = new LabelZoomClient();  // reads LABELZOOM_API_KEY
+```
+
+PDF to ZPL, one page, at a fixed label size:
+
+```csharp
+var result = await client.Convert()
+    .FromFile(SourceFormat.Pdf, "shipping-label.pdf")
+    .ToZpl()
+    .WithLabelSize(widthInches: 4f, heightInches: 6f)
+    .WithPdfPage(0)                                 // 0-based; omit for every page
+    .ExecuteAsync();
+
+Console.WriteLine(result.Text);
+```
+
+Filling variable fields — **each record produces one label**:
+
+```csharp
+var result = await client.Convert()
+    .FromZpl(template)
+    .ToPdf()
+    .WithData(
+        new { name = "ACME Corp", sku = "12345" },
+        new { name = "Globex",    sku = "67890" })
+    .ExecuteAsync();                                // a 2-page PDF
+```
+
+## Formats
+
+**Sources (12, plus `Url`):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`)
+
+**Targets (8):** `Zpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+
+`SourceFormat` and `TargetFormat` are distinct types, so `.ToEpl()` does not exist and
+`To(SourceFormat.Pdf)` does not compile. EPL, TSPL and DPL are source-only on the server, and the
+type system says so rather than letting you find out from a 404.
+
+`SourceFormat.Url` has the *server* fetch a URL you supply and convert whatever it finds. Validate
+the URL first if it came from untrusted input.
+
+## Options
+
+| Method | Notes |
+|---|---|
+| `WithDpi(int)` | server default 203 |
+| `WithRotation(int)` | must be a multiple of 90; rejected locally otherwise |
+| `WithScaling(float)` | percent, server default 100 |
+| `WithColorMode(ColorMode)` | `Bw`, `Grayscale` (default), `Color` |
+| `WithDarkness(int)` | 0–100, server default 70 |
+| `WithPosition(int, int)` | pixel offset of the extracted region |
+| `WithWatermark(bool)` | forced on for the free tier regardless |
+| `WithDialect(string)` | e.g. `moca`; **paid** |
+| `WithLabelSize(float, float)` | **inches**, not dots |
+| `WithPdfConversionMode(PdfConversionMode)` | `Image` (default) or `Native` |
+| `WithPdfPage(int)` | **0-based**; omit to convert every page |
+| `WithZplCommandsToIgnore(params string[])` | e.g. `"^PQ"` |
+| `WithZplImageCompression(ZplImageCompression)` | `Z64` (default) or `CompressedHex` |
+| `WithData(params object?[])` | one label per record |
+| `WithParameter(string, object?)` | escape hatch for anything not modeled yet |
+
+Only options you actually set are sent. The SDK never fills in a client-side default, so a change
+to a server default reaches you without an SDK upgrade.
+
+## Errors
+
+Every non-2xx becomes a typed exception carrying the server's own message, the raw body, and the
+`X-LZ-Request-Id` support handle. The body is never discarded.
+
+```csharp
+try
 {
-    var zpl = await client.PdfToZpl("path/to/document.pdf");
-    Console.WriteLine(zpl);
+    var result = await client.Convert().FromZpl(zpl).ToJson().ExecuteAsync();
+}
+catch (LabelZoomForbiddenException ex) when (ex.IsPaidFeature)
+{
+    // "JSON export is a paid feature" — the most common free-tier failure.
+    Console.WriteLine($"{ex.Message} (request {ex.RequestId})");
+}
+catch (LabelZoomException ex)
+{
+    // One base type catches them all.
+    Console.WriteLine($"{(int)ex.StatusCode}: {ex.Message}");
 }
 ```
 
-### Streaming PDF to ZPL (for large documents)
+`LabelZoomBadRequestException`, `LabelZoomUnauthorizedException`, `LabelZoomForbiddenException`,
+`LabelZoomNotFoundException`, `LabelZoomPayloadTooLargeException`, `LabelZoomRateLimitedException`
+and `LabelZoomServerException` all derive from `LabelZoomException`.
+
+`LabelZoomValidationException` deliberately does **not** — it means the calling code is wrong, it
+never reaches the network, and it should not be swallowed by a `catch (LabelZoomException)` written
+to handle server failures.
+
+## Retries
+
+429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
+honouring a longer `Retry-After`. Other 4xx responses are returned immediately — a malformed
+request will not become valid on a second attempt.
 
 ```csharp
-using LabelzoomDotnetSdk;
-
-using (var client = new LabelzoomClient("YOUR_AUTH_TOKEN"))
+using var client = new LabelZoomClient(new LabelZoomClientOptions
 {
-    await client.PdfToZplAsync("path/to/document.pdf", async (zpl) => 
-    {
-        // Process each label as it's received
-        Console.WriteLine($"Received label: {zpl.Substring(0, 50)}...");
-        // Send to printer, save to file, etc.
-    });
-}
+    MaxRetries = 0,                        // disable
+    Timeout = TimeSpan.FromSeconds(30),
+});
 ```
 
-### Custom Endpoint
+## Dependency injection
 
 ```csharp
-using LabelzoomDotnetSdk;
-
-using (var client = new LabelzoomClient("YOUR_AUTH_TOKEN"))
+services.AddHttpClient("labelzoom");
+services.AddSingleton(sp => new LabelZoomClient(new LabelZoomClientOptions
 {
-    client.Endpoint = "https://custom-api.example.com";
-    var zpl = await client.PdfToZpl("path/to/document.pdf");
-}
+    HttpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("labelzoom"),
+}));
 ```
 
-## API Reference
+`LabelZoomClient` is thread-safe and meant to be long-lived. When you supply your own
+`HttpClient`, you own its lifetime and the SDK will not dispose it.
 
-### LabelzoomClient
+## Testing your own code
 
-#### Constructor
+`LabelZoomClientOptions.HttpMessageHandler` is the stub seam, and `SleepAsync` lets retry logic be
+tested without spending the wall-clock time:
 
 ```csharp
-public LabelzoomClient(string token)
+var options = new LabelZoomClientOptions
+{
+    HttpMessageHandler = yourStubHandler,
+    UseJitter = false,
+    SleepAsync = (delay, _) => { recorded.Add(delay); return Task.CompletedTask; },
+};
 ```
 
-Creates a new instance of the LabelZoom client with the specified authentication token.
+## Running the tests
 
-#### Properties
-
-- `string Endpoint` - The API endpoint URL (default: `https://api.labelzoom.com`)
-
-#### Methods
-
-##### PdfToZpl
-
-```csharp
-public async Task<string> PdfToZpl(string pdfPath, CancellationToken ct = default)
+```sh
+dotnet test --filter "Category!=Integration"    # offline; no key, no network
+dotnet test --filter "Category=Integration"     # hits the real API
 ```
 
-Converts a PDF document to a single ZPL string. Best used for smaller documents with fewer pages.
-
-**Parameters:**
-- `pdfPath` - Path to the PDF file
-- `ct` - Optional cancellation token
-
-**Returns:** ZPL string containing all labels
-
-##### PdfToZplAsync
-
-```csharp
-public async Task PdfToZplAsync(string pdfPath, Func<string, Task> onLabelAsync, CancellationToken ct = default)
-```
-
-Converts a PDF document to ZPL and streams the response one label at a time. Best used for larger documents with many pages.
-
-**Parameters:**
-- `pdfPath` - Path to the PDF file
-- `onLabelAsync` - Callback function invoked for each label
-- `ct` - Optional cancellation token
-
-## Building
-
-```bash
-cd dotnet
-dotnet build LabelzoomDotnetSdk.sln
-```
-
-## Running Tests
-
-```bash
-cd dotnet
-dotnet test
-```
-
-## Authentication
-
-You need a LabelZoom API token to use this SDK. Contact [LabelZoom](https://www.labelzoom.com) to obtain an API token.
-
-## Code Snippets
-
-Additional code snippets and examples can be found in the `snippets/` directory.
+The offline suite runs the shared [conformance fixtures](../conformance/) that every LabelZoom SDK
+is checked against, and asserts it executed all of them. See
+[docs/CONFORMANCE.md](../docs/CONFORMANCE.md).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
-
-## Support
-
-For questions or support, visit [LabelZoom](https://www.labelzoom.com) or contact the LabelZoom team.
-
+MIT — see [LICENSE](../LICENSE).

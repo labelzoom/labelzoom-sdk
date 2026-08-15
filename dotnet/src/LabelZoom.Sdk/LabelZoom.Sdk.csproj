@@ -1,20 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- netstandard2.0 keeps .NET Framework 4.6.1+ in reach, which still matters in the
+         warehouse and ERP estates this SDK targets. net8.0 is built alongside so a modern
+         runtime gets its in-box System.Text.Json rather than the compatibility package. -->
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <!-- Package Information -->
-    <PackageId>LabelZoom.DotnetSdk</PackageId>
+    <PackageId>LabelZoom.Sdk</PackageId>
+    <RootNamespace>LabelZoom.Sdk</RootNamespace>
+    <AssemblyName>LabelZoom.Sdk</AssemblyName>
     <Version>1.0.0</Version>
     <Authors>LabelZoom</Authors>
     <Company>RJF Technology Solutions</Company>
     <Product>LabelZoom .NET SDK</Product>
-    <Description>Official .NET SDK for LabelZoom API - Convert PDF documents to and from ZPL (Zebra Programming Language) for barcode label printing</Description>
-    <PackageTags>labelzoom;zpl;zebra;pdf;conversion;barcode;labels</PackageTags>
-    <PackageProjectUrl>https://github.com/labelzoom/labelzoom-zpl-sdk/dotnet</PackageProjectUrl>
+    <Description>Official .NET SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster images.</Description>
+    <PackageTags>labelzoom;zpl;epl;tspl;dpl;zebra;pdf;conversion;barcode;labels</PackageTags>
+    <PackageProjectUrl>https://github.com/labelzoom/labelzoom-zpl-sdk</PackageProjectUrl>
     <RepositoryUrl>https://github.com/labelzoom/labelzoom-zpl-sdk</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -23,8 +29,6 @@
 
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
-    <NoWarn>$(NoWarn);1591</NoWarn><!-- Suppress missing XML comment warnings -->
 
     <!-- Source Link -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -42,7 +46,7 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-    <None Include="..\..\LICENSE" Link="Resources\LICENSE">
+    <None Include="..\..\..\LICENSE" Link="Resources\LICENSE">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
@@ -54,6 +58,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <!-- System.Text.Json is in-box on net8.0; netstandard2.0 needs the package. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 
 </Project>

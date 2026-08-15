@@ -1,0 +1,70 @@
+name: Live API Tests
+
+# Deliberately never triggered by `pull_request`.
+#
+# These tests call the real API. A fork PR has no secrets, and more importantly running
+# them on untrusted PR code would expose whatever credential they use. The offline
+# conformance suite is what gates merges; this catches server-side contract drift on a
+# schedule, out of band.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:00 UTC daily. Nothing depends on this being prompt.
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  dotnet:
+    name: dotnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('dotnet/**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Build
+        run: dotnet build --configuration Release
+        working-directory: ./dotnet
+
+      # The smoke tests run anonymously on purpose -- the free tier is a supported
+      # configuration and the first thing a new user hits, so it is what gets watched.
+      # LogFilePath is absolute because JunitXml.TestLogger resolves it against the
+      # test process's working directory, not --results-directory; a relative path
+      # lands somewhere the upload glob never sees.
+      - name: Test
+        run: >-
+          dotnet test --no-build --configuration Release --verbosity normal
+          --filter "Category=Integration"
+          --logger "junit;LogFilePath=${{ github.workspace }}/test-results/dotnet-live.xml"
+        working-directory: ./dotnet
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled())
+        with:
+          name: live-test-results
+          path: test-results/

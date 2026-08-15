@@ -79,8 +79,9 @@ Defined **once** per language. Never inlined at a call site.
 ### A — Routing
 
 - **A1** `POST {baseUrl}/api/v2/convert/{sourceFormat}/to/{targetFormat}`, format tokens lowercased.
-- **A2** `jpg` normalizes to `jpeg` on **both** source and target before path construction. One
-  canonical wire spelling.
+- **A2** Source `jpg` normalizes to `jpeg` before path construction. `SourceFormat` carries both
+  spellings because callers describe files they already have; `TargetFormat` carries only `Jpeg`,
+  so a target needs no normalization — there is no other spelling to write.
 - **A3** Default `baseUrl` is `https://api.labelzoom.com`. Trailing slashes are normalized away.
   `api.labelzoom.net` and `www.labelzoom.net` are legacy hosts and **must not** appear in shipped
   code, samples, or documentation.
