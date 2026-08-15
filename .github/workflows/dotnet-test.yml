@@ -1,14 +1,18 @@
 name: .NET Tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
       - 'dotnet/**'
       - 'conformance/**'
       - '.github/workflows/dotnet-test.yml'
+  # No base-branch filter on purpose. The language SDKs land as a stack of PRs, each
+  # based on the previous one, and `branches: [main]` means every PR in that stack
+  # except the bottom gets zero checks -- the code that most needs compiling is the
+  # code CI silently skips.
   pull_request:
-    branches: [ main ]
     paths:
       - 'dotnet/**'
       # The conformance fixtures ARE the contract. A fixture change has to re-run every

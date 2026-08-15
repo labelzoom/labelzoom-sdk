@@ -9,10 +9,11 @@ name: Conformance Lint
 # This job always runs, so it is the one safe check to require.
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
+  # Unfiltered by base branch so stacked PRs are checked too -- see dotnet-test.yml.
   pull_request:
-    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
