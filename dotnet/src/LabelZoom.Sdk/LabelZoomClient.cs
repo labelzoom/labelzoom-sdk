@@ -170,7 +170,10 @@ namespace LabelZoom.Sdk
                         throw error;
                     }
 
-                    var retryAfter = (error as LabelZoomRateLimitedException)?.RetryAfterSeconds;
+                    // Read from the response, not from the error: only LabelZoomRateLimitedException
+                    // surfaces RetryAfterSeconds, so keying off the exception type silently ignored
+                    // the header on a 503 -- which RFC 9110 explicitly allows it on.
+                    var retryAfter = ReadRetryAfterSeconds(response);
                     await DelayAsync(attempt, retryAfter, cancellationToken).ConfigureAwait(false);
                 }
                 catch (HttpRequestException) when (attempt < attempts)
