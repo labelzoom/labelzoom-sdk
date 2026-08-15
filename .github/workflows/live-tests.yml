@@ -56,7 +56,8 @@ jobs:
         run: >-
           dotnet test --no-build --configuration Release --verbosity normal
           --filter "Category=Integration"
-          --logger "junit;LogFilePath=../test-results/dotnet-live.xml"
+          --logger "junit;LogFilePath=dotnet-live.xml"
+          --results-directory ../test-results
         working-directory: ./dotnet
 
       - name: Upload test results
