@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 80,
+  "caseCount": 81,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -81,6 +81,7 @@
     "response/request-id-absent",
     "response/request-id-uppercase-header",
     "response/success-binary-png",
+    "response/success-text-non-utf8-charset",
     "response/success-text-zpl",
     "retry/400-is-not-retried",
     "retry/403-is-not-retried",

@@ -5,11 +5,15 @@ on:
     branches: [ main ]
     paths:
       - 'dotnet/**'
+      - 'conformance/**'
       - '.github/workflows/dotnet-test.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'dotnet/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
       - '.github/workflows/dotnet-test.yml'
 
 # Cancel in-progress runs for the same workflow and branch/PR
@@ -36,8 +40,8 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
       with:
-        # Matches the test project's net8.0. src targets netstandard2.0, which
-        # this SDK can still build.
+        # Matches the test project's net8.0. src multi-targets netstandard2.0 (for
+        # .NET Framework 4.6.1+ consumers) and net8.0, both buildable with this SDK.
         dotnet-version: '8.0.x'
 
     # setup-dotnet's built-in `cache: true` needs a packages.lock.json, and this
@@ -59,22 +63,20 @@ jobs:
       run: dotnet build --no-restore --configuration Release
       working-directory: ./dotnet
 
-    # These secrets are absent on pull requests from forks -- this repo is public.
-    # Tests that need a live endpoint must skip themselves when the vars are unset
-    # rather than fail, or fork contributions can never go green.
+    # No secrets, no network. Everything here is served by a stubbed HttpMessageHandler,
+    # so this passes identically on a fork pull request -- which is what the previous
+    # suite could not do: it threw in its constructor when the token was unset, turning
+    # every fork PR red. Live tests live in live-tests.yml and are excluded by category.
     - name: Test
       run: >-
         dotnet test --no-build --configuration Release --verbosity normal
-        --logger "trx;LogFileName=test-results.trx"
-        --results-directory ../test-results
+        --filter "Category!=Integration"
+        --logger "junit;LogFilePath=../test-results/dotnet.xml"
       working-directory: ./dotnet
-      env:
-        LABELZOOM_API_TOKEN: ${{ secrets.LABELZOOM_API_TOKEN }}
-        LABELZOOM_ENDPOINT: ${{ secrets.LABELZOOM_ENDPOINT }}
 
     - name: Upload test results
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: (!cancelled())
       with:
         name: test-results
-        path: test-results/**/*.trx
+        path: test-results/**/*.xml

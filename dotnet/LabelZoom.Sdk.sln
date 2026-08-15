@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36908.2
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelzoomDotnetSdk", "src\LabelzoomDotnetSdk\LabelzoomDotnetSdk.csproj", "{9B07C6E5-7665-46C0-B098-17747AB1BA09}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelZoom.Sdk", "src\LabelZoom.Sdk\LabelZoom.Sdk.csproj", "{9B07C6E5-7665-46C0-B098-17747AB1BA09}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelzoomDotnetSdk.Tests", "tests\LabelzoomDotnetSdk.Tests\LabelzoomDotnetSdk.Tests.csproj", "{53AA1E18-B35F-46DE-A0D5-5D3AC1153FFE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabelZoom.Sdk.Tests", "tests\LabelZoom.Sdk.Tests\LabelZoom.Sdk.Tests.csproj", "{53AA1E18-B35F-46DE-A0D5-5D3AC1153FFE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

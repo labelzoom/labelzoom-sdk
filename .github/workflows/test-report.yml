@@ -1,7 +1,10 @@
 # Caller stub. The reporter itself lives in labelzoom/.github.
 #
-# The .NET BUILD stays local: one consumer means a reusable workflow would buy
-# indirection without deduplication. The reporter is genuinely shared.
+# The per-language BUILD workflows stay local: each needs its own toolchain setup, and
+# a reusable workflow would buy indirection without deduplication. The reporter is
+# genuinely shared. Every language emits JUnit XML (the .NET project uses
+# JunitXml.TestLogger) so one reporter covers them all -- this costs the richer
+# .NET-specific detail dotnet-trx gave, and buys not maintaining seven of these.
 name: 'Test Report'
 
 # zizmor flags workflow_run as fundamentally dangerous, and for the usual usage it
@@ -11,6 +14,8 @@ name: 'Test Report'
 # the result file. The residual risk is confined to that parser.
 on:  # zizmor: ignore[dangerous-triggers]
   workflow_run:
+    # One entry per language suite. All of them emit JUnit XML so this stays a
+    # single stub rather than one near-identical caller per language.
     workflows: ['.NET Tests']
     types:
       - completed
@@ -24,9 +29,9 @@ jobs:
       github.event.workflow_run.conclusion == 'failure'
     uses: labelzoom/.github/.github/workflows/test-report.yml@v1
     with:
-      check-name: '.NET Tests'
-      path: '**/*.trx'
-      reporter: dotnet-trx
+      check-name: ${{ github.event.workflow_run.name }}
+      path: '**/*.xml'
+      reporter: java-junit
     permissions:
       contents: read
       actions: read
