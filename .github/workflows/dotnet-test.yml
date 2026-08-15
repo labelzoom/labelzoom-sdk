@@ -71,12 +71,14 @@ jobs:
     # so this passes identically on a fork pull request -- which is what the previous
     # suite could not do: it threw in its constructor when the token was unset, turning
     # every fork PR red. Live tests live in live-tests.yml and are excluded by category.
+    # LogFilePath is absolute because JunitXml.TestLogger resolves it against the
+    # test process's working directory, not --results-directory; a relative path
+    # lands somewhere the upload glob never sees.
     - name: Test
       run: >-
         dotnet test --no-build --configuration Release --verbosity normal
         --filter "Category!=Integration"
-        --logger "junit;LogFilePath=dotnet.xml"
-        --results-directory ../test-results
+        --logger "junit;LogFilePath=${{ github.workspace }}/test-results/dotnet.xml"
       working-directory: ./dotnet
 
     - name: Upload test results
@@ -84,4 +86,4 @@ jobs:
       if: (!cancelled())
       with:
         name: test-results
-        path: test-results/**/*.xml
+        path: test-results/

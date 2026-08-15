@@ -52,12 +52,14 @@ jobs:
 
       # The smoke tests run anonymously on purpose -- the free tier is a supported
       # configuration and the first thing a new user hits, so it is what gets watched.
+      # LogFilePath is absolute because JunitXml.TestLogger resolves it against the
+      # test process's working directory, not --results-directory; a relative path
+      # lands somewhere the upload glob never sees.
       - name: Test
         run: >-
           dotnet test --no-build --configuration Release --verbosity normal
           --filter "Category=Integration"
-          --logger "junit;LogFilePath=dotnet-live.xml"
-          --results-directory ../test-results
+          --logger "junit;LogFilePath=${{ github.workspace }}/test-results/dotnet-live.xml"
         working-directory: ./dotnet
 
       - name: Upload test results
@@ -65,4 +67,4 @@ jobs:
         if: (!cancelled())
         with:
           name: live-test-results
-          path: test-results/**/*.xml
+          path: test-results/
