@@ -10,7 +10,7 @@ image_path = 'LabelZoom_Logo_f_400px.png' # TODO: Replace this with the relative
 with open(image_path, 'rb') as f:
     image_bytes = f.read()
 
-url = 'https://www.labelzoom.net/api/v2/convert/png/to/zpl'
+url = 'https://api.labelzoom.com/api/v2/convert/png/to/zpl'
 headers = { 'Content-Type': 'image/png', 'Accept': 'text/plain' }
 response = requests.post(url, data=image_bytes, headers=headers)
 

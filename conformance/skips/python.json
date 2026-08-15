@@ -1,0 +1,21 @@
+{
+  "language": "python",
+  "skips": [
+    {
+      "id": "typecheck/epl-is-not-a-target",
+      "reason": "Python has no compile step; SourceFormat/TargetFormat are Literal types checked by mypy in a separate lint job, not by the test suite."
+    },
+    {
+      "id": "typecheck/tspl-is-not-a-target",
+      "reason": "Python has no compile step; SourceFormat/TargetFormat are Literal types checked by mypy in a separate lint job, not by the test suite."
+    },
+    {
+      "id": "typecheck/dpl-is-not-a-target",
+      "reason": "Python has no compile step; SourceFormat/TargetFormat are Literal types checked by mypy in a separate lint job, not by the test suite."
+    },
+    {
+      "id": "typecheck/source-format-not-accepted-as-target",
+      "reason": "Python has no compile step; SourceFormat/TargetFormat are Literal types checked by mypy in a separate lint job, not by the test suite."
+    }
+  ]
+}

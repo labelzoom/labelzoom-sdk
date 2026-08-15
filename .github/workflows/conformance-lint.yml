@@ -1,0 +1,77 @@
+name: Conformance Lint
+
+# Deliberately NOT path-filtered, unlike the per-language test workflows.
+#
+# Two reasons. First, the repo-wide guards in conformance/lint.mjs (legacy hosts,
+# license metadata) only mean something if they see every change. Second, this repo is
+# heading for seven path-filtered language workflows, and a branch ruleset that marks a
+# path-filtered check "required" deadlocks on any PR that does not touch its paths.
+# This job always runs, so it is the one safe check to require.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # No dependencies: lint.mjs is deliberately stdlib-only so it can run before any
+      # language SDK exists and without a package.json in the repo root.
+      - name: Validate conformance fixtures
+        run: node conformance/lint.mjs
+
+      # Downloaded and checksum-verified rather than pulled as an action, matching
+      # labelzoom/.github's own CI. A mutable tag would undercut the pinning this repo
+      # is asking Dependabot to maintain.
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: '1.7.7'
+          ACTIONLINT_SHA256: '023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757'
+        run: |
+          set -euo pipefail
+          # shellcheck must be on PATH; ubuntu-latest ships it. Running actionlint with
+          # `-shellcheck=` disables the shell linting entirely and reports a false
+          # all-clear, so do not "fix" a shellcheck failure that way.
+          command -v shellcheck >/dev/null || { echo "::error::shellcheck missing"; exit 1; }
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o actionlint.tgz "$url"
+          echo "${ACTIONLINT_SHA256}  actionlint.tgz" | sha256sum -c -
+          tar xzf actionlint.tgz actionlint
+          ./actionlint -color
+
+      - name: zizmor
+        env:
+          ZIZMOR_VERSION: '1.11.0'
+          ZIZMOR_SHA256: 'da35e666827cbb1e6ca98b18b7969657b9f186467bfebfa25e730aac527c36f8'
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -o zizmor.tgz "$url"
+          echo "${ZIZMOR_SHA256}  zizmor.tgz" | sha256sum -c -
+          tar xzf zizmor.tgz
+          ./zizmor --format plain --min-severity medium --min-confidence low .github/workflows/

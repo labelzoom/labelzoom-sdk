@@ -2,7 +2,7 @@ public async Task<string> PdfToZpl(string pdfPath)
 {
 	using (var client = new HttpClient())
 	{
-		client.BaseAddress = new Uri("https://api.labelzoom.net");
+		client.BaseAddress = new Uri("https://api.labelzoom.com");
 		client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "<YOUR AUTH TOKEN HERE>");
 		using (var fileStream = File.OpenRead(pdfPath))
 		using (var request = new HttpRequestMessage(HttpMethod.Post, "/api/v2.5/convert/pdf/to/zpl"))

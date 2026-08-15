@@ -19,7 +19,7 @@ namespace LabelzoomDotnetSdk
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        public string Endpoint { get; set; } = "https://api.labelzoom.net";
+        public string Endpoint { get; set; } = "https://api.labelzoom.com";
 
         /// <summary>
         /// Converts a PDF document to a single ZPL string. Best used for smaller documents with fewer pages.

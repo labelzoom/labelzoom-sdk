@@ -1,0 +1,10 @@
+{
+  "id": "typecheck/tspl-is-not-a-target",
+  "note": "1.1: TSPL is source-only. In a statically typed language there is no TargetFormat.TSPL to name, so this must not compile.",
+  "given": {
+    "snippet": "client.convert().fromZpl(body).to(TSPL)"
+  },
+  "expect": {
+    "compileError": true
+  }
+}

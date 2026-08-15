@@ -83,7 +83,7 @@ Creates a new instance of the LabelZoom client with the specified authentication
 
 #### Properties
 
-- `string Endpoint` - The API endpoint URL (default: `https://api.labelzoom.net`)
+- `string Endpoint` - The API endpoint URL (default: `https://api.labelzoom.com`)
 
 #### Methods
 
@@ -130,7 +130,7 @@ dotnet test
 
 ## Authentication
 
-You need a LabelZoom API token to use this SDK. Contact [LabelZoom](https://www.labelzoom.net) to obtain an API token.
+You need a LabelZoom API token to use this SDK. Contact [LabelZoom](https://www.labelzoom.com) to obtain an API token.
 
 ## Code Snippets
 
@@ -138,9 +138,9 @@ Additional code snippets and examples can be found in the `snippets/` directory.
 
 ## License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](../LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details.
 
 ## Support
 
-For questions or support, visit [LabelZoom](https://www.labelzoom.net) or contact the LabelZoom team.
+For questions or support, visit [LabelZoom](https://www.labelzoom.com) or contact the LabelZoom team.
 
