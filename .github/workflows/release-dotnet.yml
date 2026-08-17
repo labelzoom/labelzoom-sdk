@@ -1,0 +1,125 @@
+name: Release .NET
+
+# Publishes LabelZoom.Sdk to nuget.org via Trusted Publishing (OIDC).
+#
+# The FILENAME of this workflow is a matched claim in the nuget.org trusted publishing
+# policy. Renaming this file breaks publishing.
+#
+# Long-lived NuGet API keys are on the way out regardless: since 17 August 2026 new keys
+# are capped at 30 days, and every key created before that date expires 1 November 2026.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and pack without publishing'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'dotnet/v*'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write   # required for the OIDC token nuget.org exchanges for an API key
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('dotnet/**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+        working-directory: ./dotnet
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+        working-directory: ./dotnet
+
+      # The release gate is the same offline conformance suite the PR builds run.
+      # Integration tests are excluded: they hit the live API and are not a release gate.
+      - name: Test
+        run: >-
+          dotnet test --no-build --configuration Release
+          --filter "Category!=Integration"
+        working-directory: ./dotnet
+
+      - name: Pack
+        run: >-
+          dotnet pack src/LabelZoom.Sdk/LabelZoom.Sdk.csproj
+          --no-build --configuration Release
+          --output "${{ github.workspace }}/artifacts"
+        working-directory: ./dotnet
+
+      # A tag must agree with the version it claims to release.
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#dotnet/v}"
+          shopt -s nullglob
+          packages=(artifacts/LabelZoom.Sdk.*.nupkg)
+          if [ ${#packages[@]} -ne 1 ]; then
+            echo "::error::Expected exactly one .nupkg, found ${#packages[@]}"
+            exit 1
+          fi
+          pkg_version="$(basename "${packages[0]}" .nupkg)"
+          pkg_version="${pkg_version#LabelZoom.Sdk.}"
+          echo "tag=$tag_version package=$pkg_version"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match packed version ${pkg_version}"
+            exit 1
+          fi
+
+      - name: List artifacts
+        run: ls -l artifacts
+
+      # Requested immediately before the push: the temporary key is valid for 1 hour, and
+      # each OIDC token can be exchanged exactly once.
+      - name: NuGet login (OIDC to temporary API key)
+        if: ${{ !inputs.dry-run }}
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+        id: login
+        with:
+          # nuget.org profile name — NOT an email address.
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to nuget.org
+        if: ${{ !inputs.dry-run }}
+        run: >-
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
+      - name: Upload packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled())
+        with:
+          name: nuget-packages
+          path: artifacts/

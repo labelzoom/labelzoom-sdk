@@ -10,13 +10,26 @@ uses the platform `fetch`.
 
 ## Install
 
-Not yet published to npm. Build from source:
+```sh
+npm install @labelzoom/sdk
+```
+
+Published from CI with [npm provenance](https://docs.npmjs.com/generating-provenance-statements),
+so every release is cryptographically linked to the commit and workflow that built it.
+
+> **Pre-1.0.** The public API is stable in practice and covered by a shared conformance
+> suite, but it stays on `0.x` until all seven language SDKs have validated the same
+> contract — two contract-level corrections have already come out of that process.
+
+<details>
+<summary>Build from source</summary>
 
 ```sh
-git clone https://github.com/labelzoom/labelzoom-zpl-sdk.git
-cd labelzoom-zpl-sdk/node
+git clone https://github.com/labelzoom/labelzoom-sdk.git
+cd labelzoom-sdk/node
 npm install && npm run build
 ```
+</details>
 
 ## Quick start
 
