@@ -103,7 +103,9 @@ jobs:
         uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
         id: login
         with:
-          # nuget.org profile name — NOT an email address.
+          # The nuget.org profile name of an INDIVIDUAL user — not an email address, and
+          # not the organization name, even when the package and the trusted publishing
+          # policy are both owned by the org. Verified the hard way on the first release.
           user: ${{ secrets.NUGET_USER }}
 
       - name: Publish to nuget.org
