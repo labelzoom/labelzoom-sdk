@@ -18,7 +18,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <!-- Emits JUnit XML so the org-shared test-report workflow can use one reporter
          across every language rather than a per-language caller stub. -->
-    <PackageReference Include="JunitXml.TestLogger" Version="3.1.12" />
+    <PackageReference Include="JunitXml.TestLogger" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
