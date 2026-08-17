@@ -48,14 +48,25 @@ jobs:
           # package that is then signed with provenance and trusted by every consumer.
           # zizmor flags this as cache-poisoning; the finding is correct.
 
-      # Trusted publishing needs npm >= 11.5.1. The npm bundled with Node 22.x is 10.x,
-      # so without this the publish fails with an authentication error rather than
-      # anything that points at the real cause.
-      - name: Upgrade npm for OIDC support
+      # Trusted publishing needs npm >= 11.5.1. Node 24 LTS bundles 11.17.x, so nothing
+      # needs installing -- which matters here: `npm install -g npm@latest` is an
+      # unpinned network dependency inside the job that publishes signed artifacts, and
+      # it is what broke this workflow once already (npm@latest moved to 12.x, whose
+      # engine range excludes the Node this repo pins).
+      #
+      # Asserted rather than assumed: a future Node bump that regressed the bundled npm
+      # would otherwise surface as a confusing authentication failure at publish time.
+      - name: Verify npm supports trusted publishing
         run: |
           set -euo pipefail
-          npm install -g npm@latest
-          npm --version
+          npm_version="$(npm --version)"
+          echo "npm ${npm_version}, node $(node --version)"
+          # sort -V rather than a hand-rolled field compare, which gets 11.5.0 wrong.
+          oldest="$(printf '%s\n' "11.5.1" "$npm_version" | sort -V | head -n1)"
+          if [ "$oldest" != "11.5.1" ] && [ "$npm_version" != "11.5.1" ]; then
+            echo "::error::npm ${npm_version} is too old for trusted publishing (need >= 11.5.1)"
+            exit 1
+          fi
 
       - name: Install dependencies
         run: npm ci
