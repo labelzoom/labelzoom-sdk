@@ -14,14 +14,14 @@
     <PackageId>LabelZoom.Sdk</PackageId>
     <RootNamespace>LabelZoom.Sdk</RootNamespace>
     <AssemblyName>LabelZoom.Sdk</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>0.1.1</Version>
     <Authors>LabelZoom</Authors>
     <Company>RJF Technology Solutions</Company>
     <Product>LabelZoom .NET SDK</Product>
     <Description>Official .NET SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster images.</Description>
     <PackageTags>labelzoom;zpl;epl;tspl;dpl;zebra;pdf;conversion;barcode;labels</PackageTags>
-    <PackageProjectUrl>https://github.com/labelzoom/labelzoom-zpl-sdk</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/labelzoom/labelzoom-zpl-sdk</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/labelzoom/labelzoom-sdk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/labelzoom/labelzoom-sdk</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>

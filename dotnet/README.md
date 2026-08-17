@@ -9,13 +9,23 @@ Targets **netstandard2.0** (so .NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+) a
 
 ## Install
 
-Not yet published to NuGet. Build from source:
+```sh
+dotnet add package LabelZoom.Sdk
+```
+
+> **Pre-1.0.** The public API is stable in practice and covered by a shared conformance
+> suite, but it stays on `0.x` until all seven language SDKs have validated the same
+> contract — two contract-level corrections have already come out of that process.
+
+<details>
+<summary>Build from source</summary>
 
 ```sh
-git clone https://github.com/labelzoom/labelzoom-zpl-sdk.git
-cd labelzoom-zpl-sdk/dotnet
+git clone https://github.com/labelzoom/labelzoom-sdk.git
+cd labelzoom-sdk/dotnet
 dotnet build LabelZoom.Sdk.sln
 ```
+</details>
 
 ## Quick start
 

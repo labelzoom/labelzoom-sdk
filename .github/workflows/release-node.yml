@@ -1,0 +1,123 @@
+name: Release Node
+
+# Publishes @labelzoom/sdk to npm via Trusted Publishing (OIDC) — no token, no secret.
+#
+# The FILENAME of this workflow is a matched claim in the npm trusted publisher policy.
+# Renaming this file silently breaks publishing, and npm does not validate the policy
+# when you save it, so the failure surfaces only at publish time.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and verify without publishing'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'node/v*'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write   # required for the OIDC token npm exchanges for publish rights
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: node/.nvmrc
+          registry-url: https://registry.npmjs.org
+          # No `cache: npm` here, deliberately -- unlike node-test.yml. A restored cache
+          # is attacker-influenced input, and anything it plants would be baked into a
+          # package that is then signed with provenance and trusted by every consumer.
+          # zizmor flags this as cache-poisoning; the finding is correct.
+
+      # Trusted publishing needs npm >= 11.5.1. The npm bundled with Node 22.x is 10.x,
+      # so without this the publish fails with an authentication error rather than
+      # anything that points at the real cause.
+      - name: Upgrade npm for OIDC support
+        run: |
+          set -euo pipefail
+          npm install -g npm@latest
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./node
+
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: ./node
+
+      # The release gate is the same conformance suite the PR builds run: 80 shared
+      # fixtures plus the assertion that all of them executed.
+      - name: Test
+        run: npm test
+        working-directory: ./node
+
+      - name: Build
+        run: npm run build
+        working-directory: ./node
+
+      # A tag must agree with the version it claims to release, or `node/v0.1.1` quietly
+      # publishes whatever package.json happens to say.
+      - name: Verify tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#node/v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          echo "tag=$tag_version package.json=$pkg_version"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version ${pkg_version}"
+            exit 1
+          fi
+        working-directory: ./node
+
+      # An empty tarball publishes happily and breaks every consumer's import, so check
+      # the artifact rather than trusting that the build step ran.
+      - name: Verify the tarball contains the build output
+        run: |
+          set -euo pipefail
+          npm pack --silent >/dev/null
+          tar -tzf labelzoom-sdk-*.tgz > /tmp/tarball.txt
+          cat /tmp/tarball.txt
+          for required in \
+            package/dist/index.js \
+            package/dist/index.cjs \
+            package/dist/index.d.ts \
+            package/dist/index.d.cts \
+            package/README.md
+          do
+            grep -qx "$required" /tmp/tarball.txt \
+              || { echo "::error::$required is missing from the tarball"; exit 1; }
+          done
+          rm -f labelzoom-sdk-*.tgz
+        working-directory: ./node
+
+      # No NODE_AUTH_TOKEN and no --provenance flag: trusted publishing supplies the
+      # credential via OIDC and attaches provenance automatically.
+      - name: Publish to npm
+        if: ${{ !inputs.dry-run }}
+        run: npm publish --access public
+        working-directory: ./node
+
+      - name: Dry run summary
+        if: ${{ inputs.dry-run }}
+        run: echo "Dry run complete - built and verified, publish skipped."

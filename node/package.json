@@ -1,6 +1,6 @@
 {
   "name": "@labelzoom/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official Node.js/TypeScript SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster images.",
   "keywords": [
     "labelzoom",
@@ -16,10 +16,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/labelzoom/labelzoom-zpl-sdk.git",
+    "url": "git+https://github.com/labelzoom/labelzoom-sdk.git",
     "directory": "node"
   },
-  "homepage": "https://github.com/labelzoom/labelzoom-zpl-sdk/tree/main/node",
+  "homepage": "https://github.com/labelzoom/labelzoom-sdk/tree/main/node",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

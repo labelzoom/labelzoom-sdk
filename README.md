@@ -12,15 +12,17 @@ The SDKs are being rebuilt around a shared, machine-checked
 
 | Language | Package | Status |
 |---|---|---|
-| [.NET](dotnet/) | `LabelZoom.Sdk` | built, unpublished — the reference implementation |
-| [Node / TypeScript](node/) | `@labelzoom/sdk` | built, unpublished |
+| [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released `0.x` — the reference implementation |
+| [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released `0.x` |
 | Java | `com.labelzoom:labelzoom-sdk` | planned |
 | Python | `labelzoom` | planned |
 | Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
 | PHP | `labelzoom/sdk` | planned |
 | Ruby | `labelzoom` | planned |
 
-Nothing is published to a package registry yet. Until then, build from source.
+Published SDKs release from CI via OIDC trusted publishing — no long-lived tokens are
+stored anywhere. They stay on `0.x` until all seven have validated the shared contract;
+see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
 friends — see [`samples/`](samples/).
