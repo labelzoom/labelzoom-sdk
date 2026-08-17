@@ -19,7 +19,12 @@ export const DEFAULT_BASE_URL = 'https://api.labelzoom.com';
 /** The environment variable consulted when no credential is passed. */
 export const API_KEY_ENV_VAR = 'LABELZOOM_API_KEY';
 
-const SDK_VERSION = '1.0.0';
+// Replaced at build time by tsup's `define` from package.json. Vitest runs the
+// TypeScript source rather than the bundle, so the constant is absent there; the
+// conformance fixture asserts the User-Agent's shape, not its version.
+declare const __LABELZOOM_SDK_VERSION__: string | undefined;
+const SDK_VERSION =
+  typeof __LABELZOOM_SDK_VERSION__ === 'string' ? __LABELZOOM_SDK_VERSION__ : '0.0.0-dev';
 const REQUEST_ID_HEADER = 'x-lz-request-id';
 
 /** A document body: raw bytes, or text for the textual formats. */
