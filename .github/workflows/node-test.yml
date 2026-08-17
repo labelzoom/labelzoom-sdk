@@ -63,6 +63,28 @@ jobs:
         run: npx vitest run --reporter=junit --outputFile="${{ github.workspace }}/test-results/node.xml"
         working-directory: ./node
 
+      # A publish that ships no code is silent: `files` matches nothing, the tarball
+      # still builds, and every consumer's import throws. Assert the real tarball
+      # instead of trusting that the build ran.
+      - name: Verify the publishable tarball contains the build output
+        run: |
+          set -euo pipefail
+          npm pack --silent >/dev/null
+          tar -tzf labelzoom-sdk-*.tgz > /tmp/tarball.txt
+          cat /tmp/tarball.txt
+          for required in \
+            package/dist/index.js \
+            package/dist/index.cjs \
+            package/dist/index.d.ts \
+            package/dist/index.d.cts \
+            package/README.md
+          do
+            grep -qx "$required" /tmp/tarball.txt \
+              || { echo "::error::$required is missing from the published tarball"; exit 1; }
+          done
+          rm -f labelzoom-sdk-*.tgz
+        working-directory: ./node
+
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: (!cancelled())
