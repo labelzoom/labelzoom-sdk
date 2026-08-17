@@ -45,14 +45,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('dotnet/**/*.csproj') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
+      # No dependency cache here, deliberately -- unlike dotnet-test.yml.
+      # A restored cache is attacker-influenced input, and anything it plants would be
+      # baked into a package that is then signed, attested, and trusted by every
+      # consumer. The cache saves seconds on a workflow that runs a handful of times a
+      # year. zizmor flags this as cache-poisoning; the finding is correct.
       - name: Restore
         run: dotnet restore
         working-directory: ./dotnet

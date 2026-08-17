@@ -42,9 +42,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: node/.nvmrc
-          cache: npm
-          cache-dependency-path: node/package-lock.json
           registry-url: https://registry.npmjs.org
+          # No `cache: npm` here, deliberately -- unlike node-test.yml. A restored cache
+          # is attacker-influenced input, and anything it plants would be baked into a
+          # package that is then signed with provenance and trusted by every consumer.
+          # zizmor flags this as cache-poisoning; the finding is correct.
 
       # Trusted publishing needs npm >= 11.5.1. The npm bundled with Node 22.x is 10.x,
       # so without this the publish fails with an authentication error rather than
