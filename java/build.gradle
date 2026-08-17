@@ -1,0 +1,144 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+group = 'com.labelzoom'
+version = project.findProperty('sdkVersion') ?: '0.1.1'
+description = 'Official Java SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster images.'
+
+java {
+    // Java 17, not the engine's 25. The engine is internal and proprietary; an SDK's job is
+    // reach, and 17 already provides records, sealed types, switch expressions and
+    // java.net.http. `release` rather than a toolchain so this builds on any JDK >= 17
+    // without downloading a second one.
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all' << '-Werror'
+}
+
+tasks.withType(Javadoc).configureEach {
+    options.encoding = 'UTF-8'
+    options.addStringOption('Xdoclint:all,-missing', '-quiet')
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // No runtime dependencies, deliberately. This SDK is dropped into WMS/ERP deployments
+    // whose classpaths are already crowded, and a transitive JSON library is a real source
+    // of version conflicts. The little JSON the SDK needs is hand-rolled.
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // Test-only: the conformance runner has to parse the shared fixtures. Keeping this out
+    // of the published artifact is the whole point of hand-rolling the writer.
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+}
+
+test {
+    useJUnitPlatform()
+    // The offline conformance suite is the default. Integration tests hit the live API and
+    // are opt-in, so a fork PR with no credentials still goes green.
+    if (!System.getenv('LABELZOOM_LIVE_TESTS')) {
+        exclude '**/IntegrationTest.class'
+    }
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+            'Implementation-Title': 'LabelZoom Java SDK',
+            'Implementation-Version': project.version,
+            'Automatic-Module-Name': 'com.labelzoom.sdk'
+        )
+    }
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            artifactId = 'labelzoom-sdk'
+
+            // Every field below is mandatory for Maven Central. Missing POM metadata is the
+            // most common first-time publish rejection.
+            pom {
+                name = 'LabelZoom Java SDK'
+                description = project.description
+                url = 'https://github.com/labelzoom/labelzoom-sdk'
+
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'labelzoom'
+                        name = 'LabelZoom'
+                        email = 'support@labelzoom.com'
+                        organization = 'RJF Technology Solutions LLC'
+                        organizationUrl = 'https://www.labelzoom.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/labelzoom/labelzoom-sdk.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/labelzoom/labelzoom-sdk.git'
+                    url = 'https://github.com/labelzoom/labelzoom-sdk'
+                }
+            }
+        }
+    }
+}
+
+signing {
+    // In-memory keys so nothing touches the runner's filesystem or a gpg agent. Supplied by
+    // the release workflow from repository secrets; absent locally, where signing is skipped.
+    def signingKey = findProperty('signingInMemoryKey')
+    def signingPassword = findProperty('signingInMemoryKeyPassword')
+    if (signingKey) {
+        useInMemoryPgpKeys(signingKey.toString(), signingPassword?.toString())
+        sign publishing.publications.maven
+    }
+}
+
+// Assembles the exact directory layout the Central Portal expects in an upload bundle:
+// a Maven repository tree containing the artifacts, their POM, and a .asc for each file.
+tasks.register('centralBundle', Zip) {
+    dependsOn tasks.named('publishMavenPublicationToCentralStagingRepository')
+    archiveFileName = "labelzoom-sdk-${project.version}-bundle.zip"
+    destinationDirectory = layout.buildDirectory.dir('central')
+    from layout.buildDirectory.dir('central-staging')
+    // maven-metadata.* describes a repository, not a deployment. It serves no purpose in an
+    // upload bundle and is one more thing Central's validator can object to.
+    exclude '**/maven-metadata.*'
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'centralStaging'
+            url = layout.buildDirectory.dir('central-staging')
+        }
+    }
+}
+
+// Used by the release workflow to assert a tag matches the version it claims to release.
+tasks.register('printVersion') {
+    doLast { println project.version }
+}

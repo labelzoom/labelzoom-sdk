@@ -1,0 +1,175 @@
+name: Release Java
+
+# Publishes com.labelzoom:labelzoom-sdk to Maven Central via the Central Portal.
+#
+# Unlike the npm and NuGet releases, this one uses REAL SECRETS. Maven Central has no OIDC
+# equivalent, so the GPG private key plus its passphrase is standing publish authority for the
+# whole com.labelzoom namespace. Restrict who can dispatch this workflow accordingly.
+#
+# Required repository secrets:
+#   CENTRAL_TOKEN_USERNAME / CENTRAL_TOKEN_PASSWORD  - Central Portal user token
+#   SIGNING_IN_MEMORY_KEY                            - ASCII-armoured private key, whole block
+#   SIGNING_KEY_ID                                   - last 8 chars of the fingerprint
+#   SIGNING_PASSPHRASE                               - passphrase protecting the key
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build, sign and bundle without uploading'
+        type: boolean
+        default: false
+      publishing-type:
+        description: 'USER_MANAGED leaves the deployment for manual release in the Portal'
+        type: choice
+        options:
+          - USER_MANAGED
+          - AUTOMATIC
+        default: USER_MANAGED
+  push:
+    tags:
+      - 'java/v*'
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@94baf225fe0a508e581a564467443d0e2379123b # v4.4.4
+
+      # No dependency cache here, deliberately -- unlike java-test.yml. A restored cache is
+      # attacker-influenced input, and anything it plants would be baked into an artifact that
+      # is then GPG-signed and trusted by every consumer.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.4.4
+        with:
+          cache-disabled: true
+
+      # A tag must agree with the version it claims to release.
+      - name: Verify tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#java/v}"
+          project_version="$(./gradlew --no-daemon -q printVersion)"
+          echo "tag=${tag_version} project=${project_version}"
+          if [ "$tag_version" != "$project_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match project version ${project_version}"
+            exit 1
+          fi
+        working-directory: ./java
+
+      # The release gate is the same offline conformance suite the PR builds run.
+      - name: Build, test and bundle
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSPHRASE }}
+        run: ./gradlew build centralBundle
+        working-directory: ./java
+
+      # Central rejects an unsigned deployment, and it does so after upload with a message that
+      # takes a while to interpret. Checking here fails in seconds with an obvious reason.
+      - name: Verify the bundle is signed and complete
+        run: |
+          set -euo pipefail
+          bundle="$(ls build/central/*.zip)"
+          echo "bundle: ${bundle}"
+          unzip -l "$bundle"
+          entries="$(unzip -Z1 "$bundle")"
+          for required in \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*\.jar" \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*-sources\.jar" \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*-javadoc\.jar" \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*\.pom" \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*\.jar\.asc" \
+            "com/labelzoom/labelzoom-sdk/.*/labelzoom-sdk-.*\.pom\.asc"
+          do
+            echo "$entries" | grep -Eq "$required" \
+              || { echo "::error::bundle is missing an entry matching ${required}"; exit 1; }
+          done
+        working-directory: ./java
+
+      - name: Upload the deployment bundle to Central
+        if: ${{ !inputs.dry-run }}
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'USER_MANAGED' }}
+        run: |
+          set -euo pipefail
+          bundle="$(ls build/central/*.zip)"
+          auth="$(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
+
+          deployment_id="$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${auth}" \
+            -F "bundle=@${bundle}" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=labelzoom-sdk&publishingType=${PUBLISHING_TYPE}")"
+
+          echo "deployment id: ${deployment_id}"
+          echo "DEPLOYMENT_ID=${deployment_id}" >> "$GITHUB_ENV"
+        working-directory: ./java
+
+      # Validation is asynchronous. Without this the workflow goes green while the deployment
+      # is still validating, and a rejection is only discovered by logging into the Portal.
+      - name: Wait for validation
+        if: ${{ !inputs.dry-run }}
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          auth="$(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
+
+          for attempt in $(seq 1 40); do
+            state="$(curl --fail-with-body -sS -X POST \
+              -H "Authorization: Bearer ${auth}" \
+              "https://central.sonatype.com/api/v1/publisher/status?id=${DEPLOYMENT_ID}" \
+              | grep -o '"deploymentState"[[:space:]]*:[[:space:]]*"[A-Z]*"' \
+              | grep -o '[A-Z]\{4,\}' || true)"
+
+            echo "attempt ${attempt}: ${state:-unknown}"
+            case "$state" in
+              PUBLISHED|VALIDATED)
+                echo "Deployment reached ${state}."
+                exit 0
+                ;;
+              FAILED)
+                echo "::error::Central rejected the deployment. Open the Portal for the reason."
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+
+          echo "::error::Timed out waiting for the deployment to validate."
+          exit 1
+
+      - name: Upload bundle as a build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled())
+        with:
+          name: maven-central-bundle
+          path: java/build/central/*.zip
