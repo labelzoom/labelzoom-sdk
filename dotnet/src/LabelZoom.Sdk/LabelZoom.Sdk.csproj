@@ -14,7 +14,7 @@
     <PackageId>LabelZoom.Sdk</PackageId>
     <RootNamespace>LabelZoom.Sdk</RootNamespace>
     <AssemblyName>LabelZoom.Sdk</AssemblyName>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
     <Authors>LabelZoom</Authors>
     <Company>RJF Technology Solutions</Company>
     <Product>LabelZoom .NET SDK</Product>

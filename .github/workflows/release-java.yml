@@ -26,9 +26,14 @@ on:
           - USER_MANAGED
           - AUTOMATIC
         default: USER_MANAGED
-  push:
-    tags:
-      - 'java/v*'
+  # A published GitHub Release, not a bare tag push.
+  #
+  # Creating a release from an EXISTING tag fires no push event at all, so tag-push
+  # silently does nothing for the most common release flow. Configuring both would be
+  # worse: a release that creates its tag fires both events and tries to publish the
+  # same version twice.
+  release:
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}
@@ -39,6 +44,11 @@ permissions: {}
 jobs:
   publish:
     name: publish
+    # A release event is delivered to every release workflow; the tag prefix is what
+    # decides which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'java/v')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -69,14 +79,18 @@ jobs:
 
       # A tag must agree with the version it claims to release.
       - name: Verify tag matches project version
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
+        env:
+          # Passed as an env var rather than interpolated into the script: a tag name is
+          # attacker-influenced text, and inlining it into `run:` is template injection.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           set -euo pipefail
-          tag_version="${GITHUB_REF_NAME#java/v}"
+          tag_version="${RELEASE_TAG#java/v}"
           project_version="$(./gradlew --no-daemon -q printVersion)"
           echo "tag=${tag_version} project=${project_version}"
           if [ "$tag_version" != "$project_version" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match project version ${project_version}"
+            echo "::error::Tag ${RELEASE_TAG} does not match project version ${project_version}"
             exit 1
           fi
         working-directory: ./java
