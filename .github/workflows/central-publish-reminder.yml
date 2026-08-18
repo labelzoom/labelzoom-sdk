@@ -1,0 +1,90 @@
+name: Central Publish Reminder
+
+# Java releases upload to Maven Central as USER_MANAGED: validated, but not on the
+# repository until a human clicks Publish in the Portal. The release workflow opens an
+# issue as the reminder; this closes it once the version genuinely resolves from Central,
+# and nudges while it does not.
+#
+# Driven by the repository's actual state rather than by "we uploaded something", so the
+# open-issue list is an accurate queue of what still needs publishing.
+
+on:
+  schedule:
+    # 14:00 UTC daily — mid-morning US Central, so a nudge lands during the working day.
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    name: check pending deployments
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+
+    steps:
+      - name: Close or nudge each pending publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          issues="$(gh issue list --repo "$REPO" \
+            --label maven-central-publish --state open \
+            --json number,title,createdAt --jq '.[] | @base64')"
+
+          if [ -z "$issues" ]; then
+            echo "No pending Maven Central publishes."
+            exit 0
+          fi
+
+          for row in $issues; do
+            issue="$(echo "$row" | base64 -d)"
+            number="$(echo "$issue" | python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])')"
+            title="$(echo "$issue"  | python3 -c 'import json,sys; print(json.load(sys.stdin)["title"])')"
+            created="$(echo "$issue" | python3 -c 'import json,sys; print(json.load(sys.stdin)["createdAt"])')"
+
+            # Title format: "Publish com.labelzoom:labelzoom-sdk <version> on Maven Central"
+            version="$(echo "$title" | sed -n 's/.*labelzoom-sdk \([0-9][^ ]*\) on Maven Central/\1/p')"
+            if [ -z "$version" ]; then
+              echo "::warning::Issue #${number} has an unrecognized title; skipping."
+              continue
+            fi
+
+            url="https://repo1.maven.org/maven2/com/labelzoom/labelzoom-sdk/${version}/labelzoom-sdk-${version}.jar"
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$url" || echo 000)"
+            echo "issue #${number}: version ${version} -> HTTP ${code}"
+
+            if [ "$code" = "200" ]; then
+              gh issue comment "$number" --repo "$REPO" --body \
+                "\`${version}\` is now resolvable from Maven Central. Closing automatically.
+
+              \`\`\`
+              ${url}
+              \`\`\`"
+              gh issue close "$number" --repo "$REPO" --reason completed
+              continue
+            fi
+
+            # Still pending. One nudge per day is the point of the workflow, but say something
+            # useful rather than repeating the same line: how long it has been waiting.
+            age_days="$(python3 - "$created" <<'PY'
+          import sys, datetime
+          created = datetime.datetime.fromisoformat(sys.argv[1].replace('Z', '+00:00'))
+          now = datetime.datetime.now(datetime.timezone.utc)
+          print((now - created).days)
+          PY
+          )"
+
+            gh issue comment "$number" --repo "$REPO" --body \
+              "Still awaiting manual release — \`${version}\` does not resolve from Maven Central yet (waiting ${age_days} day(s)).
+
+              Publish it at https://central.sonatype.com/publishing/deployments"
+          done

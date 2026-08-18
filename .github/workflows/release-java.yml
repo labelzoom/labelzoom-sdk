@@ -20,12 +20,12 @@ on:
         type: boolean
         default: false
       publishing-type:
-        description: 'AUTOMATIC publishes once validation passes; USER_MANAGED waits for the Portal'
+        description: 'USER_MANAGED waits for the Portal; AUTOMATIC publishes once validation passes'
         type: choice
         options:
-          - AUTOMATIC
           - USER_MANAGED
-        default: AUTOMATIC
+          - AUTOMATIC
+        default: USER_MANAGED
   # A published GitHub Release, not a bare tag push.
   #
   # Creating a release from an EXISTING tag fires no push event at all, so tag-push
@@ -53,6 +53,7 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+      issues: write   # opens the "publish this on Central" reminder
 
     steps:
       - name: Checkout code
@@ -132,7 +133,7 @@ jobs:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           # A release event carries no inputs, so this is what the release path uses.
-          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
+          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'USER_MANAGED' }}
         run: |
           set -euo pipefail
           bundle="$(ls build/central/*.zip)"
@@ -154,23 +155,21 @@ jobs:
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
-          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
+          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'USER_MANAGED' }}
         run: |
           set -euo pipefail
           auth="$(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
 
-          # Under AUTOMATIC, VALIDATED is a waypoint on the way to PUBLISHED, not the end.
-          # Exiting there would report success while the deployment could still fail during
-          # publication. Under USER_MANAGED the run genuinely is done at VALIDATED, because
-          # the rest waits on a human.
-          if [ "$PUBLISHING_TYPE" = "AUTOMATIC" ]; then
-            terminal='PUBLISHED'
-          else
-            terminal='PUBLISHED|VALIDATED'
-          fi
+          # VALIDATED is where the useful question -- did Central accept this? -- is answered.
+          # Everything after it is Central's own publishing pipeline, which has run well past
+          # 15 minutes; holding a runner through that buys nothing a reminder cannot.
+          #
+          # Under AUTOMATIC we still stop at VALIDATED rather than PUBLISHED, for the same
+          # reason. The nightly reminder workflow is what confirms it actually landed.
+          terminal='PUBLISHED|VALIDATED'
           echo "publishingType=${PUBLISHING_TYPE}, waiting for: ${terminal}"
 
-          for attempt in $(seq 1 60); do
+          for attempt in $(seq 1 40); do
             state="$(curl --fail-with-body -sS -X POST \
               -H "Authorization: Bearer ${auth}" \
               "https://central.sonatype.com/api/v1/publisher/status?id=${DEPLOYMENT_ID}" \
@@ -193,6 +192,57 @@ jobs:
 
           echo "::error::Timed out waiting for the deployment to reach ${terminal}."
           exit 1
+
+      # USER_MANAGED means the deployment sits in the Portal until a human releases it, and
+      # a workflow log is not a reminder -- nobody re-reads a green run. This issue is the
+      # queue: it carries the deployment id, and central-publish-reminder.yml closes it
+      # automatically once Central reports the version is actually on the repository.
+      - name: Open a reminder to publish the deployment
+        if: ${{ !inputs.dry-run && (inputs.publishing-type || 'USER_MANAGED') == 'USER_MANAGED' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="$(./gradlew --no-daemon -q printVersion)"
+
+          gh label create maven-central-publish \
+            --repo "$REPO" \
+            --color FBCA04 \
+            --description 'A Maven Central deployment is validated and awaiting manual release' \
+            2>/dev/null || true
+
+          body="$(cat <<BODY
+          A deployment for \`com.labelzoom:labelzoom-sdk:${version}\` has been uploaded and
+          **validated** by Maven Central, but it is \`USER_MANAGED\` — it will not reach the
+          repository until someone releases it.
+
+          **Deployment ID:** \`${DEPLOYMENT_ID}\`
+
+          ### What to do
+
+          1. Open the [Central Portal deployments page](https://central.sonatype.com/publishing/deployments)
+          2. Find the \`labelzoom-sdk\` deployment
+          3. Click **Publish** (or **Drop** to abandon this version)
+
+          Publishing takes Central a while — well past 15 minutes at times — which is why the
+          release workflow no longer waits for it.
+
+          ### This issue closes itself
+
+          \`central-publish-reminder.yml\` checks nightly and closes this once
+          \`${version}\` is actually resolvable from Maven Central. If it is still open, the
+          version is still not published.
+
+          <sub>Opened by [this release run](https://github.com/${REPO}/actions/runs/${GITHUB_RUN_ID}).</sub>
+          BODY
+          )"
+
+          gh issue create --repo "$REPO" \
+            --title "Publish com.labelzoom:labelzoom-sdk ${version} on Maven Central" \
+            --label maven-central-publish \
+            --body "$(echo "$body" | sed 's/^          //')"
+        working-directory: ./java
 
       - name: Upload bundle as a build artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
