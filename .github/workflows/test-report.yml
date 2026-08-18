@@ -5,6 +5,10 @@
 # genuinely shared. Every language emits JUnit XML (the .NET project uses
 # JunitXml.TestLogger) so one reporter covers them all -- this costs the richer
 # .NET-specific detail dotnet-trx gave, and buys not maintaining seven of these.
+#
+# Every language workflow uploads its results as an artifact named `test-results`.
+# Artifacts are scoped to a workflow RUN, so the shared name cannot collide even when
+# all three languages run against the same commit.
 name: 'Test Report'
 
 # zizmor flags workflow_run as fundamentally dangerous, and for the usual usage it
@@ -23,10 +27,43 @@ on:  # zizmor: ignore[dangerous-triggers]
 permissions: {}
 
 jobs:
-  report:
+  # A build that fails BEFORE running tests uploads nothing, and dorny/test-reporter
+  # treats an absent artifact as an error. That turns one honest red X on the build
+  # into two, the second of which says nothing the first did not. Probing first means
+  # the reporter runs only when there is something to report.
+  probe:
+    name: probe
     if: >-
       github.event.workflow_run.conclusion == 'success' ||
       github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      found: ${{ steps.probe.outputs.found }}
+    steps:
+      - name: Look for a test-results artifact on the triggering run
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          count="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/artifacts" \
+            --jq '[.artifacts[] | select(.name == "test-results")] | length')"
+          echo "test-results artifacts on run ${RUN_ID}: ${count}"
+          if [ "$count" -gt 0 ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No test-results artifact on run ${RUN_ID}; the build likely failed before running tests. Skipping the report."
+          fi
+
+  report:
+    needs: probe
+    if: needs.probe.outputs.found == 'true'
     uses: labelzoom/.github/.github/workflows/test-report.yml@v1
     with:
       check-name: ${{ github.event.workflow_run.name }}
