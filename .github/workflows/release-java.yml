@@ -197,6 +197,10 @@ jobs:
       # a workflow log is not a reminder -- nobody re-reads a green run. This issue is the
       # queue: it carries the deployment id, and central-publish-reminder.yml closes it
       # automatically once Central reports the version is actually on the repository.
+      # USER_MANAGED means the deployment sits in the Portal until a human releases it, and
+      # a workflow log is not a reminder -- nobody re-reads a green run. This issue is the
+      # queue: it carries the deployment id, and central-publish-reminder.yml closes it
+      # automatically once Central reports the version is actually on the repository.
       - name: Open a reminder to publish the deployment
         if: ${{ !inputs.dry-run && (inputs.publishing-type || 'USER_MANAGED') == 'USER_MANAGED' }}
         env:
@@ -212,9 +216,14 @@ jobs:
             --description 'A Maven Central deployment is validated and awaiting manual release' \
             2>/dev/null || true
 
-          body="$(cat <<BODY
+          # Heredoc written at the script's own indentation: YAML has already stripped the
+          # block indent, so the body needs no dedenting afterwards.
+          gh issue create --repo "$REPO" \
+            --title "Publish com.labelzoom:labelzoom-sdk ${version} on Maven Central" \
+            --label maven-central-publish \
+            --body "$(cat <<BODY
           A deployment for \`com.labelzoom:labelzoom-sdk:${version}\` has been uploaded and
-          **validated** by Maven Central, but it is \`USER_MANAGED\` — it will not reach the
+          **validated** by Maven Central, but it is \`USER_MANAGED\` - it will not reach the
           repository until someone releases it.
 
           **Deployment ID:** \`${DEPLOYMENT_ID}\`
@@ -225,23 +234,18 @@ jobs:
           2. Find the \`labelzoom-sdk\` deployment
           3. Click **Publish** (or **Drop** to abandon this version)
 
-          Publishing takes Central a while — well past 15 minutes at times — which is why the
+          Publishing takes Central a while - well past 15 minutes at times - which is why the
           release workflow no longer waits for it.
 
           ### This issue closes itself
 
-          \`central-publish-reminder.yml\` checks nightly and closes this once
-          \`${version}\` is actually resolvable from Maven Central. If it is still open, the
-          version is still not published.
+          \`central-publish-reminder.yml\` checks nightly and closes this once \`${version}\`
+          is actually resolvable from Maven Central. If it is still open, the version is still
+          not published.
 
           <sub>Opened by [this release run](https://github.com/${REPO}/actions/runs/${GITHUB_RUN_ID}).</sub>
           BODY
           )"
-
-          gh issue create --repo "$REPO" \
-            --title "Publish com.labelzoom:labelzoom-sdk ${version} on Maven Central" \
-            --label maven-central-publish \
-            --body "$(echo "$body" | sed 's/^          //')"
         working-directory: ./java
 
       - name: Upload bundle as a build artifact
