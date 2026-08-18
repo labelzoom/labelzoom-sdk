@@ -1,0 +1,66 @@
+name: Java Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'java/**'
+      - 'conformance/**'
+      - '.github/workflows/java-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'java/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/java-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          # The SDK targets bytecode 17 via `options.release`; the JDK that compiles it can be
+          # newer. 21 is the current LTS on runners and matches the rest of the org's CI.
+          java-version: '21'
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@94baf225fe0a508e581a564467443d0e2379123b # v4.4.4
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.4.4
+
+      # No credential, no network: every case is served by a recording HttpTransport, so this
+      # passes identically on a fork pull request with no secrets configured.
+      - name: Build and test
+        run: ./gradlew build
+        working-directory: ./java
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled())
+        with:
+          name: java-test-results
+          path: java/build/test-results/test/
