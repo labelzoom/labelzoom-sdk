@@ -148,6 +148,7 @@ for (const file of readdirSync(join(ROOT, 'skips')).sort()) {
 const MANIFESTS = [
   'dotnet/src/LabelZoom.Sdk/LabelZoom.Sdk.csproj',
   'node/package.json',
+  'python/pyproject.toml',
 ];
 for (const rel of MANIFESTS) {
   const p = join(REPO, rel);
@@ -155,6 +156,19 @@ for (const rel of MANIFESTS) {
   const text = readFileSync(p, 'utf8');
   if (/BSD-3-Clause/.test(text)) {
     fail(rel, 'declares BSD-3-Clause; this project is MIT (see LICENSE)');
+  }
+}
+
+// Some packaging formats cannot reference a license outside their own directory: building
+// a Python wheel from an sdist has no parent directory to reach into, so python/ carries a
+// copy. A copy that drifts is worse than no copy at all, so it is pinned here.
+const rootLicense = readFileSync(join(REPO, 'LICENSE'), 'utf8');
+for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby']) {
+  const copy = join(REPO, dir, 'LICENSE');
+  if (!existsSync(copy)) continue;
+  if (readFileSync(copy, 'utf8') !== rootLicense) {
+    fail(`${dir}/LICENSE`, 'differs from the repository LICENSE; the copy exists only because ' +
+                           'the packaging format cannot reach the original, so it must match it');
   }
 }
 

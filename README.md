@@ -15,7 +15,7 @@ The SDKs are being rebuilt around a shared, machine-checked
 | [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released `0.x` — the reference implementation |
 | [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released `0.x` |
 | [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released `0.x` |
-| Python | `labelzoom` | planned |
+| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | built and conformance-green — first release pending |
 | Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
 | PHP | `labelzoom/sdk` | planned |
 | Ruby | `labelzoom` | planned |
