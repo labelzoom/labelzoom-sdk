@@ -20,12 +20,12 @@ on:
         type: boolean
         default: false
       publishing-type:
-        description: 'USER_MANAGED leaves the deployment for manual release in the Portal'
+        description: 'AUTOMATIC publishes once validation passes; USER_MANAGED waits for the Portal'
         type: choice
         options:
-          - USER_MANAGED
           - AUTOMATIC
-        default: USER_MANAGED
+          - USER_MANAGED
+        default: AUTOMATIC
   # A published GitHub Release, not a bare tag push.
   #
   # Creating a release from an EXISTING tag fires no push event at all, so tag-push
@@ -131,7 +131,8 @@ jobs:
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
-          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'USER_MANAGED' }}
+          # A release event carries no inputs, so this is what the release path uses.
+          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
         run: |
           set -euo pipefail
           bundle="$(ls build/central/*.zip)"
@@ -153,32 +154,44 @@ jobs:
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          PUBLISHING_TYPE: ${{ inputs.publishing-type || 'AUTOMATIC' }}
         run: |
           set -euo pipefail
           auth="$(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
 
-          for attempt in $(seq 1 40); do
+          # Under AUTOMATIC, VALIDATED is a waypoint on the way to PUBLISHED, not the end.
+          # Exiting there would report success while the deployment could still fail during
+          # publication. Under USER_MANAGED the run genuinely is done at VALIDATED, because
+          # the rest waits on a human.
+          if [ "$PUBLISHING_TYPE" = "AUTOMATIC" ]; then
+            terminal='PUBLISHED'
+          else
+            terminal='PUBLISHED|VALIDATED'
+          fi
+          echo "publishingType=${PUBLISHING_TYPE}, waiting for: ${terminal}"
+
+          for attempt in $(seq 1 60); do
             state="$(curl --fail-with-body -sS -X POST \
               -H "Authorization: Bearer ${auth}" \
               "https://central.sonatype.com/api/v1/publisher/status?id=${DEPLOYMENT_ID}" \
-              | grep -o '"deploymentState"[[:space:]]*:[[:space:]]*"[A-Z]*"' \
-              | grep -o '[A-Z]\{4,\}' || true)"
+              | sed -n 's/.*"deploymentState"[[:space:]]*:[[:space:]]*"\([A-Z_]*\)".*/\1/p' \
+              | head -n1)"
 
             echo "attempt ${attempt}: ${state:-unknown}"
             case "$state" in
-              PUBLISHED|VALIDATED)
-                echo "Deployment reached ${state}."
-                exit 0
-                ;;
               FAILED)
                 echo "::error::Central rejected the deployment. Open the Portal for the reason."
                 exit 1
                 ;;
             esac
+            if echo "$state" | grep -Eq "^(${terminal})$"; then
+              echo "Deployment reached ${state}."
+              exit 0
+            fi
             sleep 15
           done
 
-          echo "::error::Timed out waiting for the deployment to validate."
+          echo "::error::Timed out waiting for the deployment to reach ${terminal}."
           exit 1
 
       - name: Upload bundle as a build artifact
