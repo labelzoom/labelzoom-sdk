@@ -14,14 +14,14 @@ conflicts. The small amount of JSON the SDK needs is built in.
 ## Install
 
 ```gradle
-implementation 'com.labelzoom:labelzoom-sdk:0.1.1'
+implementation 'com.labelzoom:labelzoom-sdk:0.1.2'
 ```
 
 ```xml
 <dependency>
     <groupId>com.labelzoom</groupId>
     <artifactId>labelzoom-sdk</artifactId>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
 </dependency>
 ```
 

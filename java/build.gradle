@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.labelzoom'
-version = project.findProperty('sdkVersion') ?: '0.1.1'
+version = project.findProperty('sdkVersion') ?: '0.1.2'
 description = 'Official Java SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster images.'
 
 java {
