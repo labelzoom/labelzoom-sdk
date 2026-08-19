@@ -1,0 +1,121 @@
+name: Release Python
+
+# Publishes labelzoom-sdk to PyPI via Trusted Publishing (OIDC) — no token, no secret.
+#
+# The FILENAME of this workflow is a matched claim in the PyPI trusted publisher policy.
+# Renaming this file silently breaks publishing, and PyPI does not re-validate the policy
+# when you save it, so the failure surfaces only at publish time.
+#
+# Unlike Maven Central, PyPI publishing is synchronous and fast, so this workflow publishes
+# outright rather than uploading and reminding.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and verify without publishing'
+        type: boolean
+        default: false
+  # A published GitHub Release, not a bare tag push.
+  #
+  # Creating a release from an EXISTING tag fires no push event at all, so tag-push
+  # silently does nothing for the most common release flow. Configuring both would be
+  # worse: a release that creates its tag fires both events and tries to publish the
+  # same version twice.
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    # A release event is delivered to every release workflow; the tag prefix is what
+    # decides which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'python/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pypi
+    permissions:
+      id-token: write   # required for the OIDC token PyPI exchanges for publish rights
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          # No `cache: pip` here, deliberately -- unlike python-test.yml. A restored cache
+          # is attacker-influenced input, and anything it plants would be baked into a
+          # package that is then published under this repository's identity. zizmor flags
+          # this as cache-poisoning; the finding is correct.
+
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]" build twine
+        working-directory: ./python
+
+      - name: Lint
+        run: |
+          ruff check
+          ruff format --check src tests
+        working-directory: ./python
+
+      - name: Typecheck
+        run: mypy
+        working-directory: ./python
+
+      # The release gate is the same conformance suite the PR builds run: 81 shared fixtures
+      # through both clients, plus the assertion that all of them executed.
+      - name: Test
+        run: pytest
+        working-directory: ./python
+
+      - name: Build
+        run: python -m build --outdir dist
+        working-directory: ./python
+
+      - name: Check metadata
+        run: twine check dist/*
+        working-directory: ./python
+
+      # A tag must agree with the version it claims to release, or `python/v0.1.1` quietly
+      # publishes whatever _version.py happens to say.
+      - name: Verify tag matches package version
+        if: github.event_name == 'release'
+        env:
+          # Passed as an env var rather than interpolated into the script: a tag name is
+          # attacker-influenced text, and inlining it into `run:` is template injection.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${RELEASE_TAG#python/v}"
+          pkg_version="$(python -c 'import labelzoom; print(labelzoom.__version__)')"
+          echo "tag=$tag_version _version.py=$pkg_version"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match package version ${pkg_version}"
+            exit 1
+          fi
+        working-directory: ./python
+
+      # No API token and no password: trusted publishing supplies the credential via OIDC
+      # and attaches PEP 740 attestations automatically.
+      - name: Publish to PyPI
+        if: ${{ !inputs.dry-run }}
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: python/dist
+
+      - name: Dry run summary
+        if: ${{ inputs.dry-run }}
+        run: echo "Dry run complete - built and verified, publish skipped."
