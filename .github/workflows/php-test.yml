@@ -27,8 +27,11 @@ permissions: {}
 env:
   # The version that lints, analyses and uploads the JUnit report. The others only run the
   # suite. Picked as the oldest supported, so an 8.2-only construct fails in the lint job
-  # rather than in one matrix cell that is easy to skim past — and php-cs-fixer's own advice
-  # is to run it on the project's minimum.
+  # rather than in one matrix cell that is easy to skim past.
+  #
+  # php-cs-fixer in particular MUST run here and not on a newer runtime: its `single_quote`
+  # fixer reports differently across PHP versions, so linting on 8.5 and shipping for 8.1
+  # gives a clean local run and a red CI. Its own warning says the same thing.
   PRIMARY_PHP: '8.1'
 
 jobs:
@@ -63,10 +66,17 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      # Ask composer where its cache is rather than guessing: a wrong path silently caches
+      # nothing, and a cache that never hits looks exactly like one that does.
+      - name: Resolve the Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+        working-directory: ./php
+
       - name: Cache Composer packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.composer/cache/files
+          path: ${{ steps.composer-cache.outputs.dir }}
           key: composer-${{ runner.os }}-${{ matrix.php-version }}-${{ hashFiles('php/composer.json') }}
           restore-keys: composer-${{ runner.os }}-${{ matrix.php-version }}-
 
@@ -136,12 +146,20 @@ jobs:
           unzip -q /tmp/labelzoom-sdk-archive.zip -d /tmp/consumer
           cd /tmp/consumer
           composer install --no-dev --no-interaction --no-progress
-          php -r '
-            require "vendor/autoload.php";
-            $client = new LabelZoom\Sdk\LabelZoomClient(null);
-            if ($client->isAuthenticated()) { throw new RuntimeException("expected anonymous"); }
-            echo "the published package autoloads\n";
-          '
+
+          # A quoted heredoc rather than `php -r '...'`: the snippet is PHP, so $client has
+          # to reach php unexpanded, and shellcheck rightly flags that intent when it is
+          # written as a single-quoted shell string (SC2016).
+          cat > smoke.php <<'SMOKE'
+          <?php
+          require __DIR__ . '/vendor/autoload.php';
+          $client = new LabelZoom\Sdk\LabelZoomClient(null);
+          if ($client->isAuthenticated()) {
+              throw new RuntimeException('expected anonymous mode');
+          }
+          echo "the published package autoloads\n";
+          SMOKE
+          php smoke.php
         working-directory: ./php
 
       - name: Upload test results

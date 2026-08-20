@@ -800,7 +800,7 @@ final class ConformanceTest extends TestCase
             self::assertContains(
                 $caseId,
                 $allCaseIds,
-                "skips/" . self::LANGUAGE . ".json declares unknown case '{$caseId}'",
+                'skips/' . self::LANGUAGE . ".json declares unknown case '{$caseId}'",
             );
             self::assertNotSame('', trim($reason), "skip '{$caseId}' has no reason");
         }
