@@ -1,0 +1,169 @@
+name: Release PHP
+
+# Packagist is the odd one out among the five registries this repo publishes to.
+#
+# npm, PyPI, NuGet and Maven Central all accept an *uploaded artifact*, so publishing from a
+# subdirectory of a monorepo is a non-issue. Packagist does not: it reads composer.json from
+# the ROOT of a git repository and serves GitHub's own archives of it. There is no
+# subdirectory setting, and none is planned.
+#
+# So the PHP SDK publishes by splitting php/ into a read-only mirror repository whose root IS
+# the package, and tagging there. Packagist watches the mirror; this monorepo stays the only
+# place anyone commits. That is the same shape Symfony and Laravel use for their components.
+#
+# PREREQUISITES (this workflow fails loudly, not silently, without them):
+#   1. A mirror repository, `labelzoom/labelzoom-sdk-php`, created and EMPTY.
+#   2. `labelzoom/sdk` submitted to Packagist pointing at the MIRROR, not at this repo.
+#   3. A `PHP_MIRROR_TOKEN` secret with `contents: write` on the mirror only.
+#
+#      Unavoidable, and the one place PHP is weaker than the other four: npm, PyPI and NuGet
+#      publish over OIDC with no stored credential. Packagist has no OIDC equivalent, and a
+#      push to another repository needs a real token. Scope it to the mirror and nothing else.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Verify and build the split without pushing it'
+        type: boolean
+        default: true
+  # A published GitHub Release, not a bare tag push. Creating a release from an EXISTING tag
+  # fires no push event at all, so tag-push silently does nothing for the most common release
+  # flow — see the same note in release-python.yml.
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    # A release event is delivered to every release workflow; the tag prefix is what decides
+    # which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'php/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        with:
+          # The subtree split has to replay php/'s history, so a shallow clone will not do.
+          fetch-depth: 0
+          persist-credentials: false
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.1'
+          extensions: json, mbstring, curl, tokenizer, dom, xml, xmlwriter, simplexml
+          coverage: none
+          tools: composer:v2
+
+      # Packagist derives the version from the git tag, and composer.json carries no `version`
+      # field on purpose. That leaves LabelZoomClient::VERSION — which goes out in every
+      # User-Agent — as the one thing that can disagree with the tag, so it is checked here
+      # rather than discovered later in a support log.
+      - name: Resolve and check the version
+        id: version
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          declared="$(php -r '
+            require "php/src/LabelZoomClient.php";
+            echo LabelZoom\Sdk\LabelZoomClient::VERSION;
+          ')"
+          echo "LabelZoomClient::VERSION = ${declared}"
+
+          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            tagged="${TAG_NAME#php/v}"
+            if [ "${tagged}" != "${declared}" ]; then
+              echo "::error::tag ${TAG_NAME} declares ${tagged}, but LabelZoomClient::VERSION is ${declared}"
+              exit 1
+            fi
+          fi
+
+          echo "version=${declared}" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist
+        working-directory: ./php
+
+      # Publishing something the suite has not just agreed with is how a release goes out
+      # against a conformance fixture that changed after the last PR merged.
+      - name: Test
+        run: vendor/bin/phpunit
+        working-directory: ./php
+
+      - name: Static analysis
+        run: composer analyse
+        working-directory: ./php
+
+      # `git subtree split` replays php/'s commits with the prefix stripped, so the mirror
+      # keeps real, attributable history instead of one squashed "sync" commit per release.
+      - name: Build the split
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          split_sha="$(git subtree split --prefix=php HEAD)"
+          echo "split commit: ${split_sha}"
+          echo "SPLIT_SHA=${split_sha}" >> "$GITHUB_ENV"
+
+          # The split root must be a valid package on its own. If composer.json moved or the
+          # archive exclusions ate src/, this is where it stops.
+          git archive "${split_sha}" | tar -t | tee /tmp/split.txt > /dev/null
+          for required in composer.json README.md LICENSE src/LabelZoomClient.php; do
+            grep -qx "$required" /tmp/split.txt \
+              || { echo "::error::${required} is missing from the split tree"; exit 1; }
+          done
+          echo "split tree looks like a package"
+
+      - name: Push to the mirror
+        if: ${{ github.event_name == 'release' || !inputs.dry-run }}
+        env:
+          MIRROR_TOKEN: ${{ secrets.PHP_MIRROR_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MIRROR_TOKEN}" ]; then
+            echo "::error::PHP_MIRROR_TOKEN is not set; see the header of this workflow"
+            exit 1
+          fi
+
+          remote="https://x-access-token:${MIRROR_TOKEN}@github.com/labelzoom/labelzoom-sdk-php.git"
+
+          # The mirror is derived, never authored: force-push is correct here, and is what
+          # keeps a re-run after a failed release from needing a manual fixup. The TAG,
+          # however, is not forced — Packagist treats a moved tag as an immutable version
+          # that silently changed, so a duplicate has to fail instead.
+          git push --force "${remote}" "${SPLIT_SHA}:refs/heads/main"
+          git push "${remote}" "${SPLIT_SHA}:refs/tags/v${VERSION}"
+
+          echo "pushed v${VERSION} to labelzoom/labelzoom-sdk-php"
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "### PHP SDK ${VERSION}"
+            echo
+            if [ "${GITHUB_EVENT_NAME}" != "release" ] && [ "${{ inputs.dry-run }}" = "true" ]; then
+              echo "Dry run — the split was built and verified, and nothing was pushed."
+            else
+              echo "Pushed \`v${VERSION}\` to [labelzoom/labelzoom-sdk-php](https://github.com/labelzoom/labelzoom-sdk-php)."
+              echo
+              echo "Packagist updates from that repository's webhook, usually within a minute:"
+              echo "<https://packagist.org/packages/labelzoom/sdk>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

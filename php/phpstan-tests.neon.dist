@@ -1,0 +1,5 @@
+# See the note in phpstan.neon.dist for why the suite is analysed apart from src, and lower.
+parameters:
+    level: 5
+    paths:
+        - tests
