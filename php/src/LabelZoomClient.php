@@ -57,7 +57,7 @@ final class LabelZoomClient
      *
      * Single-sourced here: the release workflow refuses to publish a tag that disagrees with it.
      */
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.1.1';
 
     private const REQUEST_ID_HEADER = 'X-LZ-Request-Id';
 
