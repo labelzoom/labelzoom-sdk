@@ -48,7 +48,9 @@ jobs:
         # The floor and the ceiling both matter: enums, readonly properties and
         # `array_is_list` need 8.1, and the newest release is where a deprecation in the
         # SDK's own code shows up first.
-        php-version: ['8.1', '8.2', '8.3', '8.4']
+        # 8.5 is current stable, and it is where deprecations land first — leaving it out is
+        # what let a curl_close() notice ship in 0.1.0.
+        php-version: ['8.1', '8.2', '8.3', '8.4', '8.5']
 
     steps:
       - name: Checkout code

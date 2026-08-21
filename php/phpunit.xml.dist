@@ -7,6 +7,7 @@
          executionOrder="default"
          failOnRisky="true"
          failOnWarning="true"
+         failOnDeprecation="true"
          beStrictAboutOutputDuringTests="true"
          displayDetailsOnTestsThatTriggerWarnings="true"
          displayDetailsOnTestsThatTriggerErrors="true">
@@ -15,6 +16,12 @@
     assertion reads a static set that the case runs populate, so it has to execute after them;
     "default" means declaration order, and the assertion is declared last. Randomising the
     order here would make the anti-drift check pass or fail by luck.
+  -->
+  <!--
+    failOnDeprecation is the guard for the bundled cURL client. `curl_close()` shipped in
+    0.1.0: a no-op since PHP 8.0, deprecated in 8.5, so it added a notice to every conversion
+    while the suite stayed green — because the suite injects MockHttpClient and never ran the
+    real transport. CurlHttpClientTest now does, and a deprecation there is a failure.
   -->
   <testsuites>
     <testsuite name="labelzoom-sdk">

@@ -98,7 +98,9 @@ final class CurlHttpClient implements ClientInterface
         $errorNumber = curl_errno($handle);
         $errorMessage = curl_error($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-        curl_close($handle);
+        // No curl_close(): since PHP 8.0 the handle is an object freed by the garbage
+        // collector, the call has done nothing at all, and 8.5 deprecates it — which means
+        // calling it emits a notice on every single conversion.
 
         if ($errorNumber !== 0 || $body === false) {
             // A PSR-18 ClientExceptionInterface, which is what the retry policy treats as a
