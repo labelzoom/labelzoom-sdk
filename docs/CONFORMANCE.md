@@ -129,18 +129,21 @@ Skips live in `conformance/skips/<lang>.json` and **require a non-empty `reason`
 }
 ```
 
-The only legitimate skips today are `typecheck/*` in Python and Ruby.
+The only legitimate skips today are `typecheck/*` in Python and Ruby. **PHP does not skip
+them**: it has no compile step either, but `SourceFormat` and `TargetFormat` are real enums, so
+its runner shells out to PHPStan and asserts each snippet is rejected. A dynamically executed
+language with a static analyser in its dev dependencies should run these, not declare them away.
 
 ## 5. Error kinds
 
 `expect.error.kind` is a symbolic name from `spec.json`'s `errorKinds`. Each runner keeps a small
 map from that name to its own type:
 
-| kind | C# | TypeScript | Go |
-|---|---|---|---|
-| `BadRequest` | `BadRequestException` | `BadRequestError` | `*BadRequestError` |
-| `RateLimited` | `RateLimitedException` | `RateLimitedError` | `*RateLimitedError` |
-| … | … | … | … |
+| kind | C# | TypeScript | PHP | Go |
+|---|---|---|---|---|
+| `BadRequest` | `BadRequestException` | `BadRequestError` | `BadRequestException` | `*BadRequestError` |
+| `RateLimited` | `RateLimitedException` | `RateLimitedError` | `RateLimitedException` | `*RateLimitedError` |
+| … | … | … | … | … |
 
 ## 6. HTTP stub per language
 

@@ -17,11 +17,15 @@ The SDKs are being rebuilt around a shared, machine-checked
 | [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released `0.x` |
 | [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | built and conformance-green — first release pending |
 | Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
-| PHP | `labelzoom/sdk` | planned |
+| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | built and conformance-green — first release pending |
 | Ruby | `labelzoom` | planned |
 
-Published SDKs release from CI via OIDC trusted publishing — no long-lived tokens are
-stored anywhere. They stay on `0.x` until all seven have validated the shared contract;
+npm, PyPI and NuGet release from CI over OIDC trusted publishing, with no stored
+credential. Maven Central and Packagist have no OIDC equivalent, so those two use scoped
+repository secrets — and Packagist, which reads `composer.json` from a repository root
+rather than accepting an upload, publishes via a split mirror repo
+([`.github/workflows/release-php.yml`](.github/workflows/release-php.yml) explains why).
+They all stay on `0.x` until all seven have validated the shared contract;
 see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and

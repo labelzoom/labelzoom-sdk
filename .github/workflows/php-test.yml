@@ -1,0 +1,172 @@
+name: PHP Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'php/**'
+      - 'conformance/**'
+      - '.github/workflows/php-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'php/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/php-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  # The version that lints, analyses and uploads the JUnit report. The others only run the
+  # suite. Picked as the oldest supported, so an 8.2-only construct fails in the lint job
+  # rather than in one matrix cell that is easy to skim past.
+  #
+  # php-cs-fixer in particular MUST run here and not on a newer runtime: its `single_quote`
+  # fixer reports differently across PHP versions, so linting on 8.5 and shipping for 8.1
+  # gives a clean local run and a red CI. Its own warning says the same thing.
+  PRIMARY_PHP: '8.1'
+
+jobs:
+  test:
+    name: Test (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor and the ceiling both matter: enums, readonly properties and
+        # `array_is_list` need 8.1, and the newest release is where a deprecation in the
+        # SDK's own code shows up first.
+        php-version: ['8.1', '8.2', '8.3', '8.4']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: ${{ matrix.php-version }}
+          # curl and mbstring are what the bundled client and the charset decoding need;
+          # the rest is what composer and PHPUnit want.
+          extensions: json, mbstring, curl, tokenizer, dom, xml, xmlwriter, simplexml
+          coverage: none
+          tools: composer:v2
+
+      # Ask composer where its cache is rather than guessing: a wrong path silently caches
+      # nothing, and a cache that never hits looks exactly like one that does.
+      - name: Resolve the Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+        working-directory: ./php
+
+      - name: Cache Composer packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ matrix.php-version }}-${{ hashFiles('php/composer.json') }}
+          restore-keys: composer-${{ runner.os }}-${{ matrix.php-version }}-
+
+      # No composer.lock is committed — this is a library, so resolving fresh is the point:
+      # it is what catches a transitive dependency that breaks the published package for a
+      # consumer who installs it today.
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist
+        working-directory: ./php
+
+      - name: Validate composer.json
+        if: matrix.php-version == env.PRIMARY_PHP
+        run: composer validate --strict --no-check-lock
+        working-directory: ./php
+
+      - name: Lint
+        if: matrix.php-version == env.PRIMARY_PHP
+        run: vendor/bin/php-cs-fixer check --diff
+        working-directory: ./php
+
+      # src at level 9, tests at 5 — see the note in phpstan.neon.dist. This is also what
+      # makes conformance/skips/php.json's empty list honest: the four typecheck/* cases are
+      # asserted by the suite itself through PHPStan, so unlike Python and Ruby, PHP has no
+      # separate static-analysis job that the fixtures quietly depend on.
+      - name: Static analysis
+        if: matrix.php-version == env.PRIMARY_PHP
+        run: composer analyse
+        working-directory: ./php
+
+      # No secrets, no network: the transport is an in-repo PSR-18 stub, so this passes
+      # identically on a fork pull request.
+      - name: Test
+        run: vendor/bin/phpunit --log-junit "${{ github.workspace }}/test-results/php.xml"
+        working-directory: ./php
+
+      # An over-eager archive exclusion ships a package that resolves, installs, and then
+      # fatals on the first autoload — `composer require` reports nothing wrong. So install
+      # the archive the way a consumer would, in a clean directory with no dev dependencies,
+      # and actually construct the client.
+      - name: Verify the publishable archive installs and autoloads
+        if: matrix.php-version == env.PRIMARY_PHP
+        run: |
+          set -euo pipefail
+          composer archive --format=zip --dir=/tmp --file=labelzoom-sdk-archive
+          unzip -Z1 /tmp/labelzoom-sdk-archive.zip | tee /tmp/archive.txt
+
+          for required in \
+            composer.json \
+            README.md \
+            LICENSE \
+            src/LabelZoomClient.php \
+            src/SourceFormat.php \
+            src/TargetFormat.php \
+            src/Sleeper.php \
+            src/Http/CurlHttpClient.php
+          do
+            grep -qx "$required" /tmp/archive.txt \
+              || { echo "::error::$required is missing from the published archive"; exit 1; }
+          done
+
+          # The suite is development-only. Shipping it is not fatal, but it means the
+          # exclusions drifted, and the next thing to drift is something that matters.
+          if grep -q "^tests/" /tmp/archive.txt; then
+            echo "::error::the published archive contains tests/"; exit 1
+          fi
+
+          unzip -q /tmp/labelzoom-sdk-archive.zip -d /tmp/consumer
+          cd /tmp/consumer
+          composer install --no-dev --no-interaction --no-progress
+
+          # A quoted heredoc rather than `php -r '...'`: the snippet is PHP, so $client has
+          # to reach php unexpanded, and shellcheck rightly flags that intent when it is
+          # written as a single-quoted shell string (SC2016).
+          cat > smoke.php <<'SMOKE'
+          <?php
+          require __DIR__ . '/vendor/autoload.php';
+          $client = new LabelZoom\Sdk\LabelZoomClient(null);
+          if ($client->isAuthenticated()) {
+              throw new RuntimeException('expected anonymous mode');
+          }
+          echo "the published package autoloads\n";
+          SMOKE
+          php smoke.php
+        working-directory: ./php
+
+      - name: Upload test results
+        # One upload only: artifact names are unique per run, so uploading from every
+        # matrix cell would collide rather than merge.
+        if: ${{ !cancelled() && matrix.php-version == env.PRIMARY_PHP }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results
+          path: test-results/

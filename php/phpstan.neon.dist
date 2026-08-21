@@ -1,0 +1,14 @@
+# The shipped code, analysed as strictly as PHPStan goes.
+#
+# tests/ is analysed separately by phpstan-tests.neon.dist, at a lower level. Not laziness:
+# the conformance runner's whole job is to take `mixed` out of untyped JSON fixtures and feed
+# it to a typed SDK, so level 9 there would report a hundred "cannot cast mixed" findings that
+# say nothing about whether the SDK is correct. Level 5 still checks argument types, which is
+# where a translation-layer mistake would actually show up.
+#
+# ConformanceTest reads `level` out of THIS file to analyse the typecheck/* snippets, so the
+# number below is also the standard those cases are held to.
+parameters:
+    level: 9
+    paths:
+        - src
