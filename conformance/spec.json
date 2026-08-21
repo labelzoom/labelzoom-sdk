@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 81,
+  "caseCount": 82,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -32,6 +32,7 @@
     "request/param-dialect",
     "request/param-dpi",
     "request/param-label-size",
+    "request/param-label-size-omitted",
     "request/param-pdf-conversion-mode",
     "request/param-pdf-page-number",
     "request/param-position",

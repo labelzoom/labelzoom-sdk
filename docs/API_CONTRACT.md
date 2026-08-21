@@ -134,6 +134,9 @@ Defined **once** per language. Never inlined at a call site.
 - **C4** `label.width` / `label.height` are **inches** (float). `pdf.pageNumber` is **0-based** and
   is omitted entirely to convert all pages. Both facts must appear in the docstring of every
   language's corresponding method — they are the two most misread parameters in the API.
+  Leaving the label size unset must emit **no `label` key at all**: that absence is what asks the
+  API to detect the label's dimensions from its content, so an SDK that helpfully defaults it to
+  4×6 silently overrides detection for every caller who never asked for a size.
 - **C5** Enums serialize to exact uppercase wire tokens: `BW|GRAYSCALE|COLOR`, `IMAGE|NATIVE`,
   `Z64|COMPRESSED_HEX`.
 - **C6** `rotation` must be a multiple of 90, validated **locally**. This raises a validation error
@@ -236,7 +239,7 @@ opaque string and must not attempt to parse or validate it:
 | `withWatermark` | `watermark` | bool | `false` | forced true for unpaid non-PDF→ZPL |
 | `withDialect` | `dialect` | string | none | e.g. `moca`; **paid** |
 | `withData` | `data` | array | none | one label per entry (**C3**) |
-| `withLabelSize` | `label.width` / `label.height` | float | none | **inches** (**C4**) |
+| `withLabelSize` | `label.width` / `label.height` | float | none — server detects | **inches** (**C4**) |
 | `withPdfConversionMode` | `pdf.conversionMode` | enum | `IMAGE` | `IMAGE\|NATIVE`; PDF source only |
 | `withPdfPage` | `pdf.pageNumber` | int | all pages | **0-based** (**C4**) |
 | `withZplCommandsToIgnore` | `zpl.commandsToIgnore` | string[] | `[]` | e.g. `["^PQ"]` |
