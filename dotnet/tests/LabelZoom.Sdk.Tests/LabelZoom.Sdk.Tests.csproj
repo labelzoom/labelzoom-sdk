@@ -15,7 +15,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
     <!-- Emits JUnit XML so the org-shared test-report workflow can use one reporter
          across every language rather than a per-language caller stub. -->
     <PackageReference Include="JunitXml.TestLogger" Version="8.0.0" />
