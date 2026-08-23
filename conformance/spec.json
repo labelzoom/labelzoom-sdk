@@ -32,6 +32,7 @@
     "request/param-dialect",
     "request/param-dpi",
     "request/param-label-size",
+    "request/param-label-size-omitted",
     "request/param-pdf-conversion-mode",
     "request/param-pdf-page-number",
     "request/param-position",
