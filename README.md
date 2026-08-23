@@ -7,7 +7,7 @@ labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
 
 ## Status
 
-The SDKs are being rebuilt around a shared, machine-checked
+The SDKs are built around a shared, machine-checked
 [API contract](docs/API_CONTRACT.md). This table is the honest state of play, not a roadmap:
 
 | Language | Package | Status |
@@ -15,9 +15,9 @@ The SDKs are being rebuilt around a shared, machine-checked
 | [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released — `1.0.0`, the reference implementation |
 | [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released — `1.0.0` |
 | [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released — `1.0.0` |
-| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | conformance-green — `1.0.0` release pending |
+| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released — `1.0.0` |
+| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released — `1.0.0` |
 | Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
-| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | conformance-green — `1.0.0` release pending |
 | Ruby | `labelzoom` | planned |
 
 npm, PyPI and NuGet release from CI over OIDC trusted publishing, with no stored
@@ -25,10 +25,10 @@ credential. Maven Central and Packagist have no OIDC equivalent, so those two us
 repository secrets — and Packagist, which reads `composer.json` from a repository root
 rather than accepting an upload, publishes via a split mirror repo
 ([`.github/workflows/release-php.yml`](.github/workflows/release-php.yml) explains why).
-They ship at `1.0.0` now that five independent implementations have validated the shared
-contract against the same fixtures; Go and Ruby will join at `1.x` rather than hold the other
-five back. The contract carries its own version (`conformance/spec.json`), currently `1.1.0` —
-see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+All five shipped `1.0.0` together, once five independent implementations had validated the
+shared contract against the same fixtures; Go and Ruby will join at `1.x` rather than hold
+the other five back. The contract carries its own version (`conformance/spec.json`),
+currently `1.1.0` — see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
 friends — see [`samples/`](samples/).
