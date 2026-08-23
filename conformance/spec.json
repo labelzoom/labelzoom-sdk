@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 82,
+  "caseCount": 83,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
