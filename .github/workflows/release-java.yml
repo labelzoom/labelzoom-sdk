@@ -68,13 +68,13 @@ jobs:
           java-version: '21'
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v4.4.4
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # No dependency cache here, deliberately -- unlike java-test.yml. A restored cache is
       # attacker-influenced input, and anything it plants would be baked into an artifact that
       # is then GPG-signed and trusted by every consumer.
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v4.4.4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           cache-disabled: true
 

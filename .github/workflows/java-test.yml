@@ -47,10 +47,10 @@ jobs:
           java-version: '21'
 
       - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v4.4.4
+        uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v4.4.4
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       # No credential, no network: every case is served by a recording HttpTransport, so this
       # passes identically on a fork pull request with no secrets configured.
