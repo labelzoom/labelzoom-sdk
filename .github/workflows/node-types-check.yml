@@ -1,0 +1,53 @@
+name: Node Types Check
+
+# Enforces the invariant behind the `@types/node` semver-major ignore in
+# .github/dependabot.yml: the type definitions must describe the Node runtime the
+# SDK is actually built, tested and published on -- the latest LTS, pinned in
+# node/.nvmrc, which both node-test.yml and release-node.yml consume via
+# `node-version-file`.
+#
+# Types ahead of the runtime are the dangerous direction: `tsc --noEmit` would
+# accept an API that does not exist on the Node we ship against, and nothing else
+# in CI would notice. Dependabot cannot raise that major on its own, so the drift
+# this catches is a hand edit to one of the two files without the other.
+#
+# Deliberately not path-filtered. It is cheap, installs nothing, and a check that
+# only runs when someone touches the files it guards is a check that misses the
+# case where they touched only one of them.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  node-types-major:
+    name: "@types/node major matches node/.nvmrc"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compare majors
+        run: |
+          set -euo pipefail
+          nvmrc="node/.nvmrc"
+          pkg="node/package.json"
+          if [ ! -f "$nvmrc" ]; then echo "::error::$nvmrc is missing; it is the pinned runtime both CI workflows build from."; exit 1; fi
+          if [ ! -f "$pkg" ]; then echo "::error::$pkg is missing."; exit 1; fi
+
+          nvmrc_major="$(sed -E 's/^v//; s/\..*//' "$nvmrc")"
+          range="$(node -p "const p=require('./$pkg');(p.devDependencies&&p.devDependencies['@types/node'])||(p.dependencies&&p.dependencies['@types/node'])||''")"
+          if [ -z "$range" ]; then echo "No @types/node dependency; nothing to check."; exit 0; fi
+          types_major="$(printf '%s' "$range" | grep -oE '[0-9]+' | head -1)"
+
+          echo "node/.nvmrc major=$nvmrc_major  @types/node=$range (major=$types_major)"
+          if [ "$nvmrc_major" != "$types_major" ]; then
+            echo "::error file=node/package.json::@types/node major ($types_major) does not match node/.nvmrc Node major ($nvmrc_major). Bump @types/node to ^${nvmrc_major} (or change node/.nvmrc, which also moves the runtime CI builds and publishes on)."
+            exit 1
+          fi
