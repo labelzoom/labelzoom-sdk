@@ -38,6 +38,28 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    ignore:
+      # @types/node's MAJOR tracks the Node runtime the SDK is built and published
+      # against -- the latest LTS, pinned in node/.nvmrc -- not the newest release
+      # line. Types ahead of the runtime describe APIs that do not exist there, so
+      # `tsc --noEmit` would accept code that crashes on the very Node we ship on.
+      # Patch/minor within the major still flow via npm-minor-patch below; a major
+      # is a runtime decision made by editing node/.nvmrc, and node-types-check.yml
+      # fails the build if the two ever disagree.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # typescript's .d.ts pipeline inside tsup 8.5.1 does not support TS >= 6:
+      #   TS 6 -> tsup injects the deprecated `baseUrl` (tsup/dist/rollup.js:6837)
+      #           into the dts build, which TS 6 rejects with TS5101
+      #   TS 7 -> tsup's bundled rollup-plugin-dts crashes on the new compiler API
+      #           ("Cannot read properties of undefined (reading
+      #           'useCaseSensitiveFileNames')")
+      # Both were reproduced locally against 6.0.3 and 7.0.2. The esbuild JS build
+      # succeeds either way; only declaration generation breaks, which is fatal for
+      # a package whose `types` is a published entry point. Neither is fixable here.
+      # Revisit -- and drop this ignore -- when tsup ships a TS >= 6 dts pipeline.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-patch:
         patterns:
