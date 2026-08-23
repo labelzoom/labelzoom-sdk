@@ -82,11 +82,16 @@ var result = await client.Convert()
 
 **Sources (12, plus `Url`):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`)
 
-**Targets (8):** `Zpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets (11):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
-`SourceFormat` and `TargetFormat` are distinct types, so `.ToEpl()` does not exist and
-`To(SourceFormat.Pdf)` does not compile. EPL, TSPL and DPL are source-only on the server, and the
-type system says so rather than letting you find out from a 404.
+`SourceFormat` and `TargetFormat` are distinct types, so `.ToUrl()` does not exist and
+`To(SourceFormat.Pdf)` does not compile. `Jpg` and `Url` are source-only — `Jpg` normalizes to
+`Jpeg`, and `Url` is a fetch instruction rather than a format — and the type system says so rather
+than letting you find out from a 404.
+
+`epl`, `tspl` and `dpl` are targets as well as sources — ``.FromPdf(bytes).ToEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
+inline raw binary: read `result.Bytes` rather than `result.Text` whenever a label might carry graphics.
 
 `SourceFormat.Url` has the *server* fetch a URL you supply and convert whatever it finds. Validate
 the URL first if it came from untrusted input.

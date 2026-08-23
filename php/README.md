@@ -66,19 +66,24 @@ per application, not one per request.
 **Sources (12, plus `url`):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
 `jpeg`
 
-**Targets (8):** `zpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+**Targets (11):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
 
-`epl`, `tspl` and `dpl` are **source-only**. `SourceFormat` and `TargetFormat` are separate enums,
-so there is no `TargetFormat::Epl` to write:
+`jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
+rather than a format. `SourceFormat` and `TargetFormat` are separate enums, so there is no
+`TargetFormat::Url` to write:
 
 ```php
-$client->convert()->fromEpl($epl)->toZpl();     // fine
-$client->convert()->fromZpl($zpl)->to(TargetFormat::Epl);
+$client->convert()->fromUrl($url)->toZpl();     // fine
+$client->convert()->fromZpl($zpl)->to(TargetFormat::Url);
 //                                  ^^^^^^^^^^^^^^^^^^^ Access to undefined constant
 ```
 
-A PHPStan error, not a runtime 404. The four `typecheck/*` conformance cases assert exactly this,
+A PHPStan error, not a runtime 404. The two `typecheck/*` conformance cases assert exactly this,
 and PHP is the only dynamically executed SDK that runs them rather than declaring them skipped.
+
+`epl`, `tspl` and `dpl` are targets as well as sources — ``fromPdf($bytes)->toEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
+inline raw binary: read `$result->getBytes()` rather than `$result->getText()` whenever a label might carry graphics.
 
 Reading source bytes from wherever they live:
 
@@ -132,7 +137,8 @@ $result = $client->convert()
 
 ## Results
 
-`getBytes()` is authoritative — five of the eight targets are binary.
+`getBytes()` is authoritative — five of the eleven targets are binary, and the `epl`/`tspl` text
+targets can inline binary of their own.
 
 ```php
 $result->getBytes();        // the document, exactly as sent

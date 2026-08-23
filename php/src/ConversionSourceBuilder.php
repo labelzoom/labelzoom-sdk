@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace LabelZoom\Sdk;
 
 /**
- * Chooses the target format. One class covers all eight.
+ * Chooses the target format. One class covers all eleven.
  *
- * There is no `toEpl()`, `toTspl()` or `toDpl()`, and there never will be: those formats are
- * source-only on the server, and {@see TargetFormat} has no case for them. Attempting one fails
- * static analysis rather than producing a runtime 404.
+ * There is no `toUrl()`: `url` is a source-only fetch instruction, and {@see TargetFormat} has no
+ * case for it. Attempting one fails static analysis rather than producing a runtime 404.
  */
 final class ConversionSourceBuilder
 {
@@ -32,6 +31,30 @@ final class ConversionSourceBuilder
     public function toZpl(): ConversionTargetBuilder
     {
         return $this->to(TargetFormat::Zpl);
+    }
+
+    /**
+     * Converts to EPL. All labels are concatenated into one document. Read `getBytes()` rather
+     * than `getText()`: EPL's `GW` command inlines raw binary.
+     */
+    public function toEpl(): ConversionTargetBuilder
+    {
+        return $this->to(TargetFormat::Epl);
+    }
+
+    /**
+     * Converts to TSPL. All labels are concatenated into one document. As with {@see self::toEpl()},
+     * prefer `getBytes()`.
+     */
+    public function toTspl(): ConversionTargetBuilder
+    {
+        return $this->to(TargetFormat::Tspl);
+    }
+
+    /** Converts to Datamax DPL. All labels are concatenated into one document. */
+    public function toDpl(): ConversionTargetBuilder
+    {
+        return $this->to(TargetFormat::Dpl);
     }
 
     /** Converts to LabelZoom XML. Returns the first label only. */

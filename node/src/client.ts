@@ -351,10 +351,10 @@ export class ConversionRequestBuilder {
 }
 
 /**
- * Chooses the target format. One class covers all eight.
+ * Chooses the target format. One class covers all eleven.
  *
- * There is no `toEpl`, `toTspl` or `toDpl`, and there never will be — those formats are
- * source-only, and `TargetFormat` has no member for them.
+ * There is no `toUrl` — `url` is a source-only fetch instruction, and `TargetFormat` has no
+ * member for it.
  */
 export class ConversionSourceBuilder {
   readonly #client: LabelZoomClient;
@@ -380,6 +380,11 @@ export class ConversionSourceBuilder {
   }
 
   toZpl(): ConversionTargetBuilder { return this.to('zpl'); }
+  /** EPL output can inline raw binary (`GW`); prefer `result.bytes` over `result.text`. */
+  toEpl(): ConversionTargetBuilder { return this.to('epl'); }
+  /** TSPL output can inline raw binary (`BITMAP`); prefer `result.bytes` over `result.text`. */
+  toTspl(): ConversionTargetBuilder { return this.to('tspl'); }
+  toDpl(): ConversionTargetBuilder { return this.to('dpl'); }
   toXml(): ConversionTargetBuilder { return this.to('xml'); }
   toJson(): ConversionTargetBuilder { return this.to('json'); }
   toPdf(): ConversionTargetBuilder { return this.to('pdf'); }

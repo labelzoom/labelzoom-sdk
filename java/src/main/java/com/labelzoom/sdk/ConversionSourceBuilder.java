@@ -1,11 +1,11 @@
 package com.labelzoom.sdk;
 
 /**
- * Chooses the target format. One class covers all eight.
+ * Chooses the target format. One class covers all eleven.
  *
- * <p>There is no {@code toEpl}, {@code toTspl} or {@code toDpl}, and there never will be: those
- * formats are source-only on the server, and {@link TargetFormat} has no constant for them.
- * Attempting one is a compile error rather than a runtime 404.
+ * <p>There is no {@code toUrl}: {@code URL} is a source-only fetch instruction, and
+ * {@link TargetFormat} has no constant for it. Attempting one is a compile error rather than a
+ * runtime 404.
  */
 public final class ConversionSourceBuilder {
 
@@ -30,6 +30,28 @@ public final class ConversionSourceBuilder {
     /** Converts to ZPL. All labels are concatenated into one document. */
     public ConversionTargetBuilder toZpl() {
         return to(TargetFormat.ZPL);
+    }
+
+    /**
+     * Converts to EPL. All labels are concatenated into one document. Read
+     * {@link ConversionResult#bytes()} rather than {@link ConversionResult#text()}: EPL's
+     * {@code GW} command inlines raw binary.
+     */
+    public ConversionTargetBuilder toEpl() {
+        return to(TargetFormat.EPL);
+    }
+
+    /**
+     * Converts to TSPL. All labels are concatenated into one document. As with {@link #toEpl()},
+     * prefer {@link ConversionResult#bytes()}.
+     */
+    public ConversionTargetBuilder toTspl() {
+        return to(TargetFormat.TSPL);
+    }
+
+    /** Converts to Datamax DPL. All labels are concatenated into one document. */
+    public ConversionTargetBuilder toDpl() {
+        return to(TargetFormat.DPL);
     }
 
     /** Converts to LabelZoom XML. Returns the first label only. */

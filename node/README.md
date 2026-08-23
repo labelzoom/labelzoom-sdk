@@ -89,17 +89,23 @@ const result = await client.convert()
 type SourceFormat = 'zpl' | 'epl' | 'tspl' | 'dpl' | 'xml' | 'json'
                   | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg' | 'jpg' | 'url';
 
-type TargetFormat = 'zpl' | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg';
+type TargetFormat = 'zpl' | 'epl' | 'tspl' | 'dpl' | 'xml' | 'json'
+                  | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg';
 ```
 
-`epl`, `tspl` and `dpl` are **source-only** on the server, and the type system says so:
+`jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
+rather than a format — and the type system says so:
 
 ```ts
-await client.convert({ from: 'pdf', to: 'epl', body });
-//                                      ~~~~~ Type '"epl"' is not assignable to 'TargetFormat'
+await client.convert({ from: 'pdf', to: 'url', body });
+//                                      ~~~~~ Type '"url"' is not assignable to 'TargetFormat'
 ```
 
 A compile error, not a runtime 404.
+
+`epl`, `tspl` and `dpl` are targets as well as sources — ``{ from: 'pdf', to: 'epl' }`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
+inline raw binary: read `result.bytes` rather than `result.text` whenever a label might carry graphics.
 
 `from: 'url'` has the *server* fetch a URL you supply and convert what it finds. Validate the URL
 first if it came from untrusted input.

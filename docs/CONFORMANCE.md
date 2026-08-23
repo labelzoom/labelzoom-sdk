@@ -123,7 +123,7 @@ Skips live in `conformance/skips/<lang>.json` and **require a non-empty `reason`
 {
   "language": "python",
   "skips": [
-    { "id": "typecheck/epl-is-not-a-target",
+    { "id": "typecheck/url-is-not-a-target",
       "reason": "Python has no compile step; SourceFormat/TargetFormat are Literal types checked by mypy in a separate lint job, not by the test suite." }
   ]
 }

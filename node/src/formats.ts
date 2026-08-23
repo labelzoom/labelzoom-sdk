@@ -28,17 +28,32 @@ export type SourceFormat =
 /**
  * Formats the LabelZoom API can convert *to*.
  *
- * `epl`, `tspl` and `dpl` are intentionally absent — the server accepts them as sources only,
- * so `.to('epl')` is a compile error rather than a runtime 404.
+ * `jpg` and `url` are intentionally absent — `jpg` is an input spelling that normalizes to
+ * `jpeg`, and `url` is a fetch instruction rather than a format, so `.to('url')` is a compile
+ * error rather than a runtime 404.
+ *
+ * `epl` and `tspl` output can inline raw binary (EPL `GW`, TSPL `BITMAP`); read `result.bytes`
+ * rather than `result.text` for those targets.
  */
-export type TargetFormat = 'zpl' | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg';
+export type TargetFormat =
+  | 'zpl'
+  | 'epl'
+  | 'tspl'
+  | 'dpl'
+  | 'xml'
+  | 'json'
+  | 'pdf'
+  | 'png'
+  | 'bmp'
+  | 'gif'
+  | 'jpeg';
 
 export const SOURCE_FORMATS: readonly SourceFormat[] = [
   'zpl', 'epl', 'tspl', 'dpl', 'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg', 'jpg', 'url',
 ];
 
 export const TARGET_FORMATS: readonly TargetFormat[] = [
-  'zpl', 'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg',
+  'zpl', 'epl', 'tspl', 'dpl', 'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg',
 ];
 
 /**

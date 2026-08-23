@@ -7,13 +7,31 @@ namespace LabelZoom\Sdk;
 /**
  * A format the LabelZoom API can convert *to*.
  *
- * EPL, TSPL and DPL are intentionally absent — the server accepts them as sources only, so asking
- * for one fails statically rather than as a runtime 404. There is no `TargetFormat::Epl` to write.
+ * `Jpg` and `Url` are intentionally absent: `jpg` is an input spelling that normalizes to
+ * {@see self::Jpeg}, and `url` is a fetch instruction rather than a format, so asking for one
+ * fails statically rather than as a runtime 404. There is no `TargetFormat::Url` to write.
  */
 enum TargetFormat: string
 {
     /** Zebra Programming Language. All labels are concatenated. */
     case Zpl = 'zpl';
+
+    /**
+     * Eltron Programming Language. All labels are concatenated.
+     *
+     * Read `getBytes()` rather than `getText()`: EPL's `GW` graphics command inlines raw binary
+     * that a charset decode can corrupt.
+     */
+    case Epl = 'epl';
+
+    /**
+     * TSC printer language. All labels are concatenated. As with {@see self::Epl}, the `BITMAP`
+     * command inlines raw binary, so prefer `getBytes()`.
+     */
+    case Tspl = 'tspl';
+
+    /** Datamax Printer Language. All labels are concatenated. */
+    case Dpl = 'dpl';
 
     /** LabelZoom XML. First label only. */
     case Xml = 'xml';

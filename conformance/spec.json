@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "contract": "../docs/API_CONTRACT.md",
   "defaults": {
     "baseUrl": "https://api.labelzoom.com",
@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 81,
+  "caseCount": 82,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -57,11 +57,14 @@
     "request/source-xml",
     "request/source-zpl",
     "request/target-bmp",
+    "request/target-dpl",
+    "request/target-epl",
     "request/target-gif",
     "request/target-jpeg",
     "request/target-json",
     "request/target-pdf",
     "request/target-png",
+    "request/target-tspl",
     "request/target-xml",
     "request/target-zpl",
     "request/user-agent-not-studio-prefixed",
@@ -91,10 +94,8 @@
     "retry/disabled-when-max-retries-zero",
     "retry/exhausts-and-raises-last-error",
     "retry/transport-error-then-200",
-    "typecheck/dpl-is-not-a-target",
-    "typecheck/epl-is-not-a-target",
     "typecheck/source-format-not-accepted-as-target",
-    "typecheck/tspl-is-not-a-target",
+    "typecheck/url-is-not-a-target",
     "validation/data-element-not-an-object",
     "validation/empty-body-rejected-locally",
     "validation/rotation-not-multiple-of-90"
