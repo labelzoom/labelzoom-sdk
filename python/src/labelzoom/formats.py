@@ -33,9 +33,15 @@ SourceFormat = Literal[
 
 #: Formats the LabelZoom API can convert *to*.
 #:
-#: ``epl``, ``tspl`` and ``dpl`` are intentionally absent: the server accepts them as sources
-#: only, so ``target="epl"`` is a type error rather than a runtime 404.
-TargetFormat = Literal["zpl", "xml", "json", "pdf", "png", "bmp", "gif", "jpeg"]
+#: ``jpg`` and ``url`` are intentionally absent: ``jpg`` is an input spelling that normalizes to
+#: ``jpeg``, and ``url`` is a fetch instruction rather than a format, so ``target="url"`` is a
+#: type error rather than a runtime 404.
+#:
+#: ``epl`` and ``tspl`` output can inline raw binary (EPL ``GW``, TSPL ``BITMAP``); read
+#: ``result.content`` rather than ``result.text`` for those targets.
+TargetFormat = Literal[
+    "zpl", "epl", "tspl", "dpl", "xml", "json", "pdf", "png", "bmp", "gif", "jpeg"
+]
 
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
 TARGET_FORMATS: tuple[TargetFormat, ...] = get_args(TargetFormat)
@@ -103,8 +109,9 @@ def validate_formats(source: str, target: str) -> None:
         )
     if target not in TARGET_FORMATS:
         extra = (
-            " Note that 'epl', 'tspl' and 'dpl' are source-only formats."
-            if target in {"epl", "tspl", "dpl"}
+            " Note that 'jpg' and 'url' are source-only: pass 'jpeg' as the target, and 'url'"
+            " only as a source."
+            if target in {"jpg", "url"}
             else ""
         )
         raise LabelZoomValidationError(

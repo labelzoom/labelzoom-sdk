@@ -271,7 +271,7 @@ class ConformanceTest {
         Set<String> targetNames = java.util.Arrays.stream(TargetFormat.values())
                 .map(Enum::name).collect(Collectors.toSet());
 
-        for (String sourceOnly : List.of("EPL", "TSPL", "DPL")) {
+        for (String sourceOnly : List.of("URL", "JPG")) {
             if (snippet.toUpperCase().contains("TO(" + sourceOnly + ")")) {
                 assertFalse(targetNames.contains(sourceOnly),
                         sourceOnly + " is source-only and must not exist as a TargetFormat");

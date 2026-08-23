@@ -361,16 +361,16 @@ async function runValidationCase(given: any, expect_: any): Promise<void> {
 function runTypecheckCase(given: any): void {
   const snippet: string = given.snippet;
 
-  for (const sourceOnly of ['epl', 'tspl', 'dpl']) {
+  for (const sourceOnly of ['url', 'jpg']) {
     if (snippet.toLowerCase().includes(`to(${sourceOnly})`)) {
       expect(TARGET_FORMATS as readonly string[]).not.toContain(sourceOnly);
     }
   }
 
   if (snippet.includes('SourceFormat.')) {
-    // 'pdf' is in both unions, but 'epl' is the discriminator: SourceFormat is strictly wider,
+    // 'pdf' is in both unions, but 'url' is the discriminator: SourceFormat is strictly wider,
     // so it cannot stand in for TargetFormat.
-    expect(TARGET_FORMATS as readonly string[]).not.toContain('epl');
+    expect(TARGET_FORMATS as readonly string[]).not.toContain('url');
   }
 }
 

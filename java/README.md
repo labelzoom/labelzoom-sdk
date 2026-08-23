@@ -14,14 +14,14 @@ conflicts. The small amount of JSON the SDK needs is built in.
 ## Install
 
 ```gradle
-implementation 'com.labelzoom:labelzoom-sdk:0.1.2'
+implementation 'com.labelzoom:labelzoom-sdk:1.0.0'
 ```
 
 ```xml
 <dependency>
     <groupId>com.labelzoom</groupId>
     <artifactId>labelzoom-sdk</artifactId>
-    <version>0.1.2</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
@@ -82,11 +82,16 @@ ConversionResult result = client.convert()
 
 **Sources (12, plus `URL`):** `ZPL` `EPL` `TSPL` `DPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG`
 
-**Targets (8):** `ZPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
+**Targets (11):** `ZPL` `EPL` `TSPL` `DPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
 
-`SourceFormat` and `TargetFormat` are distinct enums, so `toEpl()` does not exist and
-`to(SourceFormat.PDF)` does not compile. EPL, TSPL and DPL are source-only on the server, and the
-type system says so rather than letting you find out from a 404.
+`SourceFormat` and `TargetFormat` are distinct enums, so `toUrl()` does not exist and
+`to(SourceFormat.PDF)` does not compile. `JPG` and `URL` are source-only — `JPG` normalizes to
+`JPEG`, and `URL` is a fetch instruction rather than a format — and the type system says so rather
+than letting you find out from a 404.
+
+`epl`, `tspl` and `dpl` are targets as well as sources — ``fromPdf(bytes).toEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
+inline raw binary: read `result.bytes()` rather than `result.text()` whenever a label might carry graphics.
 
 `SourceFormat.URL` has the *server* fetch a URL you supply. Validate it first if it came from
 untrusted input.

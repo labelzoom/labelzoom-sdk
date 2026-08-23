@@ -80,12 +80,8 @@ final class ConformanceTest extends TestCase
      * @var array<string, string>
      */
     private const TYPECHECK_SNIPPETS = [
-        // client.convert().fromZpl(body).to(EPL)
-        'typecheck/epl-is-not-a-target' => '$client->convert()->fromZpl($body)->to(TargetFormat::Epl);',
-        // client.convert().fromZpl(body).to(TSPL)
-        'typecheck/tspl-is-not-a-target' => '$client->convert()->fromZpl($body)->to(TargetFormat::Tspl);',
-        // client.convert().fromZpl(body).to(DPL)
-        'typecheck/dpl-is-not-a-target' => '$client->convert()->fromZpl($body)->to(TargetFormat::Dpl);',
+        // client.convert().fromZpl(body).to(URL)
+        'typecheck/url-is-not-a-target' => '$client->convert()->fromZpl($body)->to(TargetFormat::Url);',
         // client.convert().fromZpl(body).to(SourceFormat.PDF)
         'typecheck/source-format-not-accepted-as-target' => '$client->convert()->fromZpl($body)->to(SourceFormat::Pdf);',
     ];

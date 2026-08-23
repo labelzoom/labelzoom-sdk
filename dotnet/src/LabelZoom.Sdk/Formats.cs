@@ -7,10 +7,9 @@ namespace LabelZoom.Sdk
     /// A format the LabelZoom API can convert <em>from</em>.
     /// </summary>
     /// <remarks>
-    /// Deliberately a different type from <see cref="TargetFormat"/>. That is what makes
-    /// <see cref="Epl"/>, <see cref="Tspl"/> and <see cref="Dpl"/> un-selectable as conversion
-    /// targets: they are source-only on the server, and there is simply no
-    /// <c>TargetFormat.Epl</c> to name.
+    /// Deliberately a different type from <see cref="TargetFormat"/>. The sets are not identical:
+    /// <see cref="Jpg"/> and <see cref="Url"/> are source-only, so there is no
+    /// <c>TargetFormat.Url</c> to name.
     /// </remarks>
     public enum SourceFormat
     {
@@ -65,12 +64,32 @@ namespace LabelZoom.Sdk
     /// A format the LabelZoom API can convert <em>to</em>.
     /// </summary>
     /// <remarks>
-    /// EPL, TSPL and DPL are intentionally absent — the server accepts them as sources only.
+    /// Deliberately a different type from <see cref="SourceFormat"/>. <c>JPG</c> and <c>URL</c> are
+    /// intentionally absent: <c>JPG</c> is an input spelling that normalizes to <see cref="Jpeg"/>,
+    /// and <c>URL</c> is a fetch instruction rather than a format.
     /// </remarks>
     public enum TargetFormat
     {
         /// <summary>Zebra Programming Language. All labels are concatenated.</summary>
         Zpl,
+
+        /// <summary>
+        /// Eltron Programming Language. All labels are concatenated.
+        /// Read <see cref="ConversionResult.Bytes"/>, not
+        /// <see cref="ConversionResult.Text"/> — the <c>GW</c> graphics command inlines
+        /// raw binary that a charset decode can corrupt.
+        /// </summary>
+        Epl,
+
+        /// <summary>
+        /// TSC printer language. All labels are concatenated. As with <see cref="Epl"/>, the
+        /// <c>BITMAP</c> command inlines raw binary, so prefer
+        /// <see cref="ConversionResult.Bytes"/>.
+        /// </summary>
+        Tspl,
+
+        /// <summary>Datamax Printer Language. All labels are concatenated.</summary>
+        Dpl,
 
         /// <summary>LabelZoom XML. First label only.</summary>
         Xml,
@@ -179,6 +198,9 @@ namespace LabelZoom.Sdk
             new Dictionary<TargetFormat, string>
             {
                 [TargetFormat.Zpl] = "zpl",
+                [TargetFormat.Epl] = "epl",
+                [TargetFormat.Tspl] = "tspl",
+                [TargetFormat.Dpl] = "dpl",
                 [TargetFormat.Xml] = "xml",
                 [TargetFormat.Json] = "json",
                 [TargetFormat.Pdf] = "pdf",

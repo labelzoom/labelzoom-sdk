@@ -37,14 +37,20 @@ result = client.convert()
 
 ```
 SourceFormat  (13)  ZPL EPL TSPL DPL XML JSON PDF PNG BMP GIF JPEG JPG URL
-TargetFormat  ( 8)  ZPL XML JSON PDF PNG BMP GIF JPEG
+TargetFormat  (11)  ZPL EPL TSPL DPL XML JSON PDF PNG BMP GIF JPEG
 ```
 
-`SourceFormat` and `TargetFormat` are **distinct types**. That is what makes `EPL`, `TSPL`, and
-`DPL` un-selectable as targets — there is no `TargetFormat.EPL` to name. Enforce this at compile
-time wherever the language allows (C#, TypeScript, Java, PHP 8.1, Go); `Literal[...]` + mypy in
-Python and a runtime `ArgumentError` in Ruby are acceptable substitutes. Do not contort a language
-to get compile-time enforcement it does not natively offer.
+`SourceFormat` and `TargetFormat` are **distinct types**, and the sets are not the same. `JPG` and
+`URL` are source-only: `JPG` is an input spelling that normalizes to `JPEG` on the wire (**A2**),
+and `URL` is a fetch instruction rather than a format — there is no `TargetFormat.URL` to name.
+Enforce that at compile time wherever the language allows (C#, TypeScript, Java, PHP 8.1, Go);
+`Literal[...]` + mypy in Python and a runtime `ArgumentError` in Ruby are acceptable substitutes.
+Do not contort a language to get compile-time enforcement it does not natively offer.
+
+> `EPL`, `TSPL` and `DPL` became targets when the printer-language writers shipped
+> (`labelzoom-io-{epl,tspl,dpl}` 1.1.0, wired into the conversion pipeline 2026-08-23). They were
+> source-only for the whole of `0.x`, and the SDKs asserted that in four `typecheck/*` cases. Those
+> assertions are gone; do not reintroduce them.
 
 There is **one** source builder and **one** target builder. Named convenience methods
 (`fromPdf`, `toZpl`) are one-line delegations to `from(SourceFormat.PDF, body)` / `to(TargetFormat.ZPL)`.
@@ -105,7 +111,7 @@ Defined **once** per language. Never inlined at a call site.
   > zpl->jpeg  Accept: image/jpeg   -> 406        Accept: */*  -> 200 image/jpeg
   > ```
   >
-  > `*/*` is the only value valid for all eight targets. A `strictAccept` escape hatch may be
+  > `*/*` is the only value valid for all eleven targets. A `strictAccept` escape hatch may be
   > offered, but it is **off by default**.
 
 - **B3** `Authorization: Bearer <credential>` is sent **only** when a credential is present. When
@@ -272,10 +278,16 @@ body here, which is correct and intended — do not special-case it.
 | Target | Media type | Multi-label behavior |
 |---|---|---|
 | `ZPL` | `text/plain` | all labels concatenated |
+| `EPL` `TSPL` `DPL` | `text/plain` | all labels concatenated |
 | `PDF` | `application/pdf` | all labels, one per page |
 | `XML` | `application/xml` | **first label only** |
 | `JSON` | `application/json` | **first label only**; paid |
 | `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only** |
+
+**`EPL` and `TSPL` output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
+embed a 1-bpp payload directly in the command stream. `bytes` is authoritative for these targets;
+`text` decodes with the response charset and is only safe when you know the label has no graphics.
+This is the same hazard **D1** already calls out for image targets, reaching a `text/plain` one.
 
 ---
 

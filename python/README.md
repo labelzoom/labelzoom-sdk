@@ -39,7 +39,8 @@ with LabelZoomClient() as client:                # anonymous; this works
 Path("label.png").write_bytes(result.content)
 ```
 
-`result.content` is the authoritative payload — five of the eight targets are binary.
+`result.content` is the authoritative payload — five of the eleven targets are binary, and the
+`epl`/`tspl` text targets can inline binary of their own.
 `result.text` decodes it using the response charset for the textual ones.
 
 With a key — passed explicitly, or picked up from `LABELZOOM_API_KEY`:
@@ -86,19 +87,25 @@ asyncio.run(main())
 SourceFormat = Literal["zpl", "epl", "tspl", "dpl", "xml", "json",
                        "pdf", "png", "bmp", "gif", "jpeg", "jpg", "url"]
 
-TargetFormat = Literal["zpl", "xml", "json", "pdf", "png", "bmp", "gif", "jpeg"]
+TargetFormat = Literal["zpl", "epl", "tspl", "dpl", "xml", "json",
+                       "pdf", "png", "bmp", "gif", "jpeg"]
 ```
 
-`epl`, `tspl` and `dpl` are **source-only** on the server, and the type system says so:
+`jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
+rather than a format — and the type system says so:
 
 ```python
-client.convert("pdf", "epl", body)
-#                     ^^^^^ error: Argument 2 has incompatible type "Literal['epl']";
-#                            expected "Literal['zpl', 'xml', 'json', 'pdf', ...]"
+client.convert("pdf", "url", body)
+#                     ^^^^^ error: Argument 2 has incompatible type "Literal['url']";
+#                            expected "Literal['zpl', 'epl', 'tspl', 'dpl', ...]"
 ```
 
 A mypy error, not a runtime 404. Run mypy and you find it before you ship; the SDK also raises
 locally rather than round-tripping to the server.
+
+`epl`, `tspl` and `dpl` are targets as well as sources — ``client.convert("pdf", "epl", body)`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
+inline raw binary: read `result.content` rather than `result.text` whenever a label might carry graphics.
 
 `"url"` as the source has the *server* fetch a URL you supply and convert what it finds.
 Validate the URL first if it came from untrusted input.

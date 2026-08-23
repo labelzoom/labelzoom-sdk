@@ -297,14 +297,14 @@ public sealed class ConformanceTests
     /// A test cannot assert a compile error about itself, so it asserts the property that makes the
     /// compile error inevitable: <see cref="TargetFormat"/> has no member for the source-only
     /// formats, and it is a distinct type from <see cref="SourceFormat"/>, so neither
-    /// <c>To(EPL)</c> nor <c>To(SourceFormat.Pdf)</c> can be written at all.
+    /// <c>To(URL)</c> nor <c>To(SourceFormat.Pdf)</c> can be written at all.
     /// </remarks>
     private Task RunTypecheckCase(JsonElement given)
     {
         var snippet = given.GetProperty("snippet").GetString()!;
         var targetNames = Enum.GetNames(typeof(TargetFormat));
 
-        foreach (var sourceOnly in new[] { "EPL", "TSPL", "DPL" })
+        foreach (var sourceOnly in new[] { "URL", "JPG" })
         {
             if (snippet.Contains($"to({sourceOnly})", StringComparison.OrdinalIgnoreCase))
             {
