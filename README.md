@@ -17,7 +17,7 @@ The SDKs are built around a shared, machine-checked
 | [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released — `1.0.0` |
 | [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released — `1.0.0` |
 | [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released — `1.0.0` |
-| Go | `github.com/labelzoom/labelzoom-sdk/go` | planned |
+| [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released — `1.0.0` |
 | Ruby | `labelzoom` | planned |
 
 npm, PyPI and NuGet release from CI over OIDC trusted publishing, with no stored

@@ -1,0 +1,122 @@
+name: Go Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'go/**'
+      - 'conformance/**'
+      - '.github/workflows/go-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'go/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/go-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  # Bumped by hand: `go install pkg@version` is not covered by Dependabot's gomod ecosystem
+  # (the SDK has no go.sum for it to appear in), so this is pinned the same way
+  # conformance-lint.yml pins actionlint and zizmor.
+  GOTESTSUM_VERSION: v1.13.0
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The go.mod floor, the previous release, and current. `stable` is what the
+        # artifact is uploaded from.
+        go-version: [ '1.23.x', 'oldstable', 'stable' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go-version }}
+          # The module has no dependencies and therefore no go.sum, which setup-go's
+          # default cache key wants. There is nothing to cache but the build cache.
+          cache: false
+
+      - name: Check formatting
+        run: |
+          set -euo pipefail
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would rewrite these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+        working-directory: ./go
+
+      - name: Vet
+        run: go vet ./...
+        working-directory: ./go
+
+      - name: Build
+        run: go build ./...
+        working-directory: ./go
+
+      # No secrets, no network: the http.Client's Transport is a recording stub and the
+      # typecheck probes build with GOPROXY=off, so this passes identically on a fork
+      # pull request.
+      - name: Test
+        run: go test ./... -count=1 -race
+        working-directory: ./go
+
+      # `go install pkg@version` runs in module-agnostic mode: it neither reads nor writes
+      # go/go.mod, so the library stays literally dependency-free.
+      - name: Install gotestsum
+        if: matrix.go-version == 'stable'
+        run: go install "gotest.tools/gotestsum@${GOTESTSUM_VERSION}"
+
+      - name: Test with JUnit output
+        if: matrix.go-version == 'stable'
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/test-results"
+          "$(go env GOPATH)/bin/gotestsum" \
+            --junitfile "${{ github.workspace }}/test-results/go.xml" \
+            -- ./... -count=1
+        working-directory: ./go
+
+      # A module whose zip is missing the LICENSE or a source file publishes happily --
+      # the proxy serves whatever the tag contains, immutably. Check before tagging.
+      - name: Verify the publishable module contents
+        if: matrix.go-version == 'stable'
+        run: |
+          set -euo pipefail
+          for required in LICENSE README.md client.go go.mod; do
+            test -f "$required" || { echo "::error::$required is missing"; exit 1; }
+          done
+          # testdata/ is excluded from a module zip by the go command; assert the package
+          # still builds for a consumer who therefore does not get it.
+          go build ./...
+        working-directory: ./go
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled()) && matrix.go-version == 'stable'
+        with:
+          name: test-results
+          path: test-results/

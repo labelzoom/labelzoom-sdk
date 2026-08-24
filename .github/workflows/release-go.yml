@@ -1,0 +1,118 @@
+name: Release Go
+
+# Go publishes to no registry: the module proxy serves straight from the VCS tag. This
+# workflow is therefore a GATE rather than a publisher, and the gate matters more here than
+# elsewhere -- proxy.golang.org caches a version immutably, so a bad go/v1.0.0 can never be
+# replaced, only retracted in a later release.
+#
+# The `go/` tag prefix is not a house convention. Go requires a module living in a
+# subdirectory to be tagged `<subdir>/vX.Y.Z`; `v1.0.0` alone would resolve to a module at
+# the repository root, which does not exist.
+#
+# At v2 and beyond the module path itself has to gain the major suffix
+# (github.com/labelzoom/labelzoom-sdk/go/v2) and the tags become go/v2/vX.Y.Z.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Verify without warming the module proxy'
+        type: boolean
+        default: false
+  # A published GitHub Release, not a bare tag push. Creating a release from an EXISTING
+  # tag fires no push event at all, so tag-push silently does nothing for the most common
+  # release flow.
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  release:
+    name: release
+    # A release event is delivered to every release workflow; the tag prefix is what decides
+    # which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'go/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Vet
+        run: go vet ./...
+        working-directory: ./go
+
+      # The release gate is the same conformance suite the PR builds run: 83 shared
+      # fixtures plus the assertion that all of them executed.
+      - name: Test
+        run: go test ./... -count=1
+        working-directory: ./go
+
+      # A tag must agree with the version it claims to release, or `go/v1.0.1` quietly
+      # ships a module whose User-Agent still says 1.0.0.
+      - name: Verify tag matches the SDK version
+        if: github.event_name == 'release'
+        env:
+          # Passed as an env var rather than interpolated into the script: a tag name is
+          # attacker-influenced text, and inlining it into `run:` is template injection.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${RELEASE_TAG#go/v}"
+          sdk_version="$(grep -oP 'const Version = "\K[^"]+' labelzoom.go)"
+          echo "tag=$tag_version labelzoom.go=$sdk_version"
+          if [ "$tag_version" != "$sdk_version" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match Version ${sdk_version} in go/labelzoom.go"
+            exit 1
+          fi
+        working-directory: ./go
+
+      # A consumer's very first `go get` is what populates the proxy, and if the module is
+      # malformed they are the ones who find out. Do it here instead, from a clean module
+      # cache, so a broken tag surfaces in CI rather than in someone's build.
+      - name: Verify the tag resolves through the module proxy
+        if: github.event_name == 'release' && !inputs.dry-run
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="v${RELEASE_TAG#go/v}"
+          module="github.com/labelzoom/labelzoom-sdk/go"
+          probe="$(mktemp -d)"
+          cd "$probe"
+          go mod init labelzoomreleaseprobe
+          # Retried: the proxy fetches the tag lazily and can take a minute to see a
+          # release that was published seconds ago.
+          for attempt in 1 2 3 4 5; do
+            if GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod \
+                 go get "${module}@${version}"; then
+              echo "resolved ${module}@${version}"
+              exit 0
+            fi
+            echo "attempt ${attempt} failed; waiting for the proxy to catch up"
+            sleep 30
+          done
+          echo "::error::${module}@${version} did not resolve through proxy.golang.org"
+          exit 1
+
+      - name: Dry run summary
+        if: inputs.dry-run
+        run: echo "Dry run complete - built, tested and verified; proxy warm-up skipped."

@@ -1,0 +1,22 @@
+// Translation of conformance/cases/typecheck/source-format-not-accepted-as-target.json:
+//     client.convert().fromZpl(body).to(SourceFormat.PDF)
+//
+// SourceFormat and TargetFormat are distinct defined types, and SourcePDF is a TYPED
+// constant, so it does not implicitly convert. Expected: cannot use labelzoom.SourcePDF
+// (constant "pdf" of type labelzoom.SourceFormat) as labelzoom.TargetFormat value
+package main
+
+import (
+	"context"
+
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+)
+
+func main() {
+	client, _ := labelzoom.New()
+	_, _ = client.Convert(context.Background(), labelzoom.ConvertRequest{
+		From: labelzoom.SourceZPL,
+		To:   labelzoom.SourcePDF,
+		Body: []byte("^XA^XZ"),
+	})
+}

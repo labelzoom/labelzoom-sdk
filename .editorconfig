@@ -9,8 +9,13 @@ indent_style = space
 indent_size = 2
 max_line_length = 120
 
-[*.{java,kt,cs,go,py}]
+[*.{java,kt,cs,py,rs}]
 indent_size = 4
+
+# gofmt emits tabs unconditionally and is not configurable. Left in the group above,
+# an editorconfig-aware editor reformats every Go file on save and gofmt undoes it.
+[*.go]
+indent_style = tab
 
 [Makefile]
 indent_style = tab
