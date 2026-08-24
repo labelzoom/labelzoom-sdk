@@ -103,7 +103,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "${{ github.workspace }}/test-results"
-          cp target/nextest/ci/junit.xml "${{ github.workspace }}/test-results/rust.xml"
+          # Tolerant of a missing file on purpose: a build that fails before nextest
+          # produces a report would otherwise turn one honest red X into two, the second
+          # saying nothing the first did not. Same reasoning as test-report.yml's probe job.
+          if [ -f target/nextest/ci/junit.xml ]; then
+            cp target/nextest/ci/junit.xml "${{ github.workspace }}/test-results/rust.xml"
+          else
+            echo "::notice::nextest produced no JUnit report; the test step failed early."
+          fi
         working-directory: ./rust
 
       # A crate published without its sources compiles for nobody. crates.io is also

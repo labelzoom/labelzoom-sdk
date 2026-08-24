@@ -106,8 +106,23 @@ fn main() -> std::process::ExitCode {
     // a trial reading this set could be scheduled before the cases it audits, which is
     // exactly what happened the first time it was written that way. Skipped when the
     // caller passed a filter, so `cargo test -- request/auth` still works locally.
+    // Only meaningful when this process actually ran the trials in-process, which is
+    // `cargo test`. Two other modes reach here:
+    //
+    //   --list          libtest_mimic::run prints the trial names and runs nothing. This is
+    //                   also how cargo-nextest enumerates, so failing here fails the whole
+    //                   nextest invocation before a single test runs.
+    //   cargo-nextest   one PROCESS per trial, so every process sees an EXECUTED set
+    //                   holding at most its own case.
+    //
+    // Under nextest the guarantee is not lost, it moves: `conformance/declares-every-case`
+    // asserts a trial exists for every expected case, nextest runs every trial it is given,
+    // and any failure fails the run. That composes to the same thing. It is checked here as
+    // well because `cargo test` is what a contributor runs locally, and an accumulator is a
+    // stronger statement than a trial list when it is available.
+    let under_nextest = std::env::var_os("NEXTEST").is_some();
     let filtered = arguments.filter.is_some() || !arguments.skip.is_empty();
-    if !filtered {
+    if !arguments.list && !under_nextest && !filtered {
         let executed = EXECUTED.lock().unwrap().clone();
         let want: BTreeSet<String> = expected.iter().cloned().collect();
         if executed != want {
