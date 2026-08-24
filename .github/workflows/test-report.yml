@@ -21,7 +21,7 @@ on:  # zizmor: ignore[dangerous-triggers]
     # One entry per language suite. All of them emit JUnit XML so this stays a
     # single stub rather than one near-identical caller per language.
     workflows: ['.NET Tests', 'Node Tests', 'Java Tests', 'Python Tests', 'PHP Tests',
-                'Go Tests']
+                'Go Tests', 'Ruby Tests']
     types:
       - completed
 

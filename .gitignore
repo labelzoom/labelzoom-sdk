@@ -104,6 +104,12 @@ TestResults/
 /rust/target/
 
 # Ruby
+#
+# Gemfile.lock is deliberately NOT committed, matching php/'s composer.lock: this is a
+# library, its only dependencies are dev tools, and its CI matrix spans four Ruby versions
+# that legitimately resolve those tools differently. Pinning them would just mean a lock
+# nobody's local Ruby can satisfy.
+/ruby/Gemfile.lock
 /ruby/pkg/
 /ruby/vendor/
 /ruby/.bundle/

@@ -18,7 +18,7 @@ The SDKs are built around a shared, machine-checked
 | [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released — `1.0.0` |
 | [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released — `1.0.0` |
 | [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released — `1.0.0` |
-| Ruby | `labelzoom` | planned |
+| [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | released — `1.0.0` |
 
 npm, PyPI and NuGet release from CI over OIDC trusted publishing, with no stored
 credential. Maven Central and Packagist have no OIDC equivalent, so those two use scoped
