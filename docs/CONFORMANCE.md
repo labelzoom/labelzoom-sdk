@@ -2,11 +2,11 @@
 
 Every language SDK in this repository proves it obeys [API_CONTRACT.md](API_CONTRACT.md) by
 executing the shared fixtures in [`../conformance/`](../conformance/). This document is what you
-follow when adding an eighth language, or when a fixture change breaks your suite.
+follow when adding a ninth language, or when a fixture change breaks your suite.
 
 ## Why fixtures rather than "write good tests in each language"
 
-Seven independent implementations of the same wire protocol drift. They drift silently, because
+Eight independent implementations of the same wire protocol drift. They drift silently, because
 each language's tests are written by whoever wrote that language's client, and they encode that
 person's reading of the API. The fixtures are a single reading, checked into one place, that every
 suite is forced to agree with.
@@ -77,8 +77,8 @@ divergences in [API_CONTRACT.md §9](API_CONTRACT.md#9-divergences) are only ski
 
 ## 3. Assertion semantics — the parts that bite
 
-These are not stylistic. Getting them wrong produces a suite that is green in six languages and
-flaky in the seventh.
+These are not stylistic. Getting them wrong produces a suite that is green in seven languages
+and flaky in the eighth.
 
 **Compare `queryJson` structurally, never as a string.** URL-decode the `params` value, parse it as
 JSON, and deep-compare. JSON object key order differs per language — Go randomizes map iteration
@@ -134,16 +134,39 @@ them**: it has no compile step either, but `SourceFormat` and `TargetFormat` are
 its runner shells out to PHPStan and asserts each snippet is rejected. A dynamically executed
 language with a static analyser in its dev dependencies should run these, not declare them away.
 
+**Go and Rust run them by actually compiling.** Each writes the snippet into a throwaway
+module with a path dependency on the local SDK, builds it offline, and asserts the compiler
+rejects it — Go on the offending identifier, Rust on the error code (`E0599`, `E0308`), which
+is stable across releases in a way diagnostic prose is not. Both also carry a **positive
+control**: a snippet of the same shape that must *succeed*. Without it, a harness bug that
+reports "did not compile" unconditionally makes every typecheck case green forever, which is a
+false pass in the direction that matters.
+
+This is stronger than reflecting over the enum the way the Java and .NET runners do. Asserting
+"`TargetFormat` has no `URL` member" still passes if someone widens the target parameter to a
+plain string — which is exactly the regression these fixtures exist to catch.
+
 ## 5. Error kinds
 
 `expect.error.kind` is a symbolic name from `spec.json`'s `errorKinds`. Each runner keeps a small
 map from that name to its own type:
 
-| kind | C# | TypeScript | PHP | Go |
-|---|---|---|---|---|
-| `BadRequest` | `BadRequestException` | `BadRequestError` | `BadRequestException` | `*BadRequestError` |
-| `RateLimited` | `RateLimitedException` | `RateLimitedError` | `RateLimitedException` | `*RateLimitedError` |
-| … | … | … | … | … |
+One row per language, because a column per language stopped fitting at eight:
+
+| Language | `BadRequest` maps to | …and the rest follow |
+|---|---|---|
+| C# | `BadRequestException` | `<Kind>Exception` |
+| TypeScript | `BadRequestError` | `<Kind>Error` |
+| Java | `LabelZoomBadRequestException` | `LabelZoom<Kind>Exception` |
+| Python | `BadRequestError` | `<Kind>Error` |
+| PHP | `BadRequestException` | `<Kind>Exception` |
+| Go | `*BadRequestError` | `*<Kind>Error`, all unwrapping to `*APIError` |
+| Ruby | `LabelZoom::BadRequestError` | `LabelZoom::<Kind>Error`, all under `LabelZoom::APIError` |
+| Rust | `ApiErrorKind::BadRequest` | a variant of `ApiErrorKind`, inside `Error::Api(ApiError)` |
+
+Rust is the one that is not a type per kind: it has no inheritance, so the "single base
+type" of **E4** is the `Error::Api` variant and the kind is data on it. See
+[API_CONTRACT.md §9](API_CONTRACT.md#9-divergences).
 
 ## 6. HTTP stub per language
 
@@ -158,8 +181,9 @@ Never open a socket in the conformance suite.
 | PHP | an in-repo `MockHttpClient implements Psr\Http\Client\ClientInterface` |
 | Go | `http.Client{Transport: roundTripperFunc(...)}` |
 | Ruby | `webmock` |
+| Rust | the internal `Transport` trait, with a `RecordingTransport` |
 
-Five of the seven need a transport seam in the SDK's own design. Add it in the design, not as a
+Six of the eight need a transport seam in the SDK's own design. Add it in the design, not as a
 test-only afterthought — rule F4 requires the same thing for the sleeper.
 
 ## 7. Adding or changing a case

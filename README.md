@@ -19,16 +19,21 @@ The SDKs are built around a shared, machine-checked
 | [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released — `1.0.0` |
 | [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released — `1.0.0` |
 | [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | released — `1.0.0` |
+| [Rust](rust/) | [`labelzoom`](https://crates.io/crates/labelzoom) | released — `1.0.0` |
 
-npm, PyPI and NuGet release from CI over OIDC trusted publishing, with no stored
-credential. Maven Central and Packagist have no OIDC equivalent, so those two use scoped
-repository secrets — and Packagist, which reads `composer.json` from a repository root
-rather than accepting an upload, publishes via a split mirror repo
+npm, PyPI, NuGet, crates.io and RubyGems release from CI over OIDC trusted publishing,
+with no stored credential. Maven Central and Packagist have no OIDC equivalent, so those
+two use scoped repository secrets — and Packagist, which reads `composer.json` from a
+repository root rather than accepting an upload, publishes via a split mirror repo
 ([`.github/workflows/release-php.yml`](.github/workflows/release-php.yml) explains why).
-All five shipped `1.0.0` together, once five independent implementations had validated the
-shared contract against the same fixtures; Go and Ruby will join at `1.x` rather than hold
-the other five back. The contract carries its own version (`conformance/spec.json`),
-currently `1.1.0` — see [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+Go publishes to no registry at all: the module proxy serves straight from a `go/vX.Y.Z`
+tag, which is why its release workflow is a gate rather than a publisher.
+
+The first five shipped `1.0.0` together, once five independent implementations had
+validated the shared contract against the same fixtures; Go, Ruby and Rust joined at
+`1.0.0` after doing the same. The contract carries its own version
+(`conformance/spec.json`), currently `1.1.0` — see
+[`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
 friends — see [`samples/`](samples/).
@@ -87,7 +92,7 @@ samples/               copy-paste snippets for languages without a package
 
 ## Why a conformance suite
 
-Seven independent implementations of one wire protocol drift, and they drift quietly. So the
+Eight independent implementations of one wire protocol drift, and they drift quietly. So the
 behavior lives in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) as numbered rules, the
 machine-checkable subset lives in [`conformance/`](conformance/) as language-neutral JSON, and
 every language's test suite runs the same cases and asserts it ran all of them.

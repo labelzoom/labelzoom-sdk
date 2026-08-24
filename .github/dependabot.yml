@@ -25,7 +25,7 @@ updates:
           - "minor"
           - "patch"
 
-  # One block per language SDK. All six follow the nuget block's rationale above:
+  # One block per language SDK. All seven follow the nuget block's rationale above:
   # minor+patch collapse into a single PR, majors stay individual so they get read.
   # These directories are created progressively, phase by phase; Dependabot skips a
   # configured directory that does not exist yet rather than erroring.
@@ -147,6 +147,23 @@ updates:
       - "ruby"
     groups:
       bundler-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "cargo"
+    directory: "/rust/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      cargo-minor-patch:
         patterns:
           - "*"
         update-types:

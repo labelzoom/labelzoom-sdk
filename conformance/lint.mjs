@@ -163,7 +163,7 @@ for (const rel of MANIFESTS) {
 // a Python wheel from an sdist has no parent directory to reach into, so python/ carries a
 // copy. A copy that drifts is worse than no copy at all, so it is pinned here.
 const rootLicense = readFileSync(join(REPO, 'LICENSE'), 'utf8');
-for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby']) {
+for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby', 'rust']) {
   const copy = join(REPO, dir, 'LICENSE');
   if (!existsSync(copy)) continue;
   if (readFileSync(copy, 'utf8') !== rootLicense) {
@@ -186,7 +186,7 @@ const scan = (dir, rel = '') => {
       // thousands of files under target/, and this scan is the always-required check.
       if (SKIP_DIRS.has(entry.name)) continue;
       scan(dir, next);
-    } else if (/\.(cs|ts|js|mjs|java|py|php|go|rb|json|md)$/.test(entry.name)) {
+    } else if (/\.(cs|ts|js|mjs|java|py|php|go|rb|rs|json|md|toml|gemspec)$/.test(entry.name)) {
       const text = readFileSync(join(REPO, dir, next), 'utf8');
       if (LEGACY_HOSTS.test(text)) {
         fail(join(dir, next), 'references a legacy host (api/www.labelzoom.net); ' +
@@ -197,7 +197,7 @@ const scan = (dir, rel = '') => {
 };
 // docs/ is deliberately excluded: API_CONTRACT.md has to name the legacy hosts in
 // order to forbid them.
-for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby', 'samples']) {
+for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby', 'rust', 'samples']) {
   if (existsSync(join(REPO, dir))) scan(dir);
 }
 

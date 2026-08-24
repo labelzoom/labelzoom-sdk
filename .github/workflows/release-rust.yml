@@ -1,0 +1,142 @@
+name: Release Rust
+
+# Publishes the labelzoom crate to crates.io via Trusted Publishing (OIDC) -- no token, no
+# secret.
+#
+# The FILENAME of this workflow is a matched claim in the crates.io trusted publisher
+# policy. Renaming this file silently breaks publishing, and the failure surfaces only at
+# publish time.
+#
+# FIRST RELEASE IS MANUAL. Like RubyGems and unlike PyPI, crates.io has no "pending"
+# trusted publisher for a crate name that does not exist yet: the policy can only be
+# attached to an existing crate. So `labelzoom` 1.0.0 has to be published once with a
+# scoped API token, after which the policy is configured and every later release goes
+# through OIDC.
+#
+# crates.io is IMMUTABLE: a published version can be yanked but never replaced. Everything
+# below the publish step is there because of that.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and verify without publishing'
+        type: boolean
+        default: false
+  # A published GitHub Release, not a bare tag push. Creating a release from an EXISTING
+  # tag fires no push event at all, so tag-push silently does nothing for the most common
+  # release flow.
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    # A release event is delivered to every release workflow; the tag prefix is what
+    # decides which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'rust/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: crates-io
+    permissions:
+      id-token: write   # required for the OIDC token crates.io exchanges for a publish token
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      # No cargo cache here, deliberately -- unlike rust-test.yml. A restored cache is
+      # attacker-influenced input, and anything it plants would be baked into a crate that
+      # every consumer then trusts. zizmor flags this as cache poisoning; the finding is
+      # correct.
+
+      - name: Check formatting
+        run: cargo fmt --check
+        working-directory: ./rust
+
+      - name: Lint
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+        working-directory: ./rust
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        with:
+          tool: cargo-nextest
+
+      # The release gate is the same conformance suite the PR builds run: 83 shared
+      # fixtures plus the assertion that all of them executed.
+      - name: Test
+        run: cargo nextest run --profile ci --locked --all-features
+        working-directory: ./rust
+
+      - name: Doctests
+        run: cargo test --doc --locked --all-features
+        working-directory: ./rust
+
+      # A tag must agree with the version it claims to release, or `rust/v1.0.1` quietly
+      # publishes whatever Cargo.toml happens to say -- immutably.
+      - name: Verify tag matches the crate version
+        if: github.event_name == 'release'
+        env:
+          # Passed as an env var rather than interpolated into the script: a tag name is
+          # attacker-influenced text, and inlining it into `run:` is template injection.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${RELEASE_TAG#rust/v}"
+          crate_version="$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+          echo "tag=$tag_version Cargo.toml=$crate_version"
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match the crate version ${crate_version}"
+            exit 1
+          fi
+        working-directory: ./rust
+
+      - name: Verify the package contents
+        run: |
+          set -euo pipefail
+          cargo package --locked --list > /tmp/package.txt
+          cat /tmp/package.txt
+          for required in src/lib.rs src/client.rs LICENSE README.md; do
+            grep -qx "$required" /tmp/package.txt \
+              || { echo "::error::$required is missing from the package"; exit 1; }
+          done
+          if grep -q '^tests/' /tmp/package.txt; then
+            echo "::error::tests/ must not be packaged"; exit 1
+          fi
+        working-directory: ./rust
+
+      # Exchanges the workflow's OIDC token for a short-lived crates.io publish token. No
+      # stored credential exists to leak or rotate.
+      - name: Authenticate to crates.io
+        if: ${{ !inputs.dry-run }}
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+
+      - name: Publish to crates.io
+        if: ${{ !inputs.dry-run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked
+        working-directory: ./rust
+
+      - name: Dry run summary
+        if: ${{ inputs.dry-run }}
+        run: echo "Dry run complete - built, linted, tested and verified; publish skipped."
