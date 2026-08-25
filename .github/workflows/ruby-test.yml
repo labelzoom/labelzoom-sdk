@@ -1,0 +1,107 @@
+name: Ruby Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ruby/**'
+      - 'conformance/**'
+      - '.github/workflows/ruby-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'ruby/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/ruby-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  # The cell that runs RuboCop, verifies the gem and uploads the artifact.
+  PRIMARY_RUBY: '3.1'
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The gemspec floor through current. The gem has no runtime dependencies, so the
+        # spread is about the standard library rather than a resolution matrix -- base64
+        # stopped being a default gem in 3.4, which is exactly the kind of thing this
+        # catches.
+        ruby-version: [ '3.1', '3.2', '3.3', '3.4' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+          working-directory: ./ruby
+
+      - name: Lint
+        if: matrix.ruby-version == env.PRIMARY_RUBY
+        run: bundle exec rubocop
+        working-directory: ./ruby
+
+      # No secrets, no network: WebMock answers every request and refuses real connections,
+      # so this passes identically on a fork pull request.
+      - name: Test
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/test-results"
+          bundle exec rspec \
+            --format progress \
+            --format RspecJunitFormatter \
+            --out "${{ github.workspace }}/test-results/ruby.xml"
+        working-directory: ./ruby
+
+      # The gemspec enumerates `files` with a Dir glob. A glob that stops matching -- or a
+      # .gitignore rule that swallows lib/ -- builds a gem that installs happily and
+      # breaks every consumer's require. Assert the real artifact.
+      - name: Verify the publishable gem contains the library
+        if: matrix.ruby-version == env.PRIMARY_RUBY
+        run: |
+          set -euo pipefail
+          gem build labelzoom.gemspec
+          gem unpack ./labelzoom-*.gem --target /tmp/gemcheck
+          unpacked="$(find /tmp/gemcheck -maxdepth 1 -type d -name 'labelzoom-*' | head -n1)"
+          for required in lib/labelzoom.rb lib/labelzoom/client.rb LICENSE README.md; do
+            test -f "${unpacked}/${required}" \
+              || { echo "::error::${required} is missing from the built gem"; exit 1; }
+          done
+          # spec/ must NOT ship: it reads ../conformance, which no consumer has.
+          if [ -d "${unpacked}/spec" ]; then
+            echo "::error::spec/ must not be packaged"; exit 1
+          fi
+          # Smoke test the unpacked gem in isolation, with no bundle context.
+          (cd "${unpacked}" && ruby -Ilib -e 'require "labelzoom"; \
+             abort "client did not construct" unless LabelZoom::Client.new(api_key: nil); \
+             puts "labelzoom #{LabelZoom::VERSION} loads standalone"')
+          rm -f ./labelzoom-*.gem
+        working-directory: ./ruby
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled()) && matrix.ruby-version == env.PRIMARY_RUBY
+        with:
+          name: test-results
+          path: test-results/

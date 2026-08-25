@@ -1,0 +1,123 @@
+name: Release Ruby
+
+# Publishes the labelzoom gem to RubyGems via Trusted Publishing (OIDC) -- no token, no
+# secret.
+#
+# The FILENAME of this workflow is a matched claim in the RubyGems trusted publisher
+# policy. Renaming this file silently breaks publishing, and the failure surfaces only at
+# publish time.
+#
+# FIRST RELEASE IS MANUAL. Unlike PyPI, RubyGems has no "pending" trusted publisher for a
+# gem name that does not exist yet: the policy can only be attached to an existing gem. So
+# `labelzoom` 1.0.0 has to be pushed once with a scoped API key, after which the policy is
+# configured and every later release goes through OIDC.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Build and verify without publishing'
+        type: boolean
+        default: false
+  # A published GitHub Release, not a bare tag push. Creating a release from an EXISTING
+  # tag fires no push event at all, so tag-push silently does nothing for the most common
+  # release flow.
+  release:
+    types: [published]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    name: publish
+    # A release event is delivered to every release workflow; the tag prefix is what
+    # decides which language it is actually for. Keeps the SDKs independently versioned.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || startsWith(github.event.release.tag_name, 'ruby/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: rubygems
+    permissions:
+      id-token: write   # required for the OIDC token RubyGems exchanges for publish rights
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.4'
+          # No bundler cache here, deliberately -- unlike ruby-test.yml. A restored cache
+          # is attacker-influenced input, and anything it plants would be baked into a gem
+          # that every consumer then trusts. zizmor flags this as cache poisoning; the
+          # finding is correct.
+          bundler-cache: false
+          working-directory: ./ruby
+
+      - name: Install dependencies
+        run: bundle install --jobs 4
+        working-directory: ./ruby
+
+      - name: Lint
+        run: bundle exec rubocop
+        working-directory: ./ruby
+
+      # The release gate is the same conformance suite the PR builds run: the shared
+      # fixtures plus the assertion that all of them executed.
+      - name: Test
+        run: bundle exec rspec
+        working-directory: ./ruby
+
+      # A tag must agree with the version it claims to release, or `ruby/v1.0.1` quietly
+      # publishes whatever version.rb happens to say.
+      - name: Verify tag matches the gem version
+        if: github.event_name == 'release'
+        env:
+          # Passed as an env var rather than interpolated into the script: a tag name is
+          # attacker-influenced text, and inlining it into `run:` is template injection.
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag_version="${RELEASE_TAG#ruby/v}"
+          gem_version="$(ruby -Ilib -e 'require "labelzoom/version"; print LabelZoom::VERSION')"
+          echo "tag=$tag_version version.rb=$gem_version"
+          if [ "$tag_version" != "$gem_version" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match LabelZoom::VERSION ${gem_version}"
+            exit 1
+          fi
+        working-directory: ./ruby
+
+      # An empty gem installs happily and breaks every consumer's require, so check the
+      # artifact rather than trusting that the gemspec's file glob matched.
+      - name: Verify the gem contains the library
+        run: |
+          set -euo pipefail
+          gem build labelzoom.gemspec
+          gem unpack ./labelzoom-*.gem --target /tmp/gemcheck
+          unpacked="$(find /tmp/gemcheck -maxdepth 1 -type d -name 'labelzoom-*' | head -n1)"
+          for required in lib/labelzoom.rb lib/labelzoom/client.rb LICENSE README.md; do
+            test -f "${unpacked}/${required}" \
+              || { echo "::error::${required} is missing from the gem"; exit 1; }
+          done
+        working-directory: ./ruby
+
+      # No stored credential: trusted publishing supplies it over OIDC.
+      - name: Publish to RubyGems
+        if: ${{ !inputs.dry-run }}
+        uses: rubygems/release-gem@7f9650160c1a4e7989fdc9855807bdbd421d8b6b # v1.4.1
+        with:
+          await-release: false
+          working-directory: ./ruby
+
+      - name: Dry run summary
+        if: ${{ inputs.dry-run }}
+        run: echo "Dry run complete - built and verified, publish skipped."

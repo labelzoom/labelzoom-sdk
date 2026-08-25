@@ -1,0 +1,54 @@
+plugins:
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "pkg/**/*"
+
+Style/StringLiterals:
+  # Double quotes throughout, matching every other SDK in this repository. Every file
+  # carries a frozen_string_literal magic comment, so the usual allocation argument for
+  # single quotes does not apply.
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+Layout/LineLength:
+  Max: 100
+
+Metrics:
+  # The conformance runner is a long, flat translation layer by nature: one branch per
+  # fixture vocabulary term. Splitting it into helpers would scatter the mapping that is
+  # the whole point of reading it.
+  Enabled: false
+
+Style/Documentation:
+  Enabled: true
+
+RSpec/ExampleLength:
+  Enabled: false
+
+RSpec/MultipleExpectations:
+  # A conformance case asserts everything one fixture declares. Splitting those into an
+  # example each would decouple the example name from the case id, which is what makes a
+  # failure report legible.
+  Enabled: false
+
+RSpec/NoExpectationExample:
+  Enabled: false
+
+RSpec/DescribeClass:
+  Exclude:
+    # The conformance suite describes the shared fixture set, not a Ruby class. Its
+    # example names are the fixture ids, which is what makes a failure report legible.
+    - "spec/conformance_spec.rb"
+
+RSpec/SpecFilePathFormat:
+  # The gem is LabelZoom but the directory is labelzoom, matching the gem and require name.
+  CustomTransform:
+    LabelZoom: labelzoom
