@@ -7,10 +7,19 @@ name: Release Ruby
 # policy. Renaming this file silently breaks publishing, and the failure surfaces only at
 # publish time.
 #
-# FIRST RELEASE IS MANUAL. Unlike PyPI, RubyGems has no "pending" trusted publisher for a
-# gem name that does not exist yet: the policy can only be attached to an existing gem. So
-# `labelzoom` 1.0.0 has to be pushed once with a scoped API key, after which the policy is
-# configured and every later release goes through OIDC.
+# NO MANUAL FIRST PUBLISH NEEDED. RubyGems supports a PENDING trusted publisher: configure
+# it against a gem name that does not exist yet, and the first successful push converts it
+# into a normal publisher and makes you the gem owner. Configure it under your RubyGems.org
+# profile (not under the gem, which does not exist), with:
+#
+#   gem name           labelzoom
+#   repository owner   labelzoom
+#   repository name    labelzoom-sdk
+#   workflow filename  release-ruby.yml     <- must match this file's name
+#   environment        rubygems             <- must match `environment:` below
+#
+# crates.io is the one that genuinely requires a manual first publish; see
+# release-rust.yml.
 
 on:
   workflow_dispatch:
@@ -108,15 +117,51 @@ jobs:
             test -f "${unpacked}/${required}" \
               || { echo "::error::${required} is missing from the gem"; exit 1; }
           done
+          # Left in place on purpose: the publish step pushes this exact artifact, so what
+          # ships is what was just verified rather than a second, unchecked build.
+          ls -l ./labelzoom-*.gem
         working-directory: ./ruby
 
-      # No stored credential: trusted publishing supplies it over OIDC.
+      # Deliberately NOT rubygems/release-gem, which is the obvious choice and is wrong
+      # for this repository: it runs `bundle exec rake release`, and bundler's release
+      # task creates and pushes a git tag of its own named `v<version>`. This repo tags
+      # `ruby/v<version>` so eight SDKs can version independently, and it has an ACTIVE
+      # ruleset blocking creation of `refs/tags/v*`, so that push would be rejected --
+      # after the gem had already been pushed to RubyGems, which is not undoable.
+      #
+      # So take the OIDC credential step that release-gem wraps, and push the gem
+      # directly. The tag already exists; the GitHub Release is what triggered this run.
+      - name: Configure RubyGems credentials
+        if: ${{ !inputs.dry-run }}
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+
+      # No stored credential: trusted publishing supplied it over OIDC above.
       - name: Publish to RubyGems
         if: ${{ !inputs.dry-run }}
-        uses: rubygems/release-gem@7f9650160c1a4e7989fdc9855807bdbd421d8b6b # v1.4.1
-        with:
-          await-release: false
-          working-directory: ./ruby
+        run: gem push ./labelzoom-*.gem
+        working-directory: ./ruby
+
+      # `gem push` returns before the gem is queryable. Confirm it actually landed rather
+      # than reporting success on an upload that was still being processed.
+      - name: Verify the gem is live on RubyGems
+        if: ${{ !inputs.dry-run }}
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          version="$(ruby -Ilib -e 'require "labelzoom/version"; print LabelZoom::VERSION')"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -sSf "https://rubygems.org/api/v1/versions/labelzoom.json" \
+                 | grep -q "\"number\":\"${version}\""; then
+              echo "labelzoom ${version} is live on RubyGems"
+              exit 0
+            fi
+            echo "attempt ${attempt}: not indexed yet, waiting"
+            sleep 20
+          done
+          echo "::error::labelzoom ${version} did not appear on RubyGems"
+          exit 1
+        working-directory: ./ruby
 
       - name: Dry run summary
         if: ${{ inputs.dry-run }}
