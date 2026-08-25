@@ -13,9 +13,9 @@ Targets **netstandard2.0** (so .NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+) a
 dotnet add package LabelZoom.Sdk
 ```
 
-> **Pre-1.0.** The public API is stable in practice and covered by a shared conformance
-> suite, but it stays on `0.x` until all seven language SDKs have validated the same
-> contract — two contract-level corrections have already come out of that process.
+> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
+> every language SDK runs against the same fixtures, and it is versioned independently of
+> the other SDKs — the contract carries its own version in `conformance/spec.json`.
 
 <details>
 <summary>Build from source</summary>

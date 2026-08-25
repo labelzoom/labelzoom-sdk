@@ -1,0 +1,7 @@
+[profile.ci]
+# Report every trial rather than stopping at the first failure: a conformance run is most
+# useful when it says which of the 83 cases broke, not just that one did.
+fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"

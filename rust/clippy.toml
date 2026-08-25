@@ -1,0 +1,4 @@
+# clippy::doc_markdown reads a camel-case word in prose as an un-backticked code item.
+# "LabelZoom" is the product name and appears in nearly every doc comment; backticking it
+# would render the docs as code spans throughout. ".." keeps clippy's own default list.
+doc-valid-idents = ["LabelZoom", ".."]

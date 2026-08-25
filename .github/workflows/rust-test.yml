@@ -1,0 +1,140 @@
+name: Rust Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'rust/**'
+      - 'conformance/**'
+      - '.github/workflows/rust-test.yml'
+  # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
+  # would give every PR in that stack except the bottom zero checks.
+  pull_request:
+    paths:
+      - 'rust/**'
+      # The conformance fixtures ARE the contract. A fixture change has to re-run every
+      # language suite, or a "harmless" edit lands green against none of them.
+      - 'conformance/**'
+      - '.github/workflows/rust-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  # The cell that runs fmt/clippy, verifies the package and uploads the artifact.
+  PRIMARY_TOOLCHAIN: stable
+
+jobs:
+  test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The MSRV cell is not decoration: 1.85 is the floor the bundled rustls stack sets
+        # (zeroize is edition 2024), and without a cell pinned to it a dependency bump
+        # would raise the real floor silently.
+        toolchain: [ stable, '1.85' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo artifacts
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: rust
+
+      - name: Check formatting
+        if: matrix.toolchain == env.PRIMARY_TOOLCHAIN
+        run: cargo fmt --check
+        working-directory: ./rust
+
+      - name: Lint
+        if: matrix.toolchain == env.PRIMARY_TOOLCHAIN
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+        working-directory: ./rust
+
+      - name: Build
+        run: cargo build --locked
+        working-directory: ./rust
+
+      # Proves the Transport trait is a real seam rather than a documented intention: with
+      # the feature off there is no HTTP stack linked in at all, and the crate must still
+      # compile.
+      - name: Build without the bundled HTTP backend
+        run: cargo build --locked --no-default-features
+        working-directory: ./rust
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        with:
+          tool: cargo-nextest
+
+      # No secrets, no network: the client talks to a RecordingTransport implementing the
+      # crate's own Transport trait, and the typecheck probes build with --offline, so this
+      # passes identically on a fork pull request.
+      - name: Test
+        run: cargo nextest run --profile ci --locked --all-features
+        working-directory: ./rust
+
+      # nextest does not run doctests; the README's examples are doctests, so run them too.
+      - name: Doctests
+        run: cargo test --doc --locked --all-features
+        working-directory: ./rust
+
+      - name: Collect JUnit results
+        if: (!cancelled()) && matrix.toolchain == env.PRIMARY_TOOLCHAIN
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/test-results"
+          # Tolerant of a missing file on purpose: a build that fails before nextest
+          # produces a report would otherwise turn one honest red X into two, the second
+          # saying nothing the first did not. Same reasoning as test-report.yml's probe job.
+          if [ -f target/nextest/ci/junit.xml ]; then
+            cp target/nextest/ci/junit.xml "${{ github.workspace }}/test-results/rust.xml"
+          else
+            echo "::notice::nextest produced no JUnit report; the test step failed early."
+          fi
+        working-directory: ./rust
+
+      # A crate published without its sources compiles for nobody. crates.io is also
+      # immutable, so check the artifact before a tag exists rather than after.
+      - name: Verify the publishable package contents
+        if: matrix.toolchain == env.PRIMARY_TOOLCHAIN
+        run: |
+          set -euo pipefail
+          cargo package --locked --list > /tmp/package.txt
+          cat /tmp/package.txt
+          for required in src/lib.rs src/client.rs LICENSE README.md; do
+            grep -qx "$required" /tmp/package.txt \
+              || { echo "::error::$required is missing from the package"; exit 1; }
+          done
+          # tests/ reads ../conformance, which is not in the package; shipping a test tree
+          # that cannot build is worse than shipping none.
+          if grep -q '^tests/' /tmp/package.txt; then
+            echo "::error::tests/ must not be packaged"; exit 1
+          fi
+        working-directory: ./rust
+
+      - name: Upload test results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: (!cancelled()) && matrix.toolchain == env.PRIMARY_TOOLCHAIN
+        with:
+          name: test-results
+          path: test-results/

@@ -3,7 +3,7 @@
 **Status:** normative. **Applies to:** every language SDK in this repository.
 
 This document states, once, the behavior every LabelZoom SDK must exhibit. It exists because
-the SDKs are written independently in seven languages and would otherwise drift. Each rule has
+the SDKs are written independently in eight languages and would otherwise drift. Each rule has
 a stable identifier (`A1`, `E4`, …) so fixtures, code comments, and review feedback can cite it.
 
 The machine-checkable subset of these rules lives in [`../conformance/`](../conformance/) and is
@@ -43,7 +43,8 @@ TargetFormat  (11)  ZPL EPL TSPL DPL XML JSON PDF PNG BMP GIF JPEG
 `SourceFormat` and `TargetFormat` are **distinct types**, and the sets are not the same. `JPG` and
 `URL` are source-only: `JPG` is an input spelling that normalizes to `JPEG` on the wire (**A2**),
 and `URL` is a fetch instruction rather than a format — there is no `TargetFormat.URL` to name.
-Enforce that at compile time wherever the language allows (C#, TypeScript, Java, PHP 8.1, Go);
+Enforce that at compile time wherever the language allows (C#, TypeScript, Java, PHP 8.1, Go,
+Rust);
 `Literal[...]` + mypy in Python and a runtime `ArgumentError` in Ruby are acceptable substitutes.
 Do not contort a language to get compile-time enforcement it does not natively offer.
 
@@ -308,6 +309,7 @@ Approved, deliberate departures from the canonical shape. Anything not listed he
 
 | Language | Divergence | Rationale |
 |---|---|---|
+| **Rust** | A `ClientBuilder` for the client and a `ConvertRequest` value struct for the call. No chain. Errors are one `enum Error`, with an `ApiErrorKind` per status rather than a distinct type per status. | Rust has no inheritance, so **E4**'s single base type is an enum: `Err(Error::Api(e))` is the one arm that catches every API error, and `Error::Validation` is a sibling rather than a member for exactly the reason **C6** gives. A chain deferring errors to a terminal `send()` is un-Rust for the same reason the Go row gives, and `Option<T>` + `skip_serializing_if` already expresses **C1** in the type system. |
 | **Go** | Functional options for the client, a request struct for the call. No chain. | A fluent chain in Go must either panic or defer errors to a terminal `Do()`; both are un-Go. Functional options + request struct is what every major Go SDK converged on. |
 | **Python** | Keyword arguments with `_`-flattened nesting (`label_width`, `pdf_page_number`, `position_x`). Mirrored `AsyncLabelZoomClient`. | Chained builders are not Python. An `options=ConversionOptions(...)` dataclass is the escape hatch for programmatic construction. A second fluent surface is explicitly **not** added for parity — two public APIs doing the same thing doubles the test matrix and the docs for zero users. |
 | **Ruby** | Keyword arguments with **nested hashes** (`label: { width: 4 }`), not Python's flattening. | Nested hash literals are idiomatic Ruby in a way `label_width` is not. |
