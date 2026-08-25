@@ -70,7 +70,7 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
-      # No dependency cache here, deliberately -- unlike java-test.yml. A restored cache is
+      # No dependency cache here, deliberately -- unlike test-java.yml. A restored cache is
       # attacker-influenced input, and anything it plants would be baked into an artifact that
       # is then GPG-signed and trusted by every consumer.
       - name: Setup Gradle
@@ -195,11 +195,11 @@ jobs:
 
       # USER_MANAGED means the deployment sits in the Portal until a human releases it, and
       # a workflow log is not a reminder -- nobody re-reads a green run. This issue is the
-      # queue: it carries the deployment id, and central-publish-reminder.yml closes it
+      # queue: it carries the deployment id, and remind-central-publish.yml closes it
       # automatically once Central reports the version is actually on the repository.
       # USER_MANAGED means the deployment sits in the Portal until a human releases it, and
       # a workflow log is not a reminder -- nobody re-reads a green run. This issue is the
-      # queue: it carries the deployment id, and central-publish-reminder.yml closes it
+      # queue: it carries the deployment id, and remind-central-publish.yml closes it
       # automatically once Central reports the version is actually on the repository.
       - name: Open a reminder to publish the deployment
         if: ${{ !inputs.dry-run && (inputs.publishing-type || 'USER_MANAGED') == 'USER_MANAGED' }}
@@ -239,7 +239,7 @@ jobs:
 
           ### This issue closes itself
 
-          \`central-publish-reminder.yml\` checks nightly and closes this once \`${version}\`
+          \`remind-central-publish.yml\` checks nightly and closes this once \`${version}\`
           is actually resolvable from Maven Central. If it is still open, the version is still
           not published.
 

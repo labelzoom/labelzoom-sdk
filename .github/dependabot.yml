@@ -44,7 +44,7 @@ updates:
       # line. Types ahead of the runtime describe APIs that do not exist there, so
       # `tsc --noEmit` would accept code that crashes on the very Node we ship on.
       # Patch/minor within the major still flow via npm-minor-patch below; a major
-      # is a runtime decision made by editing node/.nvmrc, and node-types-check.yml
+      # is a runtime decision made by editing node/.nvmrc, and check-node-types.yml
       # fails the build if the two ever disagree.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]

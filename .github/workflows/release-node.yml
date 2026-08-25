@@ -53,7 +53,7 @@ jobs:
         with:
           node-version-file: node/.nvmrc
           registry-url: https://registry.npmjs.org
-          # No `cache: npm` here, deliberately -- unlike node-test.yml. A restored cache
+          # No `cache: npm` here, deliberately -- unlike test-node.yml. A restored cache
           # is attacker-influenced input, and anything it plants would be baked into a
           # package that is then signed with provenance and trusted by every consumer.
           # zizmor flags this as cache-poisoning; the finding is correct.

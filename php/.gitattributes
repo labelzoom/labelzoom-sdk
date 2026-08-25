@@ -1,7 +1,7 @@
 # Keep development-only files out of the dist archive Packagist serves. `composer require`
 # then installs the library and nothing else — no test suite, no tooling config.
 #
-# src/, composer.json, README.md and LICENSE must never be listed here; php-test.yml asserts
+# src/, composer.json, README.md and LICENSE must never be listed here; test-php.yml asserts
 # the archive still contains them, because an over-eager export-ignore ships a package that
 # installs cleanly and then fatals on the first autoload.
 /tests/                 export-ignore

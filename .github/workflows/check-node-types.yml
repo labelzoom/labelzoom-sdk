@@ -3,7 +3,7 @@ name: Node Types Check
 # Enforces the invariant behind the `@types/node` semver-major ignore in
 # .github/dependabot.yml: the type definitions must describe the Node runtime the
 # SDK is actually built, tested and published on -- the latest LTS, pinned in
-# node/.nvmrc, which both node-test.yml and release-node.yml consume via
+# node/.nvmrc, which both test-node.yml and release-node.yml consume via
 # `node-version-file`.
 #
 # Types ahead of the runtime are the dangerous direction: `tsc --noEmit` would

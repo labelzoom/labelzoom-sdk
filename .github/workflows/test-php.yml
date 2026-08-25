@@ -7,7 +7,7 @@ on:
     paths:
       - 'php/**'
       - 'conformance/**'
-      - '.github/workflows/php-test.yml'
+      - '.github/workflows/test-php.yml'
   # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
   # would give every PR in that stack except the bottom zero checks.
   pull_request:
@@ -16,7 +16,7 @@ on:
       # The conformance fixtures ARE the contract. A fixture change has to re-run every
       # language suite, or a "harmless" edit lands green against none of them.
       - 'conformance/**'
-      - '.github/workflows/php-test.yml'
+      - '.github/workflows/test-php.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
