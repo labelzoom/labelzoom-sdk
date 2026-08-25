@@ -173,11 +173,18 @@ for (const dir of ['dotnet', 'node', 'java', 'python', 'php', 'go', 'ruby']) {
 }
 
 const LEGACY_HOSTS = /\b(?:api|www)\.labelzoom\.net\b/;
+const SKIP_DIRS = new Set([
+  'node_modules', 'bin', 'obj', '.git', 'dist',   // node, .NET, python
+  'target', 'vendor', 'pkg', '.bundle', 'coverage', 'tmp',   // rust, ruby, go
+]);
 const scan = (dir, rel = '') => {
   for (const entry of readdirSync(join(REPO, dir, rel), { withFileTypes: true })) {
     const next = join(rel, entry.name);
     if (entry.isDirectory()) {
-      if (['node_modules', 'bin', 'obj', '.git', 'dist'].includes(entry.name)) continue;
+      // Build output, not source. Skipped for correctness (a vendored copy of someone
+      // else's code is not ours to lint) and for speed: one `cargo build` puts tens of
+      // thousands of files under target/, and this scan is the always-required check.
+      if (SKIP_DIRS.has(entry.name)) continue;
       scan(dir, next);
     } else if (/\.(cs|ts|js|mjs|java|py|php|go|rb|json|md)$/.test(entry.name)) {
       const text = readFileSync(join(REPO, dir, next), 'utf8');

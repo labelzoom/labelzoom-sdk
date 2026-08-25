@@ -1,0 +1,20 @@
+// Not a conformance case: the anti-tautology guard for the typecheck harness.
+//
+// A harness bug that reported "did not compile" unconditionally would make both real
+// typecheck cases pass forever. This snippet is the same shape and MUST compile.
+package main
+
+import (
+	"context"
+
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+)
+
+func main() {
+	client, _ := labelzoom.New()
+	_, _ = client.Convert(context.Background(), labelzoom.ConvertRequest{
+		From: labelzoom.SourceZPL,
+		To:   labelzoom.TargetPDF,
+		Body: []byte("^XA^XZ"),
+	})
+}

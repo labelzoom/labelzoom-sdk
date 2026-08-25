@@ -1,0 +1,21 @@
+// Translation of conformance/cases/typecheck/url-is-not-a-target.json:
+//     client.convert().fromZpl(body).to(URL)
+//
+// URL is source-only -- it is a fetch instruction, not a format -- so there is no
+// TargetFormat member to name. Expected: undefined: labelzoom.TargetURL
+package main
+
+import (
+	"context"
+
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+)
+
+func main() {
+	client, _ := labelzoom.New()
+	_, _ = client.Convert(context.Background(), labelzoom.ConvertRequest{
+		From: labelzoom.SourceZPL,
+		To:   labelzoom.TargetURL,
+		Body: []byte("^XA^XZ"),
+	})
+}
