@@ -7,7 +7,7 @@ on:
     paths:
       - 'go/**'
       - 'conformance/**'
-      - '.github/workflows/go-test.yml'
+      - '.github/workflows/test-go.yml'
   # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
   # would give every PR in that stack except the bottom zero checks.
   pull_request:
@@ -16,7 +16,7 @@ on:
       # The conformance fixtures ARE the contract. A fixture change has to re-run every
       # language suite, or a "harmless" edit lands green against none of them.
       - 'conformance/**'
-      - '.github/workflows/go-test.yml'
+      - '.github/workflows/test-go.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,7 +27,7 @@ permissions: {}
 env:
   # Bumped by hand: `go install pkg@version` is not covered by Dependabot's gomod ecosystem
   # (the SDK has no go.sum for it to appear in), so this is pinned the same way
-  # conformance-lint.yml pins actionlint and zizmor.
+  # lint-conformance.yml pins actionlint and zizmor.
   GOTESTSUM_VERSION: v1.13.0
 
 jobs:

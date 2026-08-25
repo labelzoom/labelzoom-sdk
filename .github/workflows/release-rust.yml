@@ -61,7 +61,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-      # No cargo cache here, deliberately -- unlike rust-test.yml. A restored cache is
+      # No cargo cache here, deliberately -- unlike test-rust.yml. A restored cache is
       # attacker-influenced input, and anything it plants would be baked into a crate that
       # every consumer then trusts. zizmor flags this as cache poisoning; the finding is
       # correct.

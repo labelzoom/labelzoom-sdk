@@ -8,7 +8,7 @@
 //!
 //! `trybuild` is the ecosystem-standard answer and it snapshots rustc's full diagnostic
 //! text into a checked-in `.stderr`. That text -- notes, help spans, wording -- changes
-//! between rustc releases, and `rust-test.yml` runs a stable + MSRV matrix. A snapshot
+//! between rustc releases, and `test-rust.yml` runs a stable + MSRV matrix. A snapshot
 //! generated on stable does not match the MSRV compiler's output, and the usual fix
 //! (run UI tests on one toolchain only) collides head-on with the completeness assertion:
 //! every other matrix cell would then be missing two executed cases.

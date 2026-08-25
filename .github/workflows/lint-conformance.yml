@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
-  # Unfiltered by base branch so stacked PRs are checked too -- see dotnet-test.yml.
+  # Unfiltered by base branch so stacked PRs are checked too -- see test-dotnet.yml.
   pull_request:
 
 concurrency:
@@ -48,6 +48,30 @@ jobs:
       # Downloaded and checksum-verified rather than pulled as an action, matching
       # labelzoom/.github's own CI. A mutable tag would undercut the pinning this repo
       # is asking Dependabot to maintain.
+      # Workflow filenames are <verb>-<subject>.yml, so `ls` groups them by what they do
+      # instead of interleaving the release pipelines with the per-runtime test ones. A
+      # convention nothing checks drifts back within a release or two, and this one is
+      # cheap to check.
+      #
+      # `release-<runtime>.yml` is not merely a convention: npm, PyPI, RubyGems and
+      # crates.io all match the workflow FILENAME as a claim in their trusted-publisher
+      # policies, so renaming one of those silently breaks publishing and only says so at
+      # publish time.
+      - name: Workflow filenames follow <verb>-<subject>.yml
+        run: |
+          set -euo pipefail
+          verbs='check|lint|release|remind|report|test'
+          bad=0
+          for path in .github/workflows/*.y*ml; do
+            file="$(basename "$path")"
+            if ! printf '%s' "$file" | grep -qE "^(${verbs})-[a-z0-9.-]+\.ya?ml$"; then
+              echo "::error file=${path}::${file} does not match <verb>-<subject>.yml (verb one of: ${verbs//|/, })"
+              bad=1
+            fi
+          done
+          [ "$bad" -eq 0 ] || exit 1
+          echo "all $(find .github/workflows -name '*.y*ml' | wc -l) workflow filenames follow the convention"
+
       - name: actionlint
         env:
           ACTIONLINT_VERSION: '1.7.7'

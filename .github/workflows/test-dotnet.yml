@@ -7,7 +7,7 @@ on:
     paths:
       - 'dotnet/**'
       - 'conformance/**'
-      - '.github/workflows/dotnet-test.yml'
+      - '.github/workflows/test-dotnet.yml'
   # No base-branch filter on purpose. The language SDKs land as a stack of PRs, each
   # based on the previous one, and `branches: [main]` means every PR in that stack
   # except the bottom gets zero checks -- the code that most needs compiling is the
@@ -18,7 +18,7 @@ on:
       # The conformance fixtures ARE the contract. A fixture change has to re-run every
       # language suite, or a "harmless" edit lands green against none of them.
       - 'conformance/**'
-      - '.github/workflows/dotnet-test.yml'
+      - '.github/workflows/test-dotnet.yml'
 
 # Cancel in-progress runs for the same workflow and branch/PR
 concurrency:
@@ -70,7 +70,7 @@ jobs:
     # No secrets, no network. Everything here is served by a stubbed HttpMessageHandler,
     # so this passes identically on a fork pull request -- which is what the previous
     # suite could not do: it threw in its constructor when the token was unset, turning
-    # every fork PR red. Live tests live in live-tests.yml and are excluded by category.
+    # every fork PR red. Live tests live in test-live.yml and are excluded by category.
     # LogFilePath is absolute because JunitXml.TestLogger resolves it against the
     # test process's working directory, not --results-directory; a relative path
     # lands somewhere the upload glob never sees.

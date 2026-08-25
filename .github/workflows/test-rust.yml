@@ -7,7 +7,7 @@ on:
     paths:
       - 'rust/**'
       - 'conformance/**'
-      - '.github/workflows/rust-test.yml'
+      - '.github/workflows/test-rust.yml'
   # No base-branch filter: the language SDKs land as a stack of PRs, and `branches: [main]`
   # would give every PR in that stack except the bottom zero checks.
   pull_request:
@@ -16,7 +16,7 @@ on:
       # The conformance fixtures ARE the contract. A fixture change has to re-run every
       # language suite, or a "harmless" edit lands green against none of them.
       - 'conformance/**'
-      - '.github/workflows/rust-test.yml'
+      - '.github/workflows/test-rust.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -105,7 +105,7 @@ jobs:
           mkdir -p "${{ github.workspace }}/test-results"
           # Tolerant of a missing file on purpose: a build that fails before nextest
           # produces a report would otherwise turn one honest red X into two, the second
-          # saying nothing the first did not. Same reasoning as test-report.yml's probe job.
+          # saying nothing the first did not. Same reasoning as report-tests.yml's probe job.
           if [ -f target/nextest/ci/junit.xml ]; then
             cp target/nextest/ci/junit.xml "${{ github.workspace }}/test-results/rust.xml"
           else

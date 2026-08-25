@@ -55,7 +55,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # No dependency cache here, deliberately -- unlike dotnet-test.yml.
+      # No dependency cache here, deliberately -- unlike test-dotnet.yml.
       # A restored cache is attacker-influenced input, and anything it plants would be
       # baked into a package that is then signed, attested, and trusted by every
       # consumer. The cache saves seconds on a workflow that runs a handful of times a

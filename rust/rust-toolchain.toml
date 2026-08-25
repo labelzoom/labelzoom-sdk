@@ -1,5 +1,5 @@
 # Pinned so `cargo fmt` and `cargo clippy -D warnings` mean the same thing locally and in
-# CI. The MSRV cell of rust-test.yml installs 1.82 explicitly on top of this.
+# CI. The MSRV cell of test-rust.yml installs 1.85 explicitly on top of this.
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]
