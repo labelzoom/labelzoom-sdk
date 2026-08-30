@@ -50,14 +50,23 @@ updates:
         update-types: ["version-update:semver-major"]
       # typescript's .d.ts pipeline inside tsup 8.5.1 does not support TS >= 6:
       #   TS 6 -> tsup injects the deprecated `baseUrl` (tsup/dist/rollup.js:6837)
-      #           into the dts build, which TS 6 rejects with TS5101
+      #           into the dts build, which TS 6 rejects with TS5101. Note our own
+      #           tsconfig.json sets no baseUrl -- tsup adds it.
       #   TS 7 -> tsup's bundled rollup-plugin-dts crashes on the new compiler API
       #           ("Cannot read properties of undefined (reading
-      #           'useCaseSensitiveFileNames')")
-      # Both were reproduced locally against 6.0.3 and 7.0.2. The esbuild JS build
-      # succeeds either way; only declaration generation breaks, which is fatal for
-      # a package whose `types` is a published entry point. Neither is fixable here.
-      # Revisit -- and drop this ignore -- when tsup ships a TS >= 6 dts pipeline.
+      #           'useCaseSensitiveFileNames')"). Root cause: TS 7 is the Go-native
+      #           compiler and ships no programmatic API -- its only root export is
+      #           lib/version.cjs -- and the API does not return until TS 7.1.
+      # Re-reproduced 2026-08-30 against 6.0.3 and 7.0.2. `npm run typecheck`
+      # (tsc --noEmit) passes on BOTH; the esbuild JS build succeeds on both too.
+      # Only declaration generation breaks -- fatal for a package whose `types` is a
+      # published entry point. Neither is fixable here.
+      #
+      # Concrete unblock condition: tsup 8.5.1 vendors rollup-plugin-dts@6.1.1
+      # (itself pinned to typescript@5.7.3). Standalone rollup-plugin-dts@6.5.1
+      # already peers on ^4.5 || ^5 || ^6 || ^7. So drop this ignore once tsup ships
+      # a release that bumps its bundled rollup-plugin-dts. tsup has published
+      # nothing since 8.5.1 and has no `next` tag, so there is nothing to try yet.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:
