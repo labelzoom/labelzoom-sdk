@@ -9,7 +9,7 @@
     "target": "zpl",
     "bodyText": "%PDF-1.4",
     "options": {
-      "dpi": 300,
+      "targetDpi": 300,
       "rotation": 180,
       "scaling": 75.0,
       "colorMode": "GRAYSCALE",
@@ -50,7 +50,7 @@
     },
     "queryJson": {
       "params": {
-        "dpi": 300,
+        "targetDpi": 300,
         "rotation": 180,
         "scaling": 75.0,
         "colorMode": "GRAYSCALE",

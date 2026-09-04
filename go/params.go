@@ -45,7 +45,18 @@ type ZPLOptions struct {
 // client-side default, which is why the scalars are pointers -- see [Int], [Float64],
 // [Bool] and [String]. Setting nothing at all produces a bare URL with no query string.
 type Options struct {
-	// DPI is the output resolution. Server default 203.
+	// SourceDPI is how the source's absolute positions are interpreted: dots for printer
+	// languages, pixels for bitmap images, an override of the document's dpi for LabelZoom
+	// XML/JSON. Not applicable to PDF sources (vector).
+	SourceDPI *int
+	// TargetDPI is the resolution the output is authored at. Applies to printer-language and
+	// XML/JSON targets, and to raster targets when the source is a bitmap or PDF.
+	// Server default 203.
+	TargetDPI *int
+	// DPI is the legacy alias for a single print resolution; the server applies it to whichever
+	// side(s) of the chosen path support a dpi. Prefer SourceDPI/TargetDPI.
+	//
+	// Deprecated: use SourceDPI or TargetDPI.
 	DPI *int
 	// Rotation is degrees clockwise and must be a multiple of 90. Server default 0.
 	Rotation *int
@@ -98,6 +109,12 @@ func (o *Options) serialize() (string, error) {
 
 	params := map[string]any{}
 
+	if o.SourceDPI != nil {
+		params["sourceDpi"] = *o.SourceDPI
+	}
+	if o.TargetDPI != nil {
+		params["targetDpi"] = *o.TargetDPI
+	}
 	if o.DPI != nil {
 		params["dpi"] = *o.DPI
 	}

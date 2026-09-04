@@ -361,22 +361,37 @@ export class ConversionSourceBuilder {
   readonly #source: SourceFormat;
   readonly #body: ConversionBody;
   readonly #asBase64Text: boolean;
+  readonly #options: ConversionOptions;
 
   constructor(
     client: LabelZoomClient,
     source: SourceFormat,
     body: ConversionBody,
     asBase64Text: boolean,
+    options: ConversionOptions = {},
   ) {
     this.#client = client;
     this.#source = source;
     this.#body = body;
     this.#asBase64Text = asBase64Text;
+    this.#options = options;
+  }
+
+  /**
+   * How the **source's** absolute positions are interpreted, in dots per inch: dots for printer
+   * languages, pixels for bitmap images, an override of the document's dpi for LabelZoom XML/JSON.
+   * Not applicable to PDF sources (vector). This is the source-side dpi; `withDpi` on the target
+   * builder authors the output, and both may be set when the chosen format pair supports a dpi on
+   * each side.
+   */
+  withDpi(dpi: number): this {
+    this.#options.sourceDpi = dpi;
+    return this;
   }
 
   to(target: TargetFormat): ConversionTargetBuilder {
     return new ConversionTargetBuilder(
-      this.#client, this.#source, target, this.#body, this.#asBase64Text);
+      this.#client, this.#source, target, this.#body, this.#asBase64Text, this.#options);
   }
 
   toZpl(): ConversionTargetBuilder { return this.to('zpl'); }
@@ -409,15 +424,23 @@ export class ConversionTargetBuilder {
     target: TargetFormat,
     body: ConversionBody,
     asBase64Text: boolean,
+    options: ConversionOptions = {},
   ) {
     this.#client = client;
     this.#source = source;
     this.#target = target;
     this.#body = body;
     this.#asBase64Text = asBase64Text;
+    this.#options = options;
   }
 
-  withDpi(dpi: number): this { this.#options.dpi = dpi; return this; }
+  /**
+   * The resolution the **output** is authored at, in dots per inch. The server default is 203.
+   * This is the target-side dpi; `withDpi` on the source builder declares how the source's
+   * positions are interpreted, and both may be set when the chosen format pair supports a dpi on
+   * each side.
+   */
+  withDpi(dpi: number): this { this.#options.targetDpi = dpi; return this; }
   /** Must be a multiple of 90; rejected locally otherwise. */
   withRotation(rotation: number): this { this.#options.rotation = rotation; return this; }
   withScaling(percent: number): this { this.#options.scaling = percent; return this; }

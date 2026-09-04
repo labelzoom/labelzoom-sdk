@@ -33,6 +33,8 @@ module LabelZoom
     }.freeze
 
     SCALAR_KEYS = {
+      source_dpi: "sourceDpi",
+      target_dpi: "targetDpi",
       dpi: "dpi",
       rotation: "rotation",
       scaling: "scaling",

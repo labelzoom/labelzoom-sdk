@@ -114,7 +114,9 @@ first if it came from untrusted input.
 
 | Option | Notes |
 |---|---|
-| `dpi` | server default 203 |
+| `sourceDpi` | how the source's positions are interpreted; not applicable to PDF sources |
+| `targetDpi` | resolution the output is authored at; server default 203 |
+| `dpi` | legacy alias applied to whichever side(s) the path supports; still accepted |
 | `rotation` | must be a multiple of 90; rejected locally otherwise |
 | `scaling` | percent, server default 100 |
 | `colorMode` | `'BW'`, `'GRAYSCALE'` (default), `'COLOR'` |

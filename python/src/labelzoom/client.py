@@ -246,6 +246,8 @@ class LabelZoomClient(_BaseClient):
         *,
         options: ConversionOptions | None = None,
         as_base64_text: bool = False,
+        source_dpi: int | _Unset = UNSET,
+        target_dpi: int | _Unset = UNSET,
         dpi: int | _Unset = UNSET,
         rotation: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
@@ -277,6 +279,9 @@ class LabelZoomClient(_BaseClient):
             passed alongside it win.
         :param as_base64_text: Send the body as base64 ``text/plain`` rather than the
             source's own media type.
+        :param source_dpi: How the source's absolute positions are interpreted. Not applicable
+            to PDF sources.
+        :param target_dpi: The resolution the output is authored at. Server default 203.
         :param label_width: **Inches**, not dots.
         :param label_height: **Inches**, not dots.
         :param pdf_page_number: **0-based**. Omit to convert every page.
@@ -284,6 +289,8 @@ class LabelZoomClient(_BaseClient):
         :raises LabelZoomError: The API returned a non-2xx response.
         """
         merged = (options or ConversionOptions()).merge(
+            source_dpi=source_dpi,
+            target_dpi=target_dpi,
             dpi=dpi,
             rotation=rotation,
             scaling=scaling,
@@ -381,6 +388,8 @@ class AsyncLabelZoomClient(_BaseClient):
         *,
         options: ConversionOptions | None = None,
         as_base64_text: bool = False,
+        source_dpi: int | _Unset = UNSET,
+        target_dpi: int | _Unset = UNSET,
         dpi: int | _Unset = UNSET,
         rotation: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
@@ -401,6 +410,8 @@ class AsyncLabelZoomClient(_BaseClient):
     ) -> ConversionResult:
         """Convert a label from one format to another. See :meth:`LabelZoomClient.convert`."""
         merged = (options or ConversionOptions()).merge(
+            source_dpi=source_dpi,
+            target_dpi=target_dpi,
             dpi=dpi,
             rotation=rotation,
             scaling=scaling,
