@@ -3,7 +3,7 @@
 # LabelZoom Rust SDK
 
 Official Rust client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Rust 1.85+. Blocking, with a rustls-backed HTTP stack — no async runtime, and no OpenSSL headers
 needed to build it anywhere.
@@ -68,9 +68,10 @@ conformance suite proves. See [API_CONTRACT.md §9](../docs/API_CONTRACT.md#9-di
 
 ## Formats
 
-**Sources (13):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` `Url`
+**Sources (15):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+`Jpg` `Url`
 
-**Targets (11):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets (13):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
 `SourceFormat` and `TargetFormat` are separate enums. `SourceFormat::Jpg` is an input spelling
 that normalizes to `jpeg` on the wire, and `SourceFormat::Url` tells the server to go fetch a
@@ -186,7 +187,7 @@ cargo build --no-default-features     # proves the Transport seam is real
 ```
 
 The test suite is the shared conformance fixtures in [`../conformance/`](../conformance/) — the
-same 83 cases the .NET, Node, Java, Python, PHP, Go and Ruby suites run — plus an assertion that it
+same 87 cases the .NET, Node, Java, Python, PHP, Go and Ruby suites run — plus an assertion that it
 executed every one of them. `conformance/skips/rust.json` is empty: Rust compiles, so the two
 `typecheck/*` cases are run for real, by building a snippet from `tests/typecheck/snippets/` in a
 throwaway crate and asserting the compiler rejects it with the expected error code.

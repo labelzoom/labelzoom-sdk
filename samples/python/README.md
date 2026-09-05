@@ -57,7 +57,7 @@ with open(image_path, 'rb') as f:
     image_bytes = f.read()
 
 url = 'https://api.labelzoom.com/api/v2/convert/png/to/zpl'
-headers = { 'Content-Type': 'image/png', 'Accept': 'text/plain' }
+headers = { 'Content-Type': 'image/png', 'Accept': '*/*' }
 response = requests.post(url, data=image_bytes, headers=headers)
 
 try:
@@ -117,7 +117,7 @@ with open(image_path, 'rb') as f:
     image_bytes = f.read()
 
 url = 'https://api.labelzoom.com/api/v2/convert/png/to/zpl'
-headers = { 'Content-Type': 'image/png', 'Accept': 'text/plain' }
+headers = { 'Content-Type': 'image/png', 'Accept': '*/*' }
 response = requests.post(url, data=image_bytes, headers=headers)
 zpl = response.text
 
@@ -135,7 +135,7 @@ print("Label printed successfully!")
 
 - **PNG to ZPL**: `POST https://api.labelzoom.com/api/v2/convert/png/to/zpl`
   - Content-Type: `image/png`
-  - Accept: `text/plain`
+  - Accept: `*/*`
 
 ## Printer Network Configuration
 

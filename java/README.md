@@ -3,7 +3,7 @@
 # LabelZoom Java SDK
 
 Official Java client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 **Java 17+. Zero runtime dependencies.**
 
@@ -81,18 +81,18 @@ ConversionResult result = client.convert()
 
 ## Formats
 
-**Sources (12, plus `URL`):** `ZPL` `EPL` `TSPL` `DPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG`
+**Sources (15):** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG` `URL`
 
-**Targets (11):** `ZPL` `EPL` `TSPL` `DPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
+**Targets (13):** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
 
 `SourceFormat` and `TargetFormat` are distinct enums, so `toUrl()` does not exist and
 `to(SourceFormat.PDF)` does not compile. `JPG` and `URL` are source-only — `JPG` normalizes to
 `JPEG`, and `URL` is a fetch instruction rather than a format — and the type system says so rather
 than letting you find out from a 404.
 
-`epl`, `tspl` and `dpl` are targets as well as sources — ``fromPdf(bytes).toEpl()`` is a real conversion. Their
-output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
-inline raw binary: read `result.bytes()` rather than `result.text()` whenever a label might carry graphics.
+`epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as sources — ``fromPdf(bytes).toEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but they can all carry raw binary (EPL's `GW`,
+TSPL's `BITMAP`, IPL's `STX`/`ETX`-framed bitmap columns, SBPL's inline graphics): read `result.bytes()` rather than `result.text()` whenever a label might carry graphics.
 
 `SourceFormat.URL` has the *server* fetch a URL you supply. Validate it first if it came from
 untrusted input.

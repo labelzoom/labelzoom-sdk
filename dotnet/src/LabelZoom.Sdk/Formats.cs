@@ -16,14 +16,20 @@ namespace LabelZoom.Sdk
         /// <summary>Zebra Programming Language. Sent as <c>text/plain</c>.</summary>
         Zpl,
 
-        /// <summary>Eltron Programming Language. Source-only. Sent as <c>text/plain</c>.</summary>
+        /// <summary>Eltron Programming Language. Sent as <c>text/plain</c>.</summary>
         Epl,
 
-        /// <summary>TSC Printer Language. Source-only. Sent as <c>text/plain</c>.</summary>
+        /// <summary>Intermec Printer Language. Sent as <c>text/plain</c>.</summary>
+        Ipl,
+
+        /// <summary>TSC Printer Language. Sent as <c>text/plain</c>.</summary>
         Tspl,
 
-        /// <summary>Datamax Printer Language. Source-only. Sent as <c>text/plain</c>.</summary>
+        /// <summary>Datamax Printer Language. Sent as <c>text/plain</c>.</summary>
         Dpl,
+
+        /// <summary>SATO Barcode Printer Language. Sent as <c>text/plain</c>.</summary>
+        Sbpl,
 
         /// <summary>LabelZoom XML. Sent as <c>application/xml</c>.</summary>
         Xml,
@@ -82,6 +88,13 @@ namespace LabelZoom.Sdk
         Epl,
 
         /// <summary>
+        /// Intermec Printer Language. All labels are concatenated. Commands are framed in
+        /// <c>STX</c>/<c>ETX</c> and graphics travel as packed bitmap columns, so prefer
+        /// <see cref="ConversionResult.Bytes"/>.
+        /// </summary>
+        Ipl,
+
+        /// <summary>
         /// TSC printer language. All labels are concatenated. As with <see cref="Epl"/>, the
         /// <c>BITMAP</c> command inlines raw binary, so prefer
         /// <see cref="ConversionResult.Bytes"/>.
@@ -90,6 +103,13 @@ namespace LabelZoom.Sdk
 
         /// <summary>Datamax Printer Language. All labels are concatenated.</summary>
         Dpl,
+
+        /// <summary>
+        /// SATO Barcode Printer Language. All labels are concatenated. Every command is framed
+        /// with <c>ESC</c> and graphics are embedded inline, so prefer
+        /// <see cref="ConversionResult.Bytes"/>.
+        /// </summary>
+        Sbpl,
 
         /// <summary>LabelZoom XML. First label only.</summary>
         Xml,
@@ -152,7 +172,7 @@ namespace LabelZoom.Sdk
     /// <remarks>
     /// This is the single place in the SDK that knows the format matrix. The superseded builder
     /// hierarchy spread the same knowledge across seven classes, and they drifted — one of them
-    /// handled 2 of 12 sources, another returned the source content type as the target format.
+    /// handled 2 of 15 sources, another returned the source content type as the target format.
     /// Keep it here.
     /// </remarks>
     internal static class Formats
@@ -162,8 +182,10 @@ namespace LabelZoom.Sdk
             {
                 [SourceFormat.Zpl] = "zpl",
                 [SourceFormat.Epl] = "epl",
+                [SourceFormat.Ipl] = "ipl",
                 [SourceFormat.Tspl] = "tspl",
                 [SourceFormat.Dpl] = "dpl",
+                [SourceFormat.Sbpl] = "sbpl",
                 [SourceFormat.Xml] = "xml",
                 [SourceFormat.Json] = "json",
                 [SourceFormat.Pdf] = "pdf",
@@ -181,8 +203,10 @@ namespace LabelZoom.Sdk
             {
                 [SourceFormat.Zpl] = "text/plain",
                 [SourceFormat.Epl] = "text/plain",
+                [SourceFormat.Ipl] = "text/plain",
                 [SourceFormat.Tspl] = "text/plain",
                 [SourceFormat.Dpl] = "text/plain",
+                [SourceFormat.Sbpl] = "text/plain",
                 [SourceFormat.Xml] = "application/xml",
                 [SourceFormat.Json] = "application/json",
                 [SourceFormat.Pdf] = "application/pdf",
@@ -199,8 +223,10 @@ namespace LabelZoom.Sdk
             {
                 [TargetFormat.Zpl] = "zpl",
                 [TargetFormat.Epl] = "epl",
+                [TargetFormat.Ipl] = "ipl",
                 [TargetFormat.Tspl] = "tspl",
                 [TargetFormat.Dpl] = "dpl",
+                [TargetFormat.Sbpl] = "sbpl",
                 [TargetFormat.Xml] = "xml",
                 [TargetFormat.Json] = "json",
                 [TargetFormat.Pdf] = "pdf",

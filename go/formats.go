@@ -13,15 +13,17 @@ type SourceFormat string
 // TargetFormat is the format to convert into.
 //
 // There is no TargetURL: URL is a fetch instruction, not an output format. The printer
-// languages round-trip -- EPL, TSPL and DPL are targets as well as sources.
+// languages round-trip -- EPL, IPL, TSPL, DPL and SBPL are targets as well as sources.
 type TargetFormat string
 
-// The twelve document formats, plus URL.
+// The fourteen document formats, plus URL.
 const (
 	SourceZPL  SourceFormat = "zpl"
 	SourceEPL  SourceFormat = "epl"
+	SourceIPL  SourceFormat = "ipl"
 	SourceTSPL SourceFormat = "tspl"
 	SourceDPL  SourceFormat = "dpl"
+	SourceSBPL SourceFormat = "sbpl"
 	SourceXML  SourceFormat = "xml"
 	SourceJSON SourceFormat = "json"
 	SourcePDF  SourceFormat = "pdf"
@@ -37,16 +39,22 @@ const (
 	SourceURL SourceFormat = "url"
 )
 
-// The eleven output formats.
+// The thirteen output formats.
 const (
 	TargetZPL TargetFormat = "zpl"
 	// TargetEPL output can inline raw binary (the GW command); read Result.Bytes rather
 	// than Result.Text when a label might carry graphics.
 	TargetEPL TargetFormat = "epl"
+	// TargetIPL frames commands in STX/ETX and carries graphics as packed bitmap columns;
+	// read Result.Bytes rather than Result.Text when a label might carry graphics.
+	TargetIPL TargetFormat = "ipl"
 	// TargetTSPL output can inline raw binary (the BITMAP command); read Result.Bytes
 	// rather than Result.Text when a label might carry graphics.
 	TargetTSPL TargetFormat = "tspl"
 	TargetDPL  TargetFormat = "dpl"
+	// TargetSBPL frames every command with ESC and embeds graphics inline; read
+	// Result.Bytes rather than Result.Text when a label might carry graphics.
+	TargetSBPL TargetFormat = "sbpl"
 	TargetXML  TargetFormat = "xml"
 	TargetJSON TargetFormat = "json"
 	TargetPDF  TargetFormat = "pdf"
@@ -59,16 +67,18 @@ const (
 // SourceFormats lists every accepted source, in the contract's order.
 func SourceFormats() []SourceFormat {
 	return []SourceFormat{
-		SourceZPL, SourceEPL, SourceTSPL, SourceDPL, SourceXML, SourceJSON,
-		SourcePDF, SourcePNG, SourceBMP, SourceGIF, SourceJPEG, SourceJPG, SourceURL,
+		SourceZPL, SourceEPL, SourceIPL, SourceTSPL, SourceDPL, SourceSBPL,
+		SourceXML, SourceJSON, SourcePDF, SourcePNG, SourceBMP, SourceGIF,
+		SourceJPEG, SourceJPG, SourceURL,
 	}
 }
 
 // TargetFormats lists every accepted target, in the contract's order.
 func TargetFormats() []TargetFormat {
 	return []TargetFormat{
-		TargetZPL, TargetEPL, TargetTSPL, TargetDPL, TargetXML, TargetJSON,
-		TargetPDF, TargetPNG, TargetBMP, TargetGIF, TargetJPEG,
+		TargetZPL, TargetEPL, TargetIPL, TargetTSPL, TargetDPL, TargetSBPL,
+		TargetXML, TargetJSON, TargetPDF, TargetPNG, TargetBMP, TargetGIF,
+		TargetJPEG,
 	}
 }
 
@@ -80,8 +90,10 @@ func TargetFormats() []TargetFormat {
 var sourceMediaTypes = map[SourceFormat]string{
 	SourceZPL:  "text/plain",
 	SourceEPL:  "text/plain",
+	SourceIPL:  "text/plain",
 	SourceTSPL: "text/plain",
 	SourceDPL:  "text/plain",
+	SourceSBPL: "text/plain",
 	SourceXML:  "application/xml",
 	SourceJSON: "application/json",
 	SourcePDF:  "application/pdf",

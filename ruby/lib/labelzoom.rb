@@ -9,7 +9,7 @@ require_relative "labelzoom/client"
 
 # Official Ruby client for the LabelZoom API.
 #
-# LabelZoom converts barcode labels between printer languages (ZPL, EPL, TSPL, DPL),
+# LabelZoom converts barcode labels between printer languages (ZPL, EPL, IPL, TSPL, DPL, SBPL),
 # LabelZoom's own XML/JSON model, PDF, and raster images. Almost everything the API does
 # happens at one endpoint:
 #

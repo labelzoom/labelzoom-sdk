@@ -89,7 +89,7 @@ jobs:
         with:
           tool: cargo-nextest
 
-      # The release gate is the same conformance suite the PR builds run: 83 shared
+      # The release gate is the same conformance suite the PR builds run: 87 shared
       # fixtures plus the assertion that all of them executed.
       - name: Test
         run: cargo nextest run --profile ci --locked --all-features

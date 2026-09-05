@@ -3,7 +3,7 @@
 # LabelZoom Python SDK
 
 Official Python client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode
-labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Python 3.10+. Fully typed (`py.typed`), sync and async clients, one dependency
 ([httpx](https://www.python-httpx.org/)).
@@ -39,8 +39,8 @@ with LabelZoomClient() as client:                # anonymous; this works
 Path("label.png").write_bytes(result.content)
 ```
 
-`result.content` is the authoritative payload — five of the eleven targets are binary, and the
-`epl`/`tspl` text targets can inline binary of their own.
+`result.content` is the authoritative payload — five of the thirteen targets are binary, and every
+printer-language target can inline binary of its own.
 `result.text` decodes it using the response charset for the textual ones.
 
 With a key — passed explicitly, or picked up from `LABELZOOM_API_KEY`:
@@ -84,11 +84,13 @@ asyncio.run(main())
 ## Formats
 
 ```python
-SourceFormat = Literal["zpl", "epl", "tspl", "dpl", "xml", "json",
-                       "pdf", "png", "bmp", "gif", "jpeg", "jpg", "url"]
+SourceFormat = Literal["zpl", "epl", "ipl", "tspl", "dpl", "sbpl",
+                       "xml", "json", "pdf", "png", "bmp", "gif",
+                       "jpeg", "jpg", "url"]
 
-TargetFormat = Literal["zpl", "epl", "tspl", "dpl", "xml", "json",
-                       "pdf", "png", "bmp", "gif", "jpeg"]
+TargetFormat = Literal["zpl", "epl", "ipl", "tspl", "dpl", "sbpl",
+                       "xml", "json", "pdf", "png", "bmp", "gif",
+                       "jpeg"]
 ```
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
@@ -103,9 +105,9 @@ client.convert("pdf", "url", body)
 A mypy error, not a runtime 404. Run mypy and you find it before you ship; the SDK also raises
 locally rather than round-tripping to the server.
 
-`epl`, `tspl` and `dpl` are targets as well as sources — ``client.convert("pdf", "epl", body)`` is a real conversion. Their
-output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
-inline raw binary: read `result.content` rather than `result.text` whenever a label might carry graphics.
+`epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as sources — ``client.convert("pdf", "epl", body)`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but they can all carry raw binary (EPL's `GW`,
+TSPL's `BITMAP`, IPL's `STX`/`ETX`-framed bitmap columns, SBPL's inline graphics): read `result.content` rather than `result.text` whenever a label might carry graphics.
 
 `"url"` as the source has the *server* fetch a URL you supply and convert what it finds.
 Validate the URL first if it came from untrusted input.

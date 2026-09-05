@@ -46,7 +46,7 @@ RSpec.describe LabelZoom::Formats do
   # removed. A rejection test with no positive control would pass just as happily if
   # target! rejected everything.
   it "accepts the printer languages as targets" do
-    %i[epl tspl dpl].each { |format| expect(described_class.target!(format)).to eq(format) }
+    %i[epl ipl tspl dpl sbpl].each { |format| expect(described_class.target!(format)).to eq(format) }
   end
 
   it "raises a ValidationError that is an ArgumentError but not an APIError" do

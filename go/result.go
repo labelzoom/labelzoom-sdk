@@ -8,9 +8,10 @@ import (
 // Result is the outcome of a successful conversion.
 //
 // Bytes is authoritative. PDF, PNG, BMP, GIF and JPEG targets are binary, so treating the
-// response as a string would silently corrupt five of the eleven targets -- and EPL and
-// TSPL reach the same hazard through a text/plain response, because their GW and BITMAP
-// commands inline a raw 1-bpp payload.
+// response as a string would silently corrupt five of the thirteen targets -- and every
+// printer language reaches the same hazard through a text/plain response: EPL's GW and
+// TSPL's BITMAP inline a raw 1-bpp payload, IPL frames commands in STX/ETX around packed
+// bitmap columns, and SBPL embeds inline graphics between ESC commands.
 type Result struct {
 	// Bytes is the response body, exactly as the server sent it.
 	Bytes []byte
