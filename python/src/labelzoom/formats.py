@@ -43,7 +43,8 @@ SourceFormat = Literal[
 #: ``STX``/``ETX`` framing and packed bitmap columns, SBPL's inline graphics between ``ESC``
 #: commands; read ``result.content`` rather than ``result.text`` for those targets.
 TargetFormat = Literal[
-    "zpl", "epl", "ipl", "tspl", "dpl", "sbpl", "xml", "json", "pdf", "png", "bmp", "gif", "jpeg"
+    "zpl", "epl", "ipl", "tspl", "dpl", "sbpl",
+    "xml", "json", "pdf", "png", "bmp", "gif", "jpeg",
 ]
 
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
