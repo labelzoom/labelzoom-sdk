@@ -18,10 +18,14 @@ pub enum SourceFormat {
     Zpl,
     /// Eltron Programming Language.
     Epl,
+    /// Intermec Printer Language.
+    Ipl,
     /// `TSC` Printer Language.
     Tspl,
     /// Datamax Programming Language.
     Dpl,
+    /// SATO Barcode Printer Language.
+    Sbpl,
     /// The LabelZoom label model, as XML.
     Xml,
     /// The LabelZoom label model, as JSON.
@@ -50,12 +54,13 @@ pub enum SourceFormat {
 /// There is no `TargetFormat::Url`: a URL is a fetch instruction, not an output format.
 /// There is no `Jpg` either -- that spelling is source-side only.
 ///
-/// The printer languages round-trip: `Epl`, `Tspl` and `Dpl` are targets as well as
-/// sources, as of contract 1.1.0.
+/// The printer languages round-trip: `Epl`, `Ipl`, `Tspl`, `Dpl` and `Sbpl` are targets as
+/// well as sources, as of contract 1.2.0.
 ///
-/// Marked `#[non_exhaustive]` on purpose. This set has already grown once -- the three
-/// printer languages became targets when the printer-language writers shipped -- and
-/// without it every such addition is a breaking change for any downstream `match`.
+/// Marked `#[non_exhaustive]` on purpose. This set has already grown twice -- three printer
+/// languages became targets when the printer-language writers shipped, then `Ipl` and `Sbpl`
+/// arrived with their adapters -- and without it every such addition is a breaking change
+/// for any downstream `match`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TargetFormat {
@@ -64,11 +69,19 @@ pub enum TargetFormat {
     /// Eltron Programming Language. Can inline raw binary (`GW`); prefer
     /// [`ConversionResult::bytes`](crate::ConversionResult::bytes) over `text()`.
     Epl,
+    /// Intermec Printer Language. Frames commands in `STX`/`ETX` and can carry packed
+    /// bitmap columns; prefer [`ConversionResult::bytes`](crate::ConversionResult::bytes)
+    /// over `text()`.
+    Ipl,
     /// TSC Printer Language. Can inline raw binary (`BITMAP`); prefer
     /// [`ConversionResult::bytes`](crate::ConversionResult::bytes) over `text()`.
     Tspl,
     /// Datamax Programming Language.
     Dpl,
+    /// SATO Barcode Printer Language. Frames every command with `ESC` and can embed
+    /// inline graphics; prefer [`ConversionResult::bytes`](crate::ConversionResult::bytes)
+    /// over `text()`.
+    Sbpl,
     /// The LabelZoom label model, as XML.
     Xml,
     /// The LabelZoom label model, as JSON.
@@ -90,8 +103,10 @@ impl SourceFormat {
     pub const ALL: &'static [SourceFormat] = &[
         Self::Zpl,
         Self::Epl,
+        Self::Ipl,
         Self::Tspl,
         Self::Dpl,
+        Self::Sbpl,
         Self::Xml,
         Self::Json,
         Self::Pdf,
@@ -119,7 +134,9 @@ impl SourceFormat {
     pub fn media_type(self) -> &'static str {
         match self {
             // The body for Url is the URL itself.
-            Self::Zpl | Self::Epl | Self::Tspl | Self::Dpl | Self::Url => "text/plain",
+            Self::Zpl | Self::Epl | Self::Ipl | Self::Tspl | Self::Dpl | Self::Sbpl | Self::Url => {
+                "text/plain"
+            }
             Self::Xml => "application/xml",
             Self::Json => "application/json",
             Self::Pdf => "application/pdf",
@@ -135,8 +152,10 @@ impl SourceFormat {
         match self {
             Self::Zpl => "zpl",
             Self::Epl => "epl",
+            Self::Ipl => "ipl",
             Self::Tspl => "tspl",
             Self::Dpl => "dpl",
+            Self::Sbpl => "sbpl",
             Self::Xml => "xml",
             Self::Json => "json",
             Self::Pdf => "pdf",
@@ -163,8 +182,10 @@ impl TargetFormat {
     pub const ALL: &'static [TargetFormat] = &[
         Self::Zpl,
         Self::Epl,
+        Self::Ipl,
         Self::Tspl,
         Self::Dpl,
+        Self::Sbpl,
         Self::Xml,
         Self::Json,
         Self::Pdf,
@@ -179,8 +200,10 @@ impl TargetFormat {
         match self {
             Self::Zpl => "zpl",
             Self::Epl => "epl",
+            Self::Ipl => "ipl",
             Self::Tspl => "tspl",
             Self::Dpl => "dpl",
+            Self::Sbpl => "sbpl",
             Self::Xml => "xml",
             Self::Json => "json",
             Self::Pdf => "pdf",

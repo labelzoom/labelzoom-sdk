@@ -44,8 +44,8 @@ source dpi); the server rejects a misplaced dpi with a 400 rather than ignoring 
 ### 1.1 Two format types, one builder pair
 
 ```
-SourceFormat  (13)  ZPL EPL TSPL DPL XML JSON PDF PNG BMP GIF JPEG JPG URL
-TargetFormat  (11)  ZPL EPL TSPL DPL XML JSON PDF PNG BMP GIF JPEG
+SourceFormat  (15)  ZPL EPL IPL TSPL DPL SBPL XML JSON PDF PNG BMP GIF JPEG JPG URL
+TargetFormat  (13)  ZPL EPL IPL TSPL DPL SBPL XML JSON PDF PNG BMP GIF JPEG
 ```
 
 `SourceFormat` and `TargetFormat` are **distinct types**, and the sets are not the same. `JPG` and
@@ -60,6 +60,11 @@ Do not contort a language to get compile-time enforcement it does not natively o
 > (`labelzoom-io-{epl,tspl,dpl}` 1.1.0, wired into the conversion pipeline 2026-08-23). They were
 > source-only for the whole of `0.x`, and the SDKs asserted that in four `typecheck/*` cases. Those
 > assertions are gone; do not reintroduce them.
+>
+> `IPL` (Intermec) and `SBPL` (SATO) arrived later still, as sources *and* targets from the start —
+> IPL on 2026-09-02, SBPL on 2026-09-04. This set has now grown twice. Treat it as open: model the
+> formats so that adding one is additive, which is what `#[non_exhaustive]` buys in Rust and what a
+> derived token map buys everywhere else.
 
 There is **one** source builder and **one** target builder. Named convenience methods
 (`fromPdf`, `toZpl`) are one-line delegations to `from(SourceFormat.PDF, body)` / `to(TargetFormat.ZPL)`.
@@ -68,8 +73,8 @@ There is **one** source builder and **one** target builder. Named convenience me
 > `PdfSourceBuilder`, `ZplSourceBuilder`, `RasterSourceBuilder`, `ZplTargetBuilder`,
 > `PdfTargetBuilder`, `RasterTargetBuilder`. Each independently knew the format matrix, and they
 > drifted: four `With*` options were silently dropped, `GetSourceFormat()` handled only 2 of 12
-> sources, and `RasterTargetBuilder` emitted the *source* type as the target. At 12 x 8 that
-> architecture needs ~20 classes and 96 paths nobody can keep consistent. **Do not reintroduce it.**
+> sources, and `RasterTargetBuilder` emitted the *source* type as the target. At 15 x 13 that
+> architecture needs ~28 classes and 195 paths nobody can keep consistent. **Do not reintroduce it.**
 
 ### 1.2 Format metadata table
 
@@ -77,7 +82,7 @@ Defined **once** per language. Never inlined at a call site.
 
 | SourceFormat | request `Content-Type` | base64/text alternative |
 |---|---|---|
-| `ZPL` `EPL` `TSPL` `DPL` | `text/plain` | — |
+| `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | — |
 | `XML` | `application/xml` | — |
 | `JSON` | `application/json` | — |
 | `PDF` | `application/pdf` | `text/plain` |
@@ -108,20 +113,19 @@ Defined **once** per language. Never inlined at a call site.
 
 - **B1** `Content-Type` is the exact media type from [§1.2](#12-format-metadata-table). When the
   caller opts into base64/text mode, send `text/plain`.
-- **B2** **`Accept: */*`, always.** Never the target's exact media type, never a q-value.
+- **B2** **`Accept: */*`, always.** One value for every target, chosen so no SDK carries a
+  per-target header table.
 
-  > The server's `produces` list omits `image/gif`, `image/bmp`, and `image/jpeg`, so Spring's
-  > content negotiation rejects an exact `Accept` with **406** before the handler ever runs.
-  > Verified against production:
+  > This used to be a workaround. The server's `produces` list omitted `image/gif`, `image/bmp`
+  > and `image/jpeg`, so an exact `Accept` drew a **406** from content negotiation before the
+  > handler ran — a server defect that this contract had written down as if it were API design.
+  > It was fixed on 2026-08-29: `produces` now lists every target it can emit, and the
+  > independent service-level check compares with `isCompatibleWith`, so an exact media type, a
+  > wildcard subtype (`image/*`) and a `charset`/`q` parameter are all accepted.
   >
-  > ```
-  > zpl->gif   Accept: image/gif    -> 406        Accept: */*  -> 200 image/gif
-  > zpl->bmp   Accept: image/bmp    -> 406        Accept: */*  -> 200 image/bmp
-  > zpl->jpeg  Accept: image/jpeg   -> 406        Accept: */*  -> 200 image/jpeg
-  > ```
-  >
-  > `*/*` is the only value valid for all eleven targets. A `strictAccept` escape hatch may be
-  > offered, but it is **off by default**.
+  > `*/*` therefore stays for a plain reason rather than a defensive one: it is the one value
+  > valid for all thirteen targets, so the request builder needs no branch. A `strictAccept`
+  > escape hatch may be offered, but it is **off by default**.
 
 - **B3** `Authorization: Bearer <credential>` is sent **only** when a credential is present. When
   absent, the header must be **absent** — never `Bearer `, never `Bearer null`.
@@ -138,10 +142,15 @@ Defined **once** per language. Never inlined at a call site.
 - **C2** All options travel in exactly **one** `?params=<url-encoded JSON>` query parameter. Do
   **not** emit dot-notation (`?dpi=300&label.width=4`).
 
-  > The server accepts both and merges them, but dot-notation cannot express every parameter:
-  > `?data=[{},{}]` returns **400**, while `?params={"data":[{},{}]}` returns 200. One
-  > serialization path with no per-field special cases is the only maintainable choice.
-  > `withRawQueryParam(key, value)` is the escape hatch for anything not yet modeled.
+  > This is now a **style rule, not a capability limit**. It used to be both: `?data=[{},{}]`
+  > returned **400** because the server had no String conversion registered for the `data` field's
+  > type, making it the one parameter dot-notation could not express. That was fixed on
+  > 2026-08-29; both spellings now work, and where they overlap the dot-notation value wins.
+  >
+  > Keep emitting one `?params=` object anyway. One serialization path with no per-field special
+  > cases is what keeps a fifteen-option builder consistent across eight languages, and it is the
+  > shape the conformance fixtures pin. `withRawQueryParam(key, value)` is the escape hatch for
+  > anything not yet modeled.
 
 - **C3** `data` is always a JSON **array** of objects, one entry per output label. A single object
   passed by the caller is wrapped into a one-element array. A non-object array element is a local
@@ -292,16 +301,18 @@ body here, which is correct and intended — do not special-case it.
 | Target | Media type | Multi-label behavior |
 |---|---|---|
 | `ZPL` | `text/plain` | all labels concatenated |
-| `EPL` `TSPL` `DPL` | `text/plain` | all labels concatenated |
+| `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | all labels concatenated |
 | `PDF` | `application/pdf` | all labels, one per page |
 | `XML` | `application/xml` | **first label only** |
 | `JSON` | `application/json` | **first label only**; paid |
 | `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only** |
 
-**`EPL` and `TSPL` output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
-embed a 1-bpp payload directly in the command stream. `bytes` is authoritative for these targets;
-`text` decodes with the response charset and is only safe when you know the label has no graphics.
-This is the same hazard **D1** already calls out for image targets, reaching a `text/plain` one.
+**Printer-language output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
+embed a 1-bpp payload directly in the command stream, IPL frames its commands in `STX`/`ETX` and
+carries downloaded graphics as packed bitmap columns, and SBPL frames every command with `ESC` and
+embeds graphics inline. `bytes` is authoritative for these targets; `text` decodes with the response
+charset and is only safe when you know the label has no graphics. This is the same hazard **D1**
+already calls out for image targets, reaching a `text/plain` one.
 
 ---
 

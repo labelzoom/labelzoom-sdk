@@ -3,7 +3,7 @@
 # LabelZoom .NET SDK
 
 Official .NET client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Targets **netstandard2.0** (so .NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+) and **net8.0**.
 
@@ -80,18 +80,18 @@ var result = await client.Convert()
 
 ## Formats
 
-**Sources (12, plus `Url`):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`)
+**Sources (15):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`) `Url`
 
-**Targets (11):** `Zpl` `Epl` `Tspl` `Dpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets (13):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
 `SourceFormat` and `TargetFormat` are distinct types, so `.ToUrl()` does not exist and
 `To(SourceFormat.Pdf)` does not compile. `Jpg` and `Url` are source-only — `Jpg` normalizes to
 `Jpeg`, and `Url` is a fetch instruction rather than a format — and the type system says so rather
 than letting you find out from a 404.
 
-`epl`, `tspl` and `dpl` are targets as well as sources — ``.FromPdf(bytes).ToEpl()`` is a real conversion. Their
-output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
-inline raw binary: read `result.Bytes` rather than `result.Text` whenever a label might carry graphics.
+`epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as sources — ``.FromPdf(bytes).ToEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but they can all carry raw binary (EPL's `GW`,
+TSPL's `BITMAP`, IPL's `STX`/`ETX`-framed bitmap columns, SBPL's inline graphics): read `result.Bytes` rather than `result.Text` whenever a label might carry graphics.
 
 `SourceFormat.Url` has the *server* fetch a URL you supply and convert whatever it finds. Validate
 the URL first if it came from untrusted input.

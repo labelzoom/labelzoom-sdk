@@ -94,19 +94,29 @@ public final class ConversionRequestBuilder {
         return from(SourceFormat.ZPL, zpl);
     }
 
-    /** Converts from EPL/EPL2. Source-only on the server. */
+    /** Converts from EPL/EPL2. */
     public ConversionSourceBuilder fromEpl(String epl) {
         return from(SourceFormat.EPL, epl);
     }
 
-    /** Converts from TSPL/TSPL2. Source-only on the server. */
+    /** Converts from Intermec IPL. */
+    public ConversionSourceBuilder fromIpl(String ipl) {
+        return from(SourceFormat.IPL, ipl);
+    }
+
+    /** Converts from TSPL/TSPL2. */
     public ConversionSourceBuilder fromTspl(String tspl) {
         return from(SourceFormat.TSPL, tspl);
     }
 
-    /** Converts from DPL. Source-only on the server. */
+    /** Converts from DPL. */
     public ConversionSourceBuilder fromDpl(String dpl) {
         return from(SourceFormat.DPL, dpl);
+    }
+
+    /** Converts from SATO SBPL. */
+    public ConversionSourceBuilder fromSbpl(String sbpl) {
+        return from(SourceFormat.SBPL, sbpl);
     }
 
     /** Converts from LabelZoom XML. */

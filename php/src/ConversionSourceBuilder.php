@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace LabelZoom\Sdk;
 
 /**
- * Chooses the target format. One class covers all eleven.
+ * Chooses the target format. One class covers all thirteen.
  *
  * There is no `toUrl()`: `url` is a source-only fetch instruction, and {@see TargetFormat} has no
  * case for it. Attempting one fails static analysis rather than producing a runtime 404.
@@ -62,6 +62,15 @@ final class ConversionSourceBuilder
     }
 
     /**
+     * Converts to Intermec IPL. All labels are concatenated into one document. As with
+     * {@see self::toEpl()}, prefer `getBytes()`: commands are framed in `STX`/`ETX`.
+     */
+    public function toIpl(): ConversionTargetBuilder
+    {
+        return $this->to(TargetFormat::Ipl);
+    }
+
+    /**
      * Converts to TSPL. All labels are concatenated into one document. As with {@see self::toEpl()},
      * prefer `getBytes()`.
      */
@@ -74,6 +83,15 @@ final class ConversionSourceBuilder
     public function toDpl(): ConversionTargetBuilder
     {
         return $this->to(TargetFormat::Dpl);
+    }
+
+    /**
+     * Converts to SATO SBPL. All labels are concatenated into one document. As with
+     * {@see self::toEpl()}, prefer `getBytes()`: every command is framed with `ESC`.
+     */
+    public function toSbpl(): ConversionTargetBuilder
+    {
+        return $this->to(TargetFormat::Sbpl);
     }
 
     /** Converts to LabelZoom XML. Returns the first label only. */

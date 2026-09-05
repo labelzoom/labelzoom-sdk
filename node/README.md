@@ -3,7 +3,7 @@
 # LabelZoom Node.js / TypeScript SDK
 
 Official Node client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Node 20+. Ships dual ESM/CJS builds and TypeScript declarations. No runtime dependencies — it
 uses the platform `fetch`.
@@ -86,11 +86,13 @@ const result = await client.convert()
 ## Formats
 
 ```ts
-type SourceFormat = 'zpl' | 'epl' | 'tspl' | 'dpl' | 'xml' | 'json'
-                  | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg' | 'jpg' | 'url';
+type SourceFormat = 'zpl' | 'epl' | 'ipl' | 'tspl' | 'dpl' | 'sbpl'
+                  | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif'
+                  | 'jpeg' | 'jpg' | 'url';
 
-type TargetFormat = 'zpl' | 'epl' | 'tspl' | 'dpl' | 'xml' | 'json'
-                  | 'pdf' | 'png' | 'bmp' | 'gif' | 'jpeg';
+type TargetFormat = 'zpl' | 'epl' | 'ipl' | 'tspl' | 'dpl' | 'sbpl'
+                  | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif'
+                  | 'jpeg';
 ```
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
@@ -103,9 +105,9 @@ await client.convert({ from: 'pdf', to: 'url', body });
 
 A compile error, not a runtime 404.
 
-`epl`, `tspl` and `dpl` are targets as well as sources — ``{ from: 'pdf', to: 'epl' }`` is a real conversion. Their
-output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
-inline raw binary: read `result.bytes` rather than `result.text` whenever a label might carry graphics.
+`epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as sources — ``{ from: 'pdf', to: 'epl' }`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but they can all carry raw binary (EPL's `GW`,
+TSPL's `BITMAP`, IPL's `STX`/`ETX`-framed bitmap columns, SBPL's inline graphics): read `result.bytes` rather than `result.text` whenever a label might carry graphics.
 
 `from: 'url'` has the *server* fetch a URL you supply and convert what it finds. Validate the URL
 first if it came from untrusted input.

@@ -333,8 +333,10 @@ export class ConversionRequestBuilder {
 
   fromZpl(zpl: ConversionBody): ConversionSourceBuilder { return this.from('zpl', zpl); }
   fromEpl(epl: ConversionBody): ConversionSourceBuilder { return this.from('epl', epl); }
+  fromIpl(ipl: ConversionBody): ConversionSourceBuilder { return this.from('ipl', ipl); }
   fromTspl(tspl: ConversionBody): ConversionSourceBuilder { return this.from('tspl', tspl); }
   fromDpl(dpl: ConversionBody): ConversionSourceBuilder { return this.from('dpl', dpl); }
+  fromSbpl(sbpl: ConversionBody): ConversionSourceBuilder { return this.from('sbpl', sbpl); }
   fromXml(xml: ConversionBody): ConversionSourceBuilder { return this.from('xml', xml); }
   fromJson(json: ConversionBody): ConversionSourceBuilder { return this.from('json', json); }
   fromPdf(pdf: ConversionBody): ConversionSourceBuilder { return this.from('pdf', pdf); }
@@ -351,7 +353,7 @@ export class ConversionRequestBuilder {
 }
 
 /**
- * Chooses the target format. One class covers all eleven.
+ * Chooses the target format. One class covers all thirteen.
  *
  * There is no `toUrl` — `url` is a source-only fetch instruction, and `TargetFormat` has no
  * member for it.
@@ -397,9 +399,13 @@ export class ConversionSourceBuilder {
   toZpl(): ConversionTargetBuilder { return this.to('zpl'); }
   /** EPL output can inline raw binary (`GW`); prefer `result.bytes` over `result.text`. */
   toEpl(): ConversionTargetBuilder { return this.to('epl'); }
+  /** IPL frames commands in `STX`/`ETX`; prefer `result.bytes` over `result.text`. */
+  toIpl(): ConversionTargetBuilder { return this.to('ipl'); }
   /** TSPL output can inline raw binary (`BITMAP`); prefer `result.bytes` over `result.text`. */
   toTspl(): ConversionTargetBuilder { return this.to('tspl'); }
   toDpl(): ConversionTargetBuilder { return this.to('dpl'); }
+  /** SBPL frames every command with `ESC`; prefer `result.bytes` over `result.text`. */
+  toSbpl(): ConversionTargetBuilder { return this.to('sbpl'); }
   toXml(): ConversionTargetBuilder { return this.to('xml'); }
   toJson(): ConversionTargetBuilder { return this.to('json'); }
   toPdf(): ConversionTargetBuilder { return this.to('pdf'); }

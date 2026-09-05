@@ -10,20 +10,23 @@ module LabelZoom
     # Every accepted source, in the contract's order. +:jpg+ is an input spelling that
     # normalizes to +:jpeg+ on the wire; +:url+ tells the server to go fetch a document
     # rather than naming a format.
-    SOURCE_FORMATS = %i[zpl epl tspl dpl xml json pdf png bmp gif jpeg jpg url].freeze
+    SOURCE_FORMATS = %i[zpl epl ipl tspl dpl sbpl xml json pdf png bmp gif jpeg jpg url].freeze
 
     # Every accepted target. There is no +:url+ -- it is a fetch instruction, not an output
     # format -- and no +:jpg+, which is a source-side spelling only.
     #
     # The printer languages round-trip: +:epl+, +:tspl+ and +:dpl+ became targets in
-    # contract 1.1.0, when the printer-language writers shipped.
-    TARGET_FORMATS = %i[zpl epl tspl dpl xml json pdf png bmp gif jpeg].freeze
+    # contract 1.1.0, when the printer-language writers shipped, and +:ipl+ and +:sbpl+
+    # joined them in 1.2.0 with the Intermec and SATO adapters.
+    TARGET_FORMATS = %i[zpl epl ipl tspl dpl sbpl xml json pdf png bmp gif jpeg].freeze
 
     MEDIA_TYPES = {
       zpl: "text/plain",
       epl: "text/plain",
+      ipl: "text/plain",
       tspl: "text/plain",
       dpl: "text/plain",
+      sbpl: "text/plain",
       xml: "application/xml",
       json: "application/json",
       pdf: "application/pdf",

@@ -4,9 +4,10 @@ module LabelZoom
   # The outcome of a successful conversion.
   #
   # {#bytes} is authoritative. PDF, PNG, BMP, GIF and JPEG targets are binary, so treating
-  # the response as text would silently corrupt five of the eleven targets -- and EPL and
-  # TSPL reach the same hazard through a +text/plain+ response, because their +GW+ and
-  # +BITMAP+ commands inline a raw 1-bpp payload.
+  # the response as text would silently corrupt five of the thirteen targets -- and every
+  # printer language reaches the same hazard through a +text/plain+ response: EPL's +GW+ and
+  # TSPL's +BITMAP+ inline a raw 1-bpp payload, IPL frames commands in +STX+/+ETX+ around
+  # packed bitmap columns, and SBPL embeds inline graphics between +ESC+ commands.
   class ConversionResult
     # @return [String] the response body as binary (ASCII-8BIT), exactly as the server
     #   sent it. Note this is a String of bytes, not String#bytes' Array of Integers.

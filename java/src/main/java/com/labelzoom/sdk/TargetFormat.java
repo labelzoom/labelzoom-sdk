@@ -24,6 +24,13 @@ public enum TargetFormat {
     EPL("epl"),
 
     /**
+     * Intermec Printer Language. All labels are concatenated. Commands are framed in
+     * {@code STX}/{@code ETX} and graphics travel as packed bitmap columns, so prefer
+     * {@link ConversionResult#bytes()}.
+     */
+    IPL("ipl"),
+
+    /**
      * TSC printer language. All labels are concatenated. As with {@link #EPL}, the {@code BITMAP}
      * command inlines raw binary, so prefer {@link ConversionResult#bytes()}.
      */
@@ -31,6 +38,12 @@ public enum TargetFormat {
 
     /** Datamax Printer Language. All labels are concatenated. */
     DPL("dpl"),
+
+    /**
+     * SATO Barcode Printer Language. All labels are concatenated. Every command is framed with
+     * {@code ESC} and graphics are embedded inline, so prefer {@link ConversionResult#bytes()}.
+     */
+    SBPL("sbpl"),
 
     /** LabelZoom XML. First label only. */
     XML("xml"),

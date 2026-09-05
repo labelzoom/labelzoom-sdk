@@ -60,7 +60,7 @@ jobs:
         run: go vet ./...
         working-directory: ./go
 
-      # The release gate is the same conformance suite the PR builds run: 83 shared
+      # The release gate is the same conformance suite the PR builds run: 87 shared
       # fixtures plus the assertion that all of them executed.
       - name: Test
         run: go test ./... -count=1

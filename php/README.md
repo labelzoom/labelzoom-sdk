@@ -3,7 +3,7 @@
 # LabelZoom PHP SDK
 
 Official PHP client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 PHP 8.1+. PSR-18 / PSR-17 throughout, so it drops into Guzzle, Symfony HttpClient, or the bundled
 cURL client with no adapter.
@@ -63,10 +63,10 @@ per application, not one per request.
 
 ## Formats
 
-**Sources (12, plus `url`):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
-`jpeg`
+**Sources (15):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
+`jpeg` `url`
 
-**Targets (11):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+**Targets (13):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
 rather than a format. `SourceFormat` and `TargetFormat` are separate enums, so there is no
@@ -81,9 +81,9 @@ $client->convert()->fromZpl($zpl)->to(TargetFormat::Url);
 A PHPStan error, not a runtime 404. The two `typecheck/*` conformance cases assert exactly this,
 and PHP is the only dynamically executed SDK that runs them rather than declaring them skipped.
 
-`epl`, `tspl` and `dpl` are targets as well as sources — ``fromPdf($bytes)->toEpl()`` is a real conversion. Their
-output is `text/plain` with every label concatenated, but EPL's `GW` and TSPL's `BITMAP` commands
-inline raw binary: read `$result->getBytes()` rather than `$result->getText()` whenever a label might carry graphics.
+`epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as sources — ``fromPdf($bytes)->toEpl()`` is a real conversion. Their
+output is `text/plain` with every label concatenated, but they can all carry raw binary (EPL's `GW`,
+TSPL's `BITMAP`, IPL's `STX`/`ETX`-framed bitmap columns, SBPL's inline graphics): read `$result->getBytes()` rather than `$result->getText()` whenever a label might carry graphics.
 
 Reading source bytes from wherever they live:
 
@@ -137,8 +137,8 @@ $result = $client->convert()
 
 ## Results
 
-`getBytes()` is authoritative — five of the eleven targets are binary, and the `epl`/`tspl` text
-targets can inline binary of their own.
+`getBytes()` is authoritative — five of the thirteen targets are binary, and every printer-language
+target can inline binary of its own.
 
 ```php
 $result->getBytes();        // the document, exactly as sent
