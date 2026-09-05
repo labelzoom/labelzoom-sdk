@@ -288,7 +288,8 @@ final class ConformanceTest extends TestCase
         $options = $given['options'] ?? [];
         foreach ($options as $key => $value) {
             $builder = match ($key) {
-                'dpi' => $builder->withDpi((int) $value),
+                'sourceDpi' => $sourceBuilder->withDpi((int) $value),
+                'targetDpi', 'dpi' => $builder->withDpi((int) $value),
                 'rotation' => $builder->withRotation((int) $value),
                 'scaling' => $builder->withScaling((float) $value),
                 'darkness' => $builder->withDarkness((int) $value),

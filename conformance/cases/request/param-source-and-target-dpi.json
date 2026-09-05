@@ -1,20 +1,21 @@
 {
-  "id": "request/param-dpi",
-  "note": "C2: the target-side dpi travels inside the single ?params= JSON object. The target builder's withDpi emits targetDpi (the resolution the output is authored at).",
+  "id": "request/param-source-and-target-dpi",
+  "note": "C2: when the chosen format pair supports a dpi on each side, the source-side and target-side dpi travel together in the single ?params= JSON object. zpl-to-zpl is the canonical rescaling path: sourceDpi interprets the dots, targetDpi re-authors the output.",
   "given": {
     "client": {
       "apiKey": null
     },
     "source": "zpl",
-    "target": "png",
+    "target": "zpl",
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "options": {
-      "targetDpi": 300
+      "sourceDpi": 300,
+      "targetDpi": 203
     }
   },
   "expect": {
     "method": "POST",
-    "path": "/api/v2/convert/zpl/to/png",
+    "path": "/api/v2/convert/zpl/to/zpl",
     "headers": {
       "content-type": "text/plain",
       "accept": "*/*"
@@ -28,7 +29,8 @@
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "queryJson": {
       "params": {
-        "targetDpi": 300
+        "sourceDpi": 300,
+        "targetDpi": 203
       }
     }
   }

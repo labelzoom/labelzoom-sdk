@@ -21,6 +21,7 @@ client = LabelZoomClient(apiKey?, baseUrl?, timeout?, maxRetries?, userAgent?)
 
 result = client.convert()
              .from(<SourceFormat>, <body>)
+             .withDpi(int)                        // source-side: how the source's positions are read
              .to(<TargetFormat>)
              .withDpi(int) .withRotation(int) .withScaling(float)
              .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)
@@ -32,6 +33,13 @@ result = client.convert()
              .execute()
       -> ConversionResult { bytes, text, contentType, status, requestId }
 ```
+
+`withDpi` exists on **both** the source and the target builder. It serializes as `sourceDpi`
+(source side) or `targetDpi` (target side), and may be set on both when the chosen format pair
+supports a dpi on each side — e.g. rescaling a ZPL authored for a 300-dpi head to a 203-dpi one.
+The source side is not applicable to PDF sources (vector), and the target side is not applicable
+to a raster target fed from a dot-authored source (the raster is a faithful print image at the
+source dpi); the server rejects a misplaced dpi with a 400 rather than ignoring it.
 
 ### 1.1 Two format types, one builder pair
 
@@ -246,7 +254,9 @@ opaque string and must not attempt to parse or validate it:
 
 | Fluent method | JSON path | Type | Server default | Notes |
 |---|---|---|---|---|
-| `withDpi` | `dpi` | int | `203` | |
+| `withDpi` (source builder) | `sourceDpi` | int | `203` | how the source's positions are interpreted; not applicable to PDF sources |
+| `withDpi` (target builder) | `targetDpi` | int | `203` | resolution the output is authored at; XML data-model target defaults to `100`; raster targets accept it only from bitmap/PDF sources |
+| `dpi` (legacy, object-form options only) | `dpi` | int | `203` | legacy alias applied to whichever side(s) the path supports; still accepted by the server |
 | `withRotation` | `rotation` | int | `0` | must be a multiple of 90 (**C6**) |
 | `withScaling` | `scaling` | float | `100` | percent |
 | `withColorMode` | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR` |

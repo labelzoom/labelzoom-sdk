@@ -332,9 +332,10 @@ class ConformanceTest {
         boolean base64Text = given.has("sourceEncoding")
                 && "base64text".equals(given.get("sourceEncoding").asText());
 
-        ConversionTargetBuilder builder = base64Text
-                ? client.convert().fromBase64Text(source, body).to(target)
-                : client.convert().from(source, body).to(target);
+        ConversionSourceBuilder sourceBuilder = base64Text
+                ? client.convert().fromBase64Text(source, body)
+                : client.convert().from(source, body);
+        ConversionTargetBuilder builder = sourceBuilder.to(target);
 
         if (!given.has("options")) {
             return builder;
@@ -345,7 +346,8 @@ class ConformanceTest {
             Map.Entry<String, JsonNode> option = it.next();
             JsonNode v = option.getValue();
             switch (option.getKey()) {
-                case "dpi" -> builder.withDpi(v.asInt());
+                case "sourceDpi" -> sourceBuilder.withDpi(v.asInt());
+                case "targetDpi", "dpi" -> builder.withDpi(v.asInt());
                 case "rotation" -> builder.withRotation(v.asInt());
                 case "scaling" -> builder.withScaling((float) v.asDouble());
                 case "colorMode" -> builder.withColorMode(ColorMode.valueOf(v.asText()));

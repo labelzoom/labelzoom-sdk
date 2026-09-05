@@ -101,7 +101,8 @@ untrusted input.
 
 | Method | Notes |
 |---|---|
-| `withDpi(int)` | server default 203 |
+| `withDpi(int)` on the target | resolution the output is authored at; server default 203 |
+| `withDpi(int)` on the source (`fromZpl(...).withDpi(300).toZpl()`) | how the source's positions are interpreted; not applicable to PDF sources |
 | `withRotation(int)` | multiple of 90; rejected locally otherwise |
 | `withScaling(float)` | percent, server default 100 |
 | `withColorMode(ColorMode)` | `BW`, `GRAYSCALE` (default), `COLOR` |

@@ -19,7 +19,7 @@ public final class ConversionTargetBuilder {
     private final TargetFormat target;
     private final byte[] body;
     private final String contentType;
-    private final Map<String, Object> params = new LinkedHashMap<>();
+    private final Map<String, Object> params;
     private final Map<String, String> rawQuery = new LinkedHashMap<>();
 
     ConversionTargetBuilder(
@@ -28,19 +28,35 @@ public final class ConversionTargetBuilder {
             TargetFormat target,
             byte[] body,
             String contentType) {
+        this(client, source, target, body, contentType, new LinkedHashMap<>());
+    }
+
+    ConversionTargetBuilder(
+            LabelZoomClient client,
+            SourceFormat source,
+            TargetFormat target,
+            byte[] body,
+            String contentType,
+            Map<String, Object> params) {
         this.client = client;
         this.source = source;
         this.target = target;
         this.body = body;
         this.contentType = contentType;
+        this.params = params;
     }
 
-    /** Output resolution in dots per inch. The server default is 203. */
+    /**
+     * The resolution the <b>output</b> is authored at, in dots per inch. The server default is 203.
+     * This is the target-side dpi; use {@link ConversionSourceBuilder#withDpi(int)} to declare how
+     * the source's positions are interpreted, and both may be set when the chosen format pair
+     * supports a dpi on each side.
+     */
     public ConversionTargetBuilder withDpi(int dpi) {
         if (dpi <= 0) {
             throw new LabelZoomValidationException("dpi", "DPI must be greater than zero.");
         }
-        params.put("dpi", dpi);
+        params.put("targetDpi", dpi);
         return this;
     }
 
