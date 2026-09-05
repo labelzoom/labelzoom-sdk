@@ -25,6 +25,12 @@ enum TargetFormat: string
     case Epl = 'epl';
 
     /**
+     * Intermec Printer Language. All labels are concatenated. Commands are framed in `STX`/`ETX`
+     * and graphics travel as packed bitmap columns, so prefer `getBytes()`.
+     */
+    case Ipl = 'ipl';
+
+    /**
      * TSC printer language. All labels are concatenated. As with {@see self::Epl}, the `BITMAP`
      * command inlines raw binary, so prefer `getBytes()`.
      */
@@ -32,6 +38,12 @@ enum TargetFormat: string
 
     /** Datamax Printer Language. All labels are concatenated. */
     case Dpl = 'dpl';
+
+    /**
+     * SATO Barcode Printer Language. All labels are concatenated. Every command is framed with
+     * `ESC` and graphics are embedded inline, so prefer `getBytes()`.
+     */
+    case Sbpl = 'sbpl';
 
     /** LabelZoom XML. First label only. */
     case Xml = 'xml';

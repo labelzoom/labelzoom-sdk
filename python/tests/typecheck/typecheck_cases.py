@@ -36,8 +36,12 @@ client.convert("zpl", source, body)  # type: ignore[arg-type]
 client.convert("zpl", "png", body)
 client.convert("jpg", "jpeg", body, dpi=300, label_width=4.0, pdf_page_number=0)
 
-# The printer languages are targets as of the 1.1.0 contract, not just sources. These are
-# positive controls too: were the Literal ever narrowed back, mypy would flag them here.
+# The printer languages are targets as of the 1.1.0 contract, not just sources -- and ipl and
+# sbpl joined them in 1.2.0. These are positive controls too: were the Literal ever narrowed
+# back, mypy would flag them here.
 client.convert("zpl", "epl", body)
 client.convert("pdf", "tspl", body)
 client.convert("epl", "dpl", body)
+client.convert("zpl", "ipl", body)
+client.convert("ipl", "sbpl", body)
+client.convert("sbpl", "zpl", body)

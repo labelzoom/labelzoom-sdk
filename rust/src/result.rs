@@ -7,8 +7,10 @@ use std::path::Path;
 ///
 /// [`bytes`](ConversionResult::bytes) is authoritative. PDF, PNG, BMP, GIF and JPEG
 /// targets are binary, so treating the response as text would silently corrupt five of the
-/// eleven targets -- and EPL and TSPL reach the same hazard through a `text/plain`
-/// response, because their `GW` and `BITMAP` commands inline a raw 1-bpp payload.
+/// thirteen targets -- and every printer language reaches the same hazard through a
+/// `text/plain` response: EPL's `GW` and TSPL's `BITMAP` inline a raw 1-bpp payload, IPL
+/// frames commands in `STX`/`ETX` around packed bitmap columns, and SBPL embeds inline
+/// graphics between `ESC` commands.
 #[derive(Clone, Debug)]
 pub struct ConversionResult {
     /// The response body, exactly as the server sent it.

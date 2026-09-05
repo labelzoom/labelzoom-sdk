@@ -3,7 +3,7 @@
 # LabelZoom Go SDK
 
 Official Go client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Go 1.23+. **No dependencies** — standard library only, including the response-charset decoding.
 
@@ -66,11 +66,12 @@ call. The wire behaviour is identical — that is what the shared conformance su
 
 ## Formats
 
-**Sources (13):** `SourceZPL` `SourceEPL` `SourceTSPL` `SourceDPL` `SourceXML` `SourceJSON`
-`SourcePDF` `SourcePNG` `SourceBMP` `SourceGIF` `SourceJPEG` `SourceJPG` `SourceURL`
+**Sources (15):** `SourceZPL` `SourceEPL` `SourceIPL` `SourceTSPL` `SourceDPL` `SourceSBPL`
+`SourceXML` `SourceJSON` `SourcePDF` `SourcePNG` `SourceBMP` `SourceGIF` `SourceJPEG`
+`SourceJPG` `SourceURL`
 
-**Targets (11):** `TargetZPL` `TargetEPL` `TargetTSPL` `TargetDPL` `TargetXML` `TargetJSON`
-`TargetPDF` `TargetPNG` `TargetBMP` `TargetGIF` `TargetJPEG`
+**Targets (13):** `TargetZPL` `TargetEPL` `TargetIPL` `TargetTSPL` `TargetDPL` `TargetSBPL`
+`TargetXML` `TargetJSON` `TargetPDF` `TargetPNG` `TargetBMP` `TargetGIF` `TargetJPEG`
 
 `SourceFormat` and `TargetFormat` are distinct types. `SourceJPG` is an input spelling that
 normalizes to `jpeg` on the wire, and `SourceURL` tells the server to go fetch a document rather
@@ -184,7 +185,7 @@ go test ./...
 ```
 
 The test suite is the shared conformance fixtures in [`../conformance/`](../conformance/) — the
-same 83 cases the .NET, Node, Java, Python and PHP suites run — plus an assertion that it
+same 87 cases the .NET, Node, Java, Python and PHP suites run — plus an assertion that it
 executed every one of them. `conformance/skips/go.json` is empty: Go compiles, so the two
 `typecheck/*` cases are run for real, by building a snippet from `testdata/typecheck/` and
 asserting the compiler rejects it.

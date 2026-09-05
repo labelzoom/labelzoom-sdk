@@ -92,14 +92,20 @@ namespace LabelZoom.Sdk.Conversion
         /// <summary>Converts from ZPL.</summary>
         public ConversionSourceBuilder FromZpl(string zpl) => From(SourceFormat.Zpl, zpl);
 
-        /// <summary>Converts from EPL/EPL2. Source-only on the server.</summary>
+        /// <summary>Converts from EPL/EPL2.</summary>
         public ConversionSourceBuilder FromEpl(string epl) => From(SourceFormat.Epl, epl);
 
-        /// <summary>Converts from TSPL/TSPL2. Source-only on the server.</summary>
+        /// <summary>Converts from Intermec IPL.</summary>
+        public ConversionSourceBuilder FromIpl(string ipl) => From(SourceFormat.Ipl, ipl);
+
+        /// <summary>Converts from TSPL/TSPL2.</summary>
         public ConversionSourceBuilder FromTspl(string tspl) => From(SourceFormat.Tspl, tspl);
 
-        /// <summary>Converts from DPL. Source-only on the server.</summary>
+        /// <summary>Converts from DPL.</summary>
         public ConversionSourceBuilder FromDpl(string dpl) => From(SourceFormat.Dpl, dpl);
+
+        /// <summary>Converts from SATO SBPL.</summary>
+        public ConversionSourceBuilder FromSbpl(string sbpl) => From(SourceFormat.Sbpl, sbpl);
 
         /// <summary>Converts from LabelZoom XML.</summary>
         public ConversionSourceBuilder FromXml(string xml) => From(SourceFormat.Xml, xml);

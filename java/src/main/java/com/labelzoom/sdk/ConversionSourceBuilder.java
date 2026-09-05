@@ -1,7 +1,7 @@
 package com.labelzoom.sdk;
 
 /**
- * Chooses the target format. One class covers all eleven.
+ * Chooses the target format. One class covers all thirteen.
  *
  * <p>There is no {@code toUrl}: {@code URL} is a source-only fetch instruction, and
  * {@link TargetFormat} has no constant for it. Attempting one is a compile error rather than a
@@ -42,6 +42,15 @@ public final class ConversionSourceBuilder {
     }
 
     /**
+     * Converts to Intermec IPL. All labels are concatenated into one document. As with
+     * {@link #toEpl()}, prefer {@link ConversionResult#bytes()}: commands are framed in
+     * {@code STX}/{@code ETX}.
+     */
+    public ConversionTargetBuilder toIpl() {
+        return to(TargetFormat.IPL);
+    }
+
+    /**
      * Converts to TSPL. All labels are concatenated into one document. As with {@link #toEpl()},
      * prefer {@link ConversionResult#bytes()}.
      */
@@ -52,6 +61,15 @@ public final class ConversionSourceBuilder {
     /** Converts to Datamax DPL. All labels are concatenated into one document. */
     public ConversionTargetBuilder toDpl() {
         return to(TargetFormat.DPL);
+    }
+
+    /**
+     * Converts to SATO SBPL. All labels are concatenated into one document. As with
+     * {@link #toEpl()}, prefer {@link ConversionResult#bytes()}: every command is framed with
+     * {@code ESC}.
+     */
+    public ConversionTargetBuilder toSbpl() {
+        return to(TargetFormat.SBPL);
     }
 
     /** Converts to LabelZoom XML. Returns the first label only. */

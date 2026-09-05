@@ -1,15 +1,17 @@
 /**
  * Formats the LabelZoom API can convert *from*.
  *
- * A different type from {@link TargetFormat} on purpose. That is what makes `epl`, `tspl` and
- * `dpl` un-selectable as conversion targets: they are source-only on the server, and there is
- * no such member of `TargetFormat` to name.
+ * A different type from {@link TargetFormat} on purpose. That is what makes `jpg` and `url`
+ * un-selectable as conversion targets: `jpg` is an input spelling of `jpeg`, `url` is a fetch
+ * instruction rather than a format, and there is no such member of `TargetFormat` to name.
  */
 export type SourceFormat =
   | 'zpl'
   | 'epl'
+  | 'ipl'
   | 'tspl'
   | 'dpl'
+  | 'sbpl'
   | 'xml'
   | 'json'
   | 'pdf'
@@ -32,14 +34,17 @@ export type SourceFormat =
  * `jpeg`, and `url` is a fetch instruction rather than a format, so `.to('url')` is a compile
  * error rather than a runtime 404.
  *
- * `epl` and `tspl` output can inline raw binary (EPL `GW`, TSPL `BITMAP`); read `result.bytes`
- * rather than `result.text` for those targets.
+ * Printer-language output can carry raw binary — EPL `GW`, TSPL `BITMAP`, IPL's `STX`/`ETX`
+ * framing and packed bitmap columns, SBPL's inline graphics between `ESC` commands. Read
+ * `result.bytes` rather than `result.text` for those targets.
  */
 export type TargetFormat =
   | 'zpl'
   | 'epl'
+  | 'ipl'
   | 'tspl'
   | 'dpl'
+  | 'sbpl'
   | 'xml'
   | 'json'
   | 'pdf'
@@ -49,11 +54,13 @@ export type TargetFormat =
   | 'jpeg';
 
 export const SOURCE_FORMATS: readonly SourceFormat[] = [
-  'zpl', 'epl', 'tspl', 'dpl', 'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg', 'jpg', 'url',
+  'zpl', 'epl', 'ipl', 'tspl', 'dpl', 'sbpl',
+  'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg', 'jpg', 'url',
 ];
 
 export const TARGET_FORMATS: readonly TargetFormat[] = [
-  'zpl', 'epl', 'tspl', 'dpl', 'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg',
+  'zpl', 'epl', 'ipl', 'tspl', 'dpl', 'sbpl',
+  'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg',
 ];
 
 /**
@@ -66,8 +73,10 @@ export const TARGET_FORMATS: readonly TargetFormat[] = [
 const SOURCE_MEDIA_TYPES: Record<SourceFormat, string> = {
   zpl: 'text/plain',
   epl: 'text/plain',
+  ipl: 'text/plain',
   tspl: 'text/plain',
   dpl: 'text/plain',
+  sbpl: 'text/plain',
   xml: 'application/xml',
   json: 'application/json',
   pdf: 'application/pdf',

@@ -95,22 +95,34 @@ final class ConversionRequestBuilder
         return $this->from(SourceFormat::Zpl, $zpl);
     }
 
-    /** Converts from EPL/EPL2. Source-only on the server. */
+    /** Converts from EPL/EPL2. */
     public function fromEpl(string $epl): ConversionSourceBuilder
     {
         return $this->from(SourceFormat::Epl, $epl);
     }
 
-    /** Converts from TSPL/TSPL2. Source-only on the server. */
+    /** Converts from Intermec IPL. */
+    public function fromIpl(string $ipl): ConversionSourceBuilder
+    {
+        return $this->from(SourceFormat::Ipl, $ipl);
+    }
+
+    /** Converts from TSPL/TSPL2. */
     public function fromTspl(string $tspl): ConversionSourceBuilder
     {
         return $this->from(SourceFormat::Tspl, $tspl);
     }
 
-    /** Converts from DPL. Source-only on the server. */
+    /** Converts from DPL. */
     public function fromDpl(string $dpl): ConversionSourceBuilder
     {
         return $this->from(SourceFormat::Dpl, $dpl);
+    }
+
+    /** Converts from SATO SBPL. */
+    public function fromSbpl(string $sbpl): ConversionSourceBuilder
+    {
+        return $this->from(SourceFormat::Sbpl, $sbpl);
     }
 
     /** Converts from LabelZoom XML. */

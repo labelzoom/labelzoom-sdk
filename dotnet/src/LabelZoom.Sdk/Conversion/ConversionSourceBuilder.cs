@@ -1,7 +1,7 @@
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// Chooses the target format. One class covers all eleven targets.
+    /// Chooses the target format. One class covers all thirteen targets.
     /// </summary>
     /// <remarks>
     /// There is no <c>ToUrl</c>: <c>URL</c> is a source-only fetch instruction, and
@@ -39,6 +39,13 @@ namespace LabelZoom.Sdk.Conversion
         public ConversionTargetBuilder ToEpl() => To(TargetFormat.Epl);
 
         /// <summary>
+        /// Converts to Intermec IPL. All labels are concatenated into one document. As with
+        /// <see cref="ToEpl"/>, prefer <see cref="ConversionResult.Bytes"/>: commands are framed
+        /// in <c>STX</c>/<c>ETX</c>.
+        /// </summary>
+        public ConversionTargetBuilder ToIpl() => To(TargetFormat.Ipl);
+
+        /// <summary>
         /// Converts to TSPL. All labels are concatenated into one document. As with
         /// <see cref="ToEpl"/>, prefer <see cref="ConversionResult.Bytes"/>.
         /// </summary>
@@ -46,6 +53,13 @@ namespace LabelZoom.Sdk.Conversion
 
         /// <summary>Converts to Datamax DPL. All labels are concatenated into one document.</summary>
         public ConversionTargetBuilder ToDpl() => To(TargetFormat.Dpl);
+
+        /// <summary>
+        /// Converts to SATO SBPL. All labels are concatenated into one document. As with
+        /// <see cref="ToEpl"/>, prefer <see cref="ConversionResult.Bytes"/>: every command is
+        /// framed with <c>ESC</c>.
+        /// </summary>
+        public ConversionTargetBuilder ToSbpl() => To(TargetFormat.Sbpl);
 
         /// <summary>Converts to LabelZoom XML. Returns the first label only.</summary>
         public ConversionTargetBuilder ToXml() => To(TargetFormat.Xml);

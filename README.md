@@ -3,7 +3,7 @@
 # LabelZoom SDK
 
 Official client libraries for the [LabelZoom API](https://api.labelzoom.com) — convert barcode
-labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 ## Status
 
@@ -46,18 +46,21 @@ One endpoint covers almost everything:
 POST https://api.labelzoom.com/api/v2/convert/{sourceFormat}/to/{targetFormat}
 ```
 
-**Sources (12, plus `url`):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg` `jpeg`
+**Sources (15):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
+`jpg` `jpeg` `url`
 
-**Targets (11):** `zpl` `epl` `tspl` `dpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+**Targets (13):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
+`jpeg`
 
 `jpg` and `url` are **source-only** — `jpg` is an input spelling that normalizes to `jpeg`, and
 `url` tells the server to go fetch a document rather than naming a format. Every SDK enforces that
 at compile time where the language allows it.
 
-The printer languages round-trip: `epl`, `tspl` and `dpl` are targets as well as sources, so
-`pdf/to/epl` and `zpl/to/tspl` are real conversions. Their output is `text/plain` with every label
-concatenated — but EPL's `GW` and TSPL's `BITMAP` commands inline raw binary, so read the result's
-**bytes**, not its text, whenever a label might carry graphics.
+The printer languages round-trip: `epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as
+sources, so `pdf/to/epl` and `zpl/to/sbpl` are real conversions. Their output is `text/plain` with
+every label concatenated — but they can all carry raw binary (EPL's `GW`, TSPL's `BITMAP`, IPL's
+`STX`/`ETX`-framed bitmap columns, SBPL's inline graphics), so read the result's **bytes**, not its
+text, whenever a label might carry graphics.
 
 **Authentication is optional.** Without a key you get the free tier: watermarked output, first
 label only, a 1 MB request cap, and no multi-page, JSON-target, or image-to-image conversion. With

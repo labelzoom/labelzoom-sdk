@@ -7,10 +7,11 @@ namespace LabelZoom\Sdk;
 /**
  * A format the LabelZoom API can convert *from*.
  *
- * Deliberately a different type from {@see TargetFormat}. That is what makes EPL, TSPL and DPL
- * un-selectable as conversion targets: they are source-only on the server, and there is simply
- * no `TargetFormat::Epl` to name. Passing one where a target is expected is a `TypeError`, and
- * PHPStan rejects it before the code ever runs.
+ * Deliberately a different type from {@see TargetFormat}. That is what makes `Jpg` and `Url`
+ * un-selectable as conversion targets: `Jpg` is an input spelling of `jpeg`, `Url` is a fetch
+ * instruction rather than a format, and there is simply no `TargetFormat::Url` to name. Passing
+ * one where a target is expected is a `TypeError`, and PHPStan rejects it before the code ever
+ * runs.
  *
  * The backing value is the token a *caller* would write, so `Jpg` and `Jpeg` are distinct cases.
  * {@see self::wireToken()} is what goes in the URL, and it normalizes `jpg` to `jpeg` (rule A2).
@@ -20,14 +21,20 @@ enum SourceFormat: string
     /** Zebra Programming Language. */
     case Zpl = 'zpl';
 
-    /** Eltron Programming Language. Source-only. */
+    /** Eltron Programming Language. */
     case Epl = 'epl';
 
-    /** TSC Printer Language. Source-only. */
+    /** Intermec Printer Language. */
+    case Ipl = 'ipl';
+
+    /** TSC Printer Language. */
     case Tspl = 'tspl';
 
-    /** Datamax Printer Language. Source-only. */
+    /** Datamax Printer Language. */
     case Dpl = 'dpl';
+
+    /** SATO Barcode Printer Language. */
+    case Sbpl = 'sbpl';
 
     /** LabelZoom XML. */
     case Xml = 'xml';
@@ -76,12 +83,12 @@ enum SourceFormat: string
      * The `Content-Type` a request carrying this format must send.
      *
      * The format metadata table lives here and only here (contract §1.2) — never inlined at a
-     * call site, where the twelve copies would drift.
+     * call site, where the fifteen copies would drift.
      */
     public function mediaType(): string
     {
         return match ($this) {
-            self::Zpl, self::Epl, self::Tspl, self::Dpl, self::Url => 'text/plain',
+            self::Zpl, self::Epl, self::Ipl, self::Tspl, self::Dpl, self::Sbpl, self::Url => 'text/plain',
             self::Xml => 'application/xml',
             self::Json => 'application/json',
             self::Pdf => 'application/pdf',

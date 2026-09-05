@@ -3,7 +3,7 @@
 # LabelZoom Ruby SDK
 
 Official Ruby client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
 Ruby 3.1+. **No runtime dependencies** — `net/http`, `json`, `uri` and `openssl` are all standard
 library.
@@ -56,10 +56,11 @@ empty string — forces the free tier and suppresses that fallback.
 
 ## Formats
 
-**Sources (13):** `:zpl` `:epl` `:tspl` `:dpl` `:xml` `:json` `:pdf` `:png` `:bmp` `:gif` `:jpeg`
-`:jpg` `:url`
+**Sources (15):** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
+`:gif` `:jpeg` `:jpg` `:url`
 
-**Targets (11):** `:zpl` `:epl` `:tspl` `:dpl` `:xml` `:json` `:pdf` `:png` `:bmp` `:gif` `:jpeg`
+**Targets (13):** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
+`:gif` `:jpeg`
 
 `:jpg` is an input spelling that normalizes to `jpeg` on the wire, and `:url` tells the server to
 go fetch a document rather than naming a format — so neither is a target. The statically typed

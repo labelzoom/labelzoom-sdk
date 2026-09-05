@@ -270,8 +270,9 @@ class LabelZoomClient(_BaseClient):
 
         :param source: The input format. ``"url"`` posts the URL as the body and has the
             *server* fetch it -- validate it first if it came from untrusted input.
-        :param target: The output format. ``"epl"``, ``"tspl"`` and ``"dpl"`` are absent by
-            design: they are source-only on the server.
+        :param target: The output format. ``"jpg"`` and ``"url"`` are absent by design:
+            ``"jpg"`` is an input spelling of ``"jpeg"``, and ``"url"`` is a fetch
+            instruction rather than a format.
         :param body: The document, as ``bytes`` or ``str``.
         :param options: A pre-built :class:`~labelzoom.ConversionOptions`. Keyword arguments
             passed alongside it win.

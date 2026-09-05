@@ -8,15 +8,17 @@ from .errors import LabelZoomValidationError
 
 #: Formats the LabelZoom API can convert *from*.
 #:
-#: A different type from :data:`TargetFormat` on purpose. That is what makes ``epl``, ``tspl``
-#: and ``dpl`` un-selectable as conversion targets: they are source-only on the server, and
-#: they are simply not members of ``TargetFormat``. ``mypy`` rejects the call; there is no
-#: round trip to find out.
+#: A different type from :data:`TargetFormat` on purpose. That is what makes ``jpg`` and
+#: ``url`` un-selectable as conversion targets: ``jpg`` is an input spelling of ``jpeg``,
+#: ``url`` is a fetch instruction rather than a format, and neither is a member of
+#: ``TargetFormat``. ``mypy`` rejects the call; there is no round trip to find out.
 SourceFormat = Literal[
     "zpl",
     "epl",
+    "ipl",
     "tspl",
     "dpl",
+    "sbpl",
     "xml",
     "json",
     "pdf",
@@ -37,10 +39,23 @@ SourceFormat = Literal[
 #: ``jpeg``, and ``url`` is a fetch instruction rather than a format, so ``target="url"`` is a
 #: type error rather than a runtime 404.
 #:
-#: ``epl`` and ``tspl`` output can inline raw binary (EPL ``GW``, TSPL ``BITMAP``); read
-#: ``result.content`` rather than ``result.text`` for those targets.
+#: Printer-language output can carry raw binary -- EPL ``GW``, TSPL ``BITMAP``, IPL's
+#: ``STX``/``ETX`` framing and packed bitmap columns, SBPL's inline graphics between ``ESC``
+#: commands; read ``result.content`` rather than ``result.text`` for those targets.
 TargetFormat = Literal[
-    "zpl", "epl", "tspl", "dpl", "xml", "json", "pdf", "png", "bmp", "gif", "jpeg"
+    "zpl",
+    "epl",
+    "ipl",
+    "tspl",
+    "dpl",
+    "sbpl",
+    "xml",
+    "json",
+    "pdf",
+    "png",
+    "bmp",
+    "gif",
+    "jpeg",
 ]
 
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
@@ -58,13 +73,15 @@ ZplImageCompression = Literal["Z64", "COMPRESSED_HEX"]
 # The one place in the SDK that knows the format matrix.
 #
 # The superseded .NET builder hierarchy spread this across seven classes and they drifted:
-# one handled 2 of 12 sources, another returned the source content type as the target format.
+# one handled 2 of 15 sources, another returned the source content type as the target format.
 # Keep it here.
 _SOURCE_MEDIA_TYPES: dict[str, str] = {
     "zpl": "text/plain",
     "epl": "text/plain",
+    "ipl": "text/plain",
     "tspl": "text/plain",
     "dpl": "text/plain",
+    "sbpl": "text/plain",
     "xml": "application/xml",
     "json": "application/json",
     "pdf": "application/pdf",
