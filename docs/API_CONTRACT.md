@@ -105,6 +105,24 @@ Defined **once** per language. Never inlined at a call site.
 
 - **B1** `Content-Type` is the exact media type from [§1.2](#12-format-metadata-table). When the
   caller opts into base64/text mode, send `text/plain`.
+
+  > This is SDK style, not a server limit. The source format comes from the URL path, and the
+  > server rejects a `Content-Type` only when it names a *different* format than the path does —
+  > `application/pdf` posted to `/convert/zpl/to/png` is a **400**. Everything that declares
+  > nothing is accepted for every source format: `application/octet-stream`, any `text/*`
+  > subtype, and no `Content-Type` header at all.
+  >
+  > SDKs still send the exact type, because it is the one choice that is right for every payload
+  > and it keeps §1.2 as the single place a format's metadata lives. But a caller that holds raw
+  > bytes and no reliable media type — a file picker, a queue payload — can send
+  > `application/octet-stream` rather than inventing one. Note that for `PDF` and the image
+  > formats, `text/plain` still means base64 (the third column of §1.2), so raw binary must go as
+  > `application/octet-stream` or the exact type, never as `text/plain`.
+  >
+  > A body sent as `application/octet-stream`, or with no `Content-Type`, is decoded as
+  > ISO-8859-1 — every byte round-trips, which is what a printer language with an inline binary
+  > graphic needs. A declared `text/*` or `application/xml` without a `charset` parameter is
+  > decoded as UTF-8. Send an explicit `charset` whenever the payload is text in anything else.
 - **B2** **`Accept: */*`, always.** One value for every target, chosen so no SDK carries a
   per-target header table.
 
