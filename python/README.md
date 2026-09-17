@@ -16,9 +16,9 @@ pip install labelzoom-sdk
 
 The distribution is `labelzoom-sdk`; the import is `labelzoom`.
 
-> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
-> every language SDK runs against the same fixtures, and it is versioned independently of
-> the other SDKs — the contract carries its own version in `conformance/spec.json`.
+> **Stable.** The public API is covered by a shared conformance suite that every language SDK
+> runs against the same fixtures. Each SDK is versioned independently, and the contract carries
+> its own version in `conformance/spec.json`.
 
 ## Quick start
 
@@ -39,7 +39,7 @@ with LabelZoomClient() as client:                # anonymous; this works
 Path("label.png").write_bytes(result.content)
 ```
 
-`result.content` is the authoritative payload — five of the thirteen targets are binary, and every
+`result.content` is the authoritative payload — the PDF and image targets are binary, and every
 printer-language target can inline binary of its own.
 `result.text` decodes it using the response charset for the textual ones.
 
@@ -99,7 +99,7 @@ rather than a format — and the type system says so:
 ```python
 client.convert("pdf", "url", body)
 #                     ^^^^^ error: Argument 2 has incompatible type "Literal['url']";
-#                            expected "Literal['zpl', 'epl', 'tspl', 'dpl', ...]"
+#                            expected "Literal['zpl', 'epl', 'ipl', 'tspl', ...]"
 ```
 
 A mypy error, not a runtime 404. Run mypy and you find it before you ship; the SDK also raises

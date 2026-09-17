@@ -68,23 +68,24 @@ conformance suite proves. See [API_CONTRACT.md §9](../docs/API_CONTRACT.md#9-di
 
 ## Formats
 
-**Sources (15):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Sources:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 `Jpg` `Url`
 
-**Targets (13):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
 `SourceFormat` and `TargetFormat` are separate enums. `SourceFormat::Jpg` is an input spelling
 that normalizes to `jpeg` on the wire, and `SourceFormat::Url` tells the server to go fetch a
 document rather than naming a format — so neither has a `TargetFormat` counterpart, and
 `TargetFormat::Url` does not compile.
 
-Both enums are `#[non_exhaustive]`, and that is not boilerplate: `Epl`, `Tspl` and `Dpl` became
-*targets* in contract 1.1.0, when the printer-language writers shipped. Without it, every such
-addition would be a breaking change for any downstream `match`.
+Both enums are `#[non_exhaustive]`, and that is not boilerplate: the contract treats the format
+list as open, and formats have been added to it in minor versions. Without it, every such addition
+would be a breaking change for any downstream `match`.
 
 The printer languages round-trip: `pdf`→`epl` and `zpl`→`tspl` are real conversions. Their output
-is `text/plain`, but EPL's `GW` and TSPL's `BITMAP` commands inline raw binary, so read
-`result.bytes` rather than `result.text()` whenever a label might carry graphics.
+is `text/plain`, but every printer language can inline raw binary (EPL's `GW` and TSPL's `BITMAP`,
+for example), so read `result.bytes` rather than `result.text()` whenever a label might carry
+graphics.
 
 ## Options
 
@@ -187,10 +188,10 @@ cargo build --no-default-features     # proves the Transport seam is real
 ```
 
 The test suite is the shared conformance fixtures in [`../conformance/`](../conformance/) — the
-same 87 cases the .NET, Node, Java, Python, PHP, Go and Ruby suites run — plus an assertion that it
-executed every one of them. `conformance/skips/rust.json` is empty: Rust compiles, so the two
-`typecheck/*` cases are run for real, by building a snippet from `tests/typecheck/snippets/` in a
-throwaway crate and asserting the compiler rejects it with the expected error code.
+same cases every other SDK's suite runs — plus an assertion that it executed every one of them.
+`conformance/skips/rust.json` is empty: Rust compiles, so the two `typecheck/*` cases are run for
+real, by building a snippet from `tests/typecheck/snippets/` in a throwaway crate and asserting the
+compiler rejects it with the expected error code.
 
 `cargo run --example smoke` does one anonymous conversion against the live API. It is not part of
 the test suite, which is offline by design.

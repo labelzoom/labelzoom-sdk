@@ -56,10 +56,10 @@ empty string — forces the free tier and suppresses that fallback.
 
 ## Formats
 
-**Sources (15):** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
+**Sources:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
 `:gif` `:jpeg` `:jpg` `:url`
 
-**Targets (13):** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
+**Targets:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
 `:gif` `:jpeg`
 
 `:jpg` is an input spelling that normalizes to `jpeg` on the wire, and `:url` tells the server to
@@ -68,8 +68,9 @@ SDKs make that a compile error; Ruby raises `LabelZoom::ValidationError` (an `Ar
 the call, before any request goes out.
 
 The printer languages round-trip: `pdf`→`epl` and `zpl`→`tspl` are real conversions. Their output
-is `text/plain`, but EPL's `GW` and TSPL's `BITMAP` commands inline raw binary, so read
-`result.bytes` rather than `result.text` whenever a label might carry graphics.
+is `text/plain`, but every printer language can inline raw binary (EPL's `GW` and TSPL's `BITMAP`,
+for example), so read `result.bytes` rather than `result.text` whenever a label might carry
+graphics.
 
 ## Options
 

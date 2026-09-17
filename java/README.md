@@ -13,21 +13,24 @@ conflicts. The small amount of JSON the SDK needs is built in.
 
 ## Install
 
+[![Maven Central](https://img.shields.io/maven-central/v/com.labelzoom/labelzoom-sdk)](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk)
+— substitute that version for `VERSION` below.
+
 ```gradle
-implementation 'com.labelzoom:labelzoom-sdk:1.0.0'
+implementation 'com.labelzoom:labelzoom-sdk:VERSION'
 ```
 
 ```xml
 <dependency>
     <groupId>com.labelzoom</groupId>
     <artifactId>labelzoom-sdk</artifactId>
-    <version>1.0.0</version>
+    <version>VERSION</version>
 </dependency>
 ```
 
-> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
-> every language SDK runs against the same fixtures, and it is versioned independently of
-> the other SDKs — the contract carries its own version in `conformance/spec.json`.
+> **Stable.** The public API is covered by a shared conformance suite that every language SDK
+> runs against the same fixtures. Each SDK is versioned independently, and the contract carries
+> its own version in `conformance/spec.json`.
 
 ## Quick start
 
@@ -81,9 +84,9 @@ ConversionResult result = client.convert()
 
 ## Formats
 
-**Sources (15):** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG` `URL`
+**Sources:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG` `URL`
 
-**Targets (13):** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
+**Targets:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
 
 `SourceFormat` and `TargetFormat` are distinct enums, so `toUrl()` does not exist and
 `to(SourceFormat.PDF)` does not compile. `JPG` and `URL` are source-only — `JPG` normalizes to

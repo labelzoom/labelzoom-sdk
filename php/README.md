@@ -14,9 +14,9 @@ cURL client with no adapter.
 composer require labelzoom/sdk
 ```
 
-> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
-> every language SDK runs against the same fixtures, and it is versioned independently of
-> the other SDKs — the contract carries its own version in `conformance/spec.json`.
+> **Stable.** The public API is covered by a shared conformance suite that every language SDK
+> runs against the same fixtures. Each SDK is versioned independently, and the contract carries
+> its own version in `conformance/spec.json`.
 
 <details>
 <summary>Build from source</summary>
@@ -63,10 +63,10 @@ per application, not one per request.
 
 ## Formats
 
-**Sources (15):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
+**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
 `jpeg` `url`
 
-**Targets (13):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
 rather than a format. `SourceFormat` and `TargetFormat` are separate enums, so there is no
@@ -137,7 +137,7 @@ $result = $client->convert()
 
 ## Results
 
-`getBytes()` is authoritative — five of the thirteen targets are binary, and every printer-language
+`getBytes()` is authoritative — the PDF and image targets are binary, and every printer-language
 target can inline binary of its own.
 
 ```php

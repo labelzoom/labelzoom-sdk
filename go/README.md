@@ -66,11 +66,11 @@ call. The wire behaviour is identical — that is what the shared conformance su
 
 ## Formats
 
-**Sources (15):** `SourceZPL` `SourceEPL` `SourceIPL` `SourceTSPL` `SourceDPL` `SourceSBPL`
+**Sources:** `SourceZPL` `SourceEPL` `SourceIPL` `SourceTSPL` `SourceDPL` `SourceSBPL`
 `SourceXML` `SourceJSON` `SourcePDF` `SourcePNG` `SourceBMP` `SourceGIF` `SourceJPEG`
 `SourceJPG` `SourceURL`
 
-**Targets (13):** `TargetZPL` `TargetEPL` `TargetIPL` `TargetTSPL` `TargetDPL` `TargetSBPL`
+**Targets:** `TargetZPL` `TargetEPL` `TargetIPL` `TargetTSPL` `TargetDPL` `TargetSBPL`
 `TargetXML` `TargetJSON` `TargetPDF` `TargetPNG` `TargetBMP` `TargetGIF` `TargetJPEG`
 
 `SourceFormat` and `TargetFormat` are distinct types. `SourceJPG` is an input spelling that
@@ -78,9 +78,10 @@ normalizes to `jpeg` on the wire, and `SourceURL` tells the server to go fetch a
 than naming a format — so neither has a `TargetFormat` counterpart, and
 `To: labelzoom.SourceJPG` does not compile.
 
-The printer languages round-trip: `pdf`→`epl` and `zpl`→`tspl` are real conversions. Their
-output is `text/plain`, but EPL's `GW` and TSPL's `BITMAP` commands inline raw binary, so read
-`result.Bytes` rather than `result.Text()` whenever a label might carry graphics.
+The printer languages round-trip: `pdf`→`epl` and `zpl`→`tspl` are real conversions. Their output
+is `text/plain`, but every printer language can inline raw binary (EPL's `GW` and TSPL's `BITMAP`,
+for example), so read `result.Bytes` rather than `result.Text()` whenever a label might carry
+graphics.
 
 ## Options
 
@@ -185,10 +186,9 @@ go test ./...
 ```
 
 The test suite is the shared conformance fixtures in [`../conformance/`](../conformance/) — the
-same 87 cases the .NET, Node, Java, Python and PHP suites run — plus an assertion that it
-executed every one of them. `conformance/skips/go.json` is empty: Go compiles, so the two
-`typecheck/*` cases are run for real, by building a snippet from `testdata/typecheck/` and
-asserting the compiler rejects it.
+same cases every other SDK's suite runs — plus an assertion that it executed every one of them.
+`conformance/skips/go.json` is empty: Go compiles, so the two `typecheck/*` cases are run for real,
+by building a snippet from `testdata/typecheck/` and asserting the compiler rejects it.
 
 ## License
 
