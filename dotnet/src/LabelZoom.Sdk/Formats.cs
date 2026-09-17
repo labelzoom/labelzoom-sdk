@@ -10,50 +10,56 @@ namespace LabelZoom.Sdk
     /// Deliberately a different type from <see cref="TargetFormat"/>. The sets are not identical:
     /// <see cref="Jpg"/> and <see cref="Url"/> are source-only, so there is no
     /// <c>TargetFormat.Url</c> to name.
+    /// <para>
+    /// Every member carries an explicit value, and those values are part of the public API. C#
+    /// compiles an enum member into the <em>calling</em> assembly as its number, so renumbering an
+    /// existing member silently changes what already-built code asks for. New members take the
+    /// next unused number, wherever they are declared.
+    /// </para>
     /// </remarks>
     public enum SourceFormat
     {
         /// <summary>Zebra Programming Language. Sent as <c>text/plain</c>.</summary>
-        Zpl,
+        Zpl = 0,
 
         /// <summary>Eltron Programming Language. Sent as <c>text/plain</c>.</summary>
-        Epl,
+        Epl = 1,
 
         /// <summary>Intermec Printer Language. Sent as <c>text/plain</c>.</summary>
-        Ipl,
+        Ipl = 13,
 
         /// <summary>TSC Printer Language. Sent as <c>text/plain</c>.</summary>
-        Tspl,
+        Tspl = 2,
 
         /// <summary>Datamax Printer Language. Sent as <c>text/plain</c>.</summary>
-        Dpl,
+        Dpl = 3,
 
         /// <summary>SATO Barcode Printer Language. Sent as <c>text/plain</c>.</summary>
-        Sbpl,
+        Sbpl = 14,
 
         /// <summary>LabelZoom XML. Sent as <c>application/xml</c>.</summary>
-        Xml,
+        Xml = 4,
 
         /// <summary>LabelZoom JSON. Sent as <c>application/json</c>.</summary>
-        Json,
+        Json = 5,
 
         /// <summary>PDF document. Sent as <c>application/pdf</c>.</summary>
-        Pdf,
+        Pdf = 6,
 
         /// <summary>PNG image. Sent as <c>image/png</c>.</summary>
-        Png,
+        Png = 7,
 
         /// <summary>BMP image. Sent as <c>image/bmp</c>.</summary>
-        Bmp,
+        Bmp = 8,
 
         /// <summary>GIF image. Sent as <c>image/gif</c>.</summary>
-        Gif,
+        Gif = 9,
 
         /// <summary>JPEG image. Sent as <c>image/jpeg</c>.</summary>
-        Jpeg,
+        Jpeg = 10,
 
         /// <summary>Alias for <see cref="Jpeg"/>; normalized to <c>jpeg</c> on the wire.</summary>
-        Jpg,
+        Jpg = 11,
 
         /// <summary>
         /// A URL, sent as the request body with <c>text/plain</c>. The <em>server</em> then fetches
@@ -63,7 +69,7 @@ namespace LabelZoom.Sdk
         /// This hands a caller-supplied URL to a server-side fetch. Do not pass a URL derived from
         /// untrusted input without validating it first.
         /// </remarks>
-        Url,
+        Url = 12,
     }
 
     /// <summary>
@@ -73,11 +79,17 @@ namespace LabelZoom.Sdk
     /// Deliberately a different type from <see cref="SourceFormat"/>. <c>JPG</c> and <c>URL</c> are
     /// intentionally absent: <c>JPG</c> is an input spelling that normalizes to <see cref="Jpeg"/>,
     /// and <c>URL</c> is a fetch instruction rather than a format.
+    /// <para>
+    /// Every member carries an explicit value, and those values are part of the public API. C#
+    /// compiles an enum member into the <em>calling</em> assembly as its number, so renumbering an
+    /// existing member silently changes what already-built code asks for. New members take the
+    /// next unused number, wherever they are declared.
+    /// </para>
     /// </remarks>
     public enum TargetFormat
     {
         /// <summary>Zebra Programming Language. All labels are concatenated.</summary>
-        Zpl,
+        Zpl = 0,
 
         /// <summary>
         /// Eltron Programming Language. All labels are concatenated.
@@ -85,52 +97,52 @@ namespace LabelZoom.Sdk
         /// <see cref="ConversionResult.Text"/> — the <c>GW</c> graphics command inlines
         /// raw binary that a charset decode can corrupt.
         /// </summary>
-        Epl,
+        Epl = 1,
 
         /// <summary>
         /// Intermec Printer Language. All labels are concatenated. Commands are framed in
         /// <c>STX</c>/<c>ETX</c> and graphics travel as packed bitmap columns, so prefer
         /// <see cref="ConversionResult.Bytes"/>.
         /// </summary>
-        Ipl,
+        Ipl = 11,
 
         /// <summary>
         /// TSC printer language. All labels are concatenated. As with <see cref="Epl"/>, the
         /// <c>BITMAP</c> command inlines raw binary, so prefer
         /// <see cref="ConversionResult.Bytes"/>.
         /// </summary>
-        Tspl,
+        Tspl = 2,
 
         /// <summary>Datamax Printer Language. All labels are concatenated.</summary>
-        Dpl,
+        Dpl = 3,
 
         /// <summary>
         /// SATO Barcode Printer Language. All labels are concatenated. Every command is framed
         /// with <c>ESC</c> and graphics are embedded inline, so prefer
         /// <see cref="ConversionResult.Bytes"/>.
         /// </summary>
-        Sbpl,
+        Sbpl = 12,
 
         /// <summary>LabelZoom XML. First label only.</summary>
-        Xml,
+        Xml = 4,
 
         /// <summary>LabelZoom JSON. First label only. Requires a paid license.</summary>
-        Json,
+        Json = 5,
 
         /// <summary>PDF document, one page per label.</summary>
-        Pdf,
+        Pdf = 6,
 
         /// <summary>PNG image. First label only.</summary>
-        Png,
+        Png = 7,
 
         /// <summary>BMP image. First label only.</summary>
-        Bmp,
+        Bmp = 8,
 
         /// <summary>GIF image. First label only.</summary>
-        Gif,
+        Gif = 9,
 
         /// <summary>JPEG image. First label only.</summary>
-        Jpeg,
+        Jpeg = 10,
     }
 
     /// <summary>Colour handling when rasterizing or tracing images.</summary>
