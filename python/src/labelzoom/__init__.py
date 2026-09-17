@@ -1,7 +1,7 @@
 """Official Python SDK for the `LabelZoom <https://www.labelzoom.com>`_ API.
 
-Converts barcode labels between ZPL, EPL, TSPL, DPL, PDF, LabelZoom XML/JSON and raster
-images.
+Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and
+raster images.
 
 ```python
 from labelzoom import LabelZoomClient
