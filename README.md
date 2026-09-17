@@ -12,14 +12,14 @@ The SDKs are built around a shared, machine-checked
 
 | Language | Package | Status |
 |---|---|---|
-| [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released — `1.0.0`, the reference implementation |
-| [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released — `1.0.0` |
-| [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released — `1.0.0` |
-| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released — `1.0.0` |
-| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released — `1.0.0` |
-| [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released — `1.0.0` |
-| [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | released — `1.0.0` |
-| [Rust](rust/) | [`labelzoom`](https://crates.io/crates/labelzoom) | released — `1.0.0` |
+| [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released [![NuGet](https://img.shields.io/nuget/v/LabelZoom.Sdk)](https://www.nuget.org/packages/LabelZoom.Sdk) — the reference implementation |
+| [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released [![npm](https://img.shields.io/npm/v/@labelzoom/sdk)](https://www.npmjs.com/package/@labelzoom/sdk) |
+| [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released [![Maven Central](https://img.shields.io/maven-central/v/com.labelzoom/labelzoom-sdk)](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) |
+| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released [![PyPI](https://img.shields.io/pypi/v/labelzoom-sdk)](https://pypi.org/project/labelzoom-sdk/) |
+| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released [![Packagist](https://img.shields.io/packagist/v/labelzoom/sdk)](https://packagist.org/packages/labelzoom/sdk) |
+| [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released [![Go](https://img.shields.io/github/v/tag/labelzoom/labelzoom-sdk?filter=go%2F*&label=go)](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) |
+| [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | released [![Gem](https://img.shields.io/gem/v/labelzoom)](https://rubygems.org/gems/labelzoom) |
+| [Rust](rust/) | [`labelzoom`](https://crates.io/crates/labelzoom) | released [![crates.io](https://img.shields.io/crates/v/labelzoom)](https://crates.io/crates/labelzoom) |
 
 npm, PyPI, NuGet, crates.io and RubyGems release from CI over OIDC trusted publishing,
 with no stored credential. Maven Central and Packagist have no OIDC equivalent, so those
@@ -31,8 +31,8 @@ tag, which is why its release workflow is a gate rather than a publisher.
 
 The first five shipped `1.0.0` together, once five independent implementations had
 validated the shared contract against the same fixtures; Go, Ruby and Rust joined at
-`1.0.0` after doing the same. The contract carries its own version
-(`conformance/spec.json`), currently `1.1.0` — see
+`1.0.0` after doing the same. The contract is versioned separately from every SDK, in
+`conformance/spec.json` — see
 [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
 
 For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
@@ -46,10 +46,10 @@ One endpoint covers almost everything:
 POST https://api.labelzoom.com/api/v2/convert/{sourceFormat}/to/{targetFormat}
 ```
 
-**Sources (15):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
+**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
 `jpg` `jpeg` `url`
 
-**Targets (13):** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
+**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
 `jpeg`
 
 `jpg` and `url` are **source-only** — `jpg` is an input spelling that normalizes to `jpeg`, and

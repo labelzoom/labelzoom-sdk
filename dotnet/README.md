@@ -13,9 +13,9 @@ Targets **netstandard2.0** (so .NET Framework 4.6.1+, .NET Core 2.0+, .NET 5+) a
 dotnet add package LabelZoom.Sdk
 ```
 
-> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
-> every language SDK runs against the same fixtures, and it is versioned independently of
-> the other SDKs — the contract carries its own version in `conformance/spec.json`.
+> **Stable.** The public API is covered by a shared conformance suite that every language SDK
+> runs against the same fixtures. Each SDK is versioned independently, and the contract carries
+> its own version in `conformance/spec.json`.
 
 <details>
 <summary>Build from source</summary>
@@ -80,9 +80,9 @@ var result = await client.Convert()
 
 ## Formats
 
-**Sources (15):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`) `Url`
+**Sources:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` (an alias for `Jpeg`) `Url`
 
-**Targets (13):** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
 
 `SourceFormat` and `TargetFormat` are distinct types, so `.ToUrl()` does not exist and
 `To(SourceFormat.Pdf)` does not compile. `Jpg` and `Url` are source-only — `Jpg` normalizes to

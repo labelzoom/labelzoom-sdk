@@ -17,9 +17,9 @@ npm install @labelzoom/sdk
 Published from CI with [npm provenance](https://docs.npmjs.com/generating-provenance-statements),
 so every release is cryptographically linked to the commit and workflow that built it.
 
-> **Stable at `1.0.0`.** The public API is covered by a shared conformance suite that
-> every language SDK runs against the same fixtures, and it is versioned independently of
-> the other SDKs — the contract carries its own version in `conformance/spec.json`.
+> **Stable.** The public API is covered by a shared conformance suite that every language SDK
+> runs against the same fixtures. Each SDK is versioned independently, and the contract carries
+> its own version in `conformance/spec.json`.
 
 <details>
 <summary>Build from source</summary>
