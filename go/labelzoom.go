@@ -31,7 +31,7 @@ package labelzoom
 
 // Version is the SDK version. It appears in the User-Agent of every request, so the
 // release workflow asserts that it matches the `go/vX.Y.Z` tag being published.
-const Version = "1.0.0"
+const Version = "1.1.0"
 
 // DefaultBaseURL is the production API host.
 const DefaultBaseURL = "https://api.labelzoom.com"

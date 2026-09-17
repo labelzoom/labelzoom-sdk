@@ -1,6 +1,6 @@
 [package]
 name = "labelzoom"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 # 1.85 is the floor for the DEFAULT build, set by the bundled rustls stack: zeroize,
 # reached transitively through ureq, is edition 2024 and needs cargo >= 1.85. The
