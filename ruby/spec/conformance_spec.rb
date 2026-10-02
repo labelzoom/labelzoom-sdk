@@ -76,6 +76,8 @@ def convert_kwargs(given)
 
   (given["options"] || {}).each do |key, value|
     case key
+    when "sourceDpi" then kwargs[:source_dpi] = value
+    when "targetDpi" then kwargs[:target_dpi] = value
     when "colorMode" then kwargs[:color_mode] = value
     when "position" then kwargs[:position] = { x: value["x"], y: value["y"] }
     when "label" then kwargs[:label] = symbolize(value, "width" => :width, "height" => :height)

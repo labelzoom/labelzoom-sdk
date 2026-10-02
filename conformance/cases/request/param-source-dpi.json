@@ -1,6 +1,6 @@
 {
-  "id": "request/param-dpi",
-  "note": "C2: the target-side dpi travels inside the single ?params= JSON object. The target builder's withDpi emits targetDpi (the resolution the output is authored at).",
+  "id": "request/param-source-dpi",
+  "note": "C2: the source-side dpi travels inside the single ?params= JSON object. The source builder's withDpi emits sourceDpi (how the source's absolute positions are interpreted).",
   "given": {
     "client": {
       "apiKey": null
@@ -9,7 +9,7 @@
     "target": "png",
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "options": {
-      "targetDpi": 300
+      "sourceDpi": 300
     }
   },
   "expect": {
@@ -28,7 +28,7 @@
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "queryJson": {
       "params": {
-        "targetDpi": 300
+        "sourceDpi": 300
       }
     }
   }

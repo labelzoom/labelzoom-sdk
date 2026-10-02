@@ -212,6 +212,8 @@ fn build_options(given: &Value) -> Result<ConversionOptions, Failed> {
 
     for (key, value) in wire {
         match key.as_str() {
+            "sourceDpi" => options.source_dpi = value.as_i64(),
+            "targetDpi" => options.target_dpi = value.as_i64(),
             "dpi" => options.dpi = value.as_i64(),
             "rotation" => options.rotation = value.as_i64(),
             "scaling" => options.scaling = value.as_f64(),

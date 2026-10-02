@@ -28,16 +28,23 @@ final class ConversionTargetBuilder
         private readonly TargetFormat $target,
         private readonly string $body,
         private readonly string $contentType,
+        private array $preSetParams = [],
     ) {
+        $this->params = $preSetParams;
     }
 
-    /** Output resolution in dots per inch. The server default is 203. */
+    /**
+     * The resolution the <b>output</b> is authored at, in dots per inch. The server default is
+     * 203. This is the target-side dpi; the source builder's {@see ConversionSourceBuilder::withDpi()}
+     * declares how the source's positions are interpreted, and both may be set when the chosen
+     * format pair supports a dpi on each side.
+     */
     public function withDpi(int $dpi): self
     {
         if ($dpi <= 0) {
             throw new ValidationException('dpi', 'DPI must be greater than zero.');
         }
-        $this->params['dpi'] = $dpi;
+        $this->params['targetDpi'] = $dpi;
 
         return $this;
     }
