@@ -30,7 +30,7 @@
 //! # }
 //! ```
 //!
-//! The behaviour of every LabelZoom SDK is specified in `docs/API_CONTRACT.md` and checked
+//! The behavior of every LabelZoom SDK is specified in `docs/API_CONTRACT.md` and checked
 //! by the shared fixtures in `conformance/`, which this crate's test suite executes.
 
 #![forbid(unsafe_code)]

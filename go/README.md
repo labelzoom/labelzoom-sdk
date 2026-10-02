@@ -61,7 +61,7 @@ the more readable `WithAnonymous()` — forces the free tier and suppresses that
 The other LabelZoom SDKs expose `client.convert().fromZpl(body).toPng().withDpi(300).execute()`.
 A chain in Go has to either panic on a bad argument or hoard errors until a terminal `Do()`, and
 both are un-Go, so this SDK uses functional options for the client and a request struct for the
-call. The wire behaviour is identical — that is what the shared conformance suite proves. See
+call. The wire behavior is identical — that is what the shared conformance suite proves. See
 [API_CONTRACT.md §9](../docs/API_CONTRACT.md#9-divergences).
 
 ## Formats
@@ -144,7 +144,7 @@ network call, which is a bug in the calling code rather than a server response. 
 ## Retries
 
 429s, 5xx responses and transport failures are retried automatically — twice by default, for
-three attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honoured
+three attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honored
 on any retryable status when it asks for longer than the backoff would wait. No other 4xx is
 ever retried.
 

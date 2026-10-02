@@ -73,7 +73,7 @@ final class ConformanceTest extends TestCase
      * The `typecheck/*` fixtures rendered as PHP.
      *
      * The fixtures state their snippet in language-neutral pseudocode, so every statically
-     * analysed SDK translates it; this map is PHP's translation and nothing more. The
+     * analyzed SDK translates it; this map is PHP's translation and nothing more. The
      * pseudocode is quoted beside each one so a fixture edit that changes the *meaning*
      * is visible here rather than silently still passing.
      *
@@ -168,7 +168,7 @@ final class ConformanceTest extends TestCase
     /**
      * The request/response/retry/validation cases, one PHPUnit case each.
      *
-     * `typecheck/*` is excluded here and asserted by its own test — it needs a static analyser,
+     * `typecheck/*` is excluded here and asserted by its own test — it needs a static analyzer,
      * not a client call.
      *
      * @return iterable<string, array{string}>
@@ -630,8 +630,8 @@ final class ConformanceTest extends TestCase
     /**
      * The `typecheck/*` cases, run through PHPStan rather than through the client.
      *
-     * PHP has no compile step, but it does have a static analyser that the SDK already ships a
-     * config for — so these cases are executed rather than skipped. The snippets are analysed at
+     * PHP has no compile step, but it does have a static analyzer that the SDK already ships a
+     * config for — so these cases are executed rather than skipped. The snippets are analyzed at
      * the level from `phpstan.neon.dist`, read at runtime rather than hardcoded: the claim being
      * made is that the SDK's own configured analysis rejects these, so if that level is ever
      * lowered, this test has to fail rather than quietly keep asserting an obsolete standard.
@@ -685,7 +685,7 @@ final class ConformanceTest extends TestCase
     }
 
     /**
-     * The `level:` from `phpstan.neon.dist` — the one the SDK is really analysed at.
+     * The `level:` from `phpstan.neon.dist` — the one the SDK is really analyzed at.
      *
      * Note the type distinction only bites from level 5 up, where PHPStan starts checking
      * argument types: below that, passing a `SourceFormat` where a `TargetFormat` belongs is
@@ -738,7 +738,7 @@ final class ConformanceTest extends TestCase
             $ini === false ? [] : ['-c', $ini],
             [
                 $phpstan,
-                'analyse',
+                'analyse', // en-us:allow: phpstan CLI verb
                 '--level=' . self::phpstanLevel(),
                 '--no-progress',
                 '--error-format=json',

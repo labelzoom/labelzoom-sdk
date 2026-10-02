@@ -164,7 +164,7 @@ never reaches the network, and it should not be swallowed by a handler written f
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honouring a longer `Retry-After`. Other 4xx responses reject immediately — a malformed request
+honoring a longer `Retry-After`. Other 4xx responses reject immediately — a malformed request
 will not become valid on a second attempt.
 
 ```ts

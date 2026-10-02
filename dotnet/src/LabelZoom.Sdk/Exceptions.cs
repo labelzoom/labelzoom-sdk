@@ -93,7 +93,7 @@ namespace LabelZoom.Sdk
 
         /// <summary>
         /// The <c>Retry-After</c> header in seconds, if the server sent one. The SDK already
-        /// honours this during its own retries; this exposes it for callers doing their own.
+        /// honors this during its own retries; this exposes it for callers doing their own.
         /// </summary>
         public int? RetryAfterSeconds { get; }
     }
@@ -112,7 +112,7 @@ namespace LabelZoom.Sdk
     /// <remarks>
     /// Deliberately <em>not</em> a <see cref="LabelZoomException"/>. This is a bug in the calling
     /// code, not a server response: it carries no status code, it is never retried, and a caller
-    /// catching <see cref="LabelZoomException"/> to implement fallback behaviour should not
+    /// catching <see cref="LabelZoomException"/> to implement fallback behavior should not
     /// swallow it.
     /// </remarks>
     public sealed class LabelZoomValidationException : ArgumentException

@@ -5,7 +5,7 @@ package com.labelzoom.sdk;
  *
  * <p>Deliberately <em>not</em> a {@link LabelZoomException}: this means the calling code is wrong,
  * not that the server refused something. It carries no status code, it is never retried, and a
- * caller catching {@code LabelZoomException} to implement fallback behaviour should not swallow it.
+ * caller catching {@code LabelZoomException} to implement fallback behavior should not swallow it.
  */
 public final class LabelZoomValidationException extends IllegalArgumentException {
 

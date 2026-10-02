@@ -68,13 +68,13 @@ public final class ConversionTargetBuilder {
         return this;
     }
 
-    /** Colour handling. The server default is {@link ColorMode#GRAYSCALE}. */
+    /** Color handling. The server default is {@link ColorMode#GRAYSCALE}. */
     public ConversionTargetBuilder withColorMode(ColorMode mode) {
         params.put("colorMode", mode.wireToken());
         return this;
     }
 
-    /** Luminance threshold from 0 to 100 used when reducing colour depth. Server default 70. */
+    /** Luminance threshold from 0 to 100 used when reducing color depth. Server default 70. */
     public ConversionTargetBuilder withDarkness(int darkness) {
         if (darkness < 0 || darkness > 100) {
             throw new LabelZoomValidationException(
@@ -114,7 +114,7 @@ public final class ConversionTargetBuilder {
     /**
      * Label dimensions <b>in inches</b>, overriding whatever the source document implies.
      *
-     * @param widthInches width in inches — not dots, not millimetres
+     * @param widthInches width in inches — not dots, not millimeters
      * @param heightInches height in inches
      */
     public ConversionTargetBuilder withLabelSize(float widthInches, float heightInches) {

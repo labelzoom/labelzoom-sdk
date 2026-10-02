@@ -20,7 +20,7 @@ require_relative "labelzoom/client"
 #                             label: { width: 4, height: 6 })
 #     result.save("label.png")
 #
-# The behaviour of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
+# The behavior of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
 # the shared fixtures in conformance/, which this gem's spec suite executes.
 module LabelZoom
 end

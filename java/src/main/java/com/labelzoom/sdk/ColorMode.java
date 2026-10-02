@@ -1,15 +1,15 @@
 package com.labelzoom.sdk;
 
-/** Colour handling when rasterizing or tracing images. */
+/** Color handling when rasterizing or tracing images. */
 public enum ColorMode {
 
-    /** Two-colour black and white. */
+    /** Two-color black and white. */
     BW,
 
-    /** Greyscale. The server default. */
+    /** Grayscale. The server default. */
     GRAYSCALE,
 
-    /** Full colour. */
+    /** Full color. */
     COLOR;
 
     /** The exact uppercase token the API expects. */

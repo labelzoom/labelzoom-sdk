@@ -16,7 +16,7 @@ public final class LabelZoomRateLimitedException extends LabelZoomException {
     }
 
     /**
-     * {@code Retry-After} in seconds, when the server sent one. The SDK already honours this during
+     * {@code Retry-After} in seconds, when the server sent one. The SDK already honors this during
      * its own retries; this exposes it for callers doing their own.
      */
     public OptionalInt retryAfterSeconds() {

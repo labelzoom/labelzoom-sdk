@@ -345,7 +345,7 @@ class LabelZoomClient(_BaseClient):
 class AsyncLabelZoomClient(_BaseClient):
     """The asyncio mirror of :class:`LabelZoomClient`.
 
-    Identical surface and identical wire behaviour; ``convert`` is a coroutine. The two
+    Identical surface and identical wire behavior; ``convert`` is a coroutine. The two
     signatures are asserted to match in the test suite so they cannot drift.
     """
 

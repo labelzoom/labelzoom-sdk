@@ -70,7 +70,7 @@ export class PayloadTooLargeError extends LabelZoomError {}
 /** HTTP 429. Too many requests. */
 export class RateLimitedError extends LabelZoomError {
   /**
-   * `Retry-After` in seconds, when the server sent one. The SDK already honours this during its
+   * `Retry-After` in seconds, when the server sent one. The SDK already honors this during its
    * own retries; this exposes it for callers doing their own.
    */
   readonly retryAfterSeconds?: number;
@@ -89,7 +89,7 @@ export class ServerError extends LabelZoomError {}
  *
  * Deliberately *not* a {@link LabelZoomError}: this is a bug in the calling code, not a server
  * response. It carries no status, it is never retried, and a caller catching `LabelZoomError` to
- * implement fallback behaviour should not swallow it.
+ * implement fallback behavior should not swallow it.
  */
 export class LabelZoomValidationError extends Error {
   /** The conversion parameter at fault, named as it appears on the wire. */

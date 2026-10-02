@@ -56,7 +56,7 @@ module LabelZoom
   # HTTP 429. Too many requests.
   class RateLimitedError < APIError
     # @return [Float, nil] Retry-After in seconds, when the server sent one. The client
-    #   already honours this during its own retries; this exposes it for callers doing
+    #   already honors this during its own retries; this exposes it for callers doing
     #   their own.
     attr_reader :retry_after_seconds
 
@@ -76,7 +76,7 @@ module LabelZoom
   #
   # Deliberately an ArgumentError and *not* an {APIError}: this is a bug in the calling
   # code, not a server response. It carries no status, it is never retried, and a caller
-  # rescuing {APIError} to implement fallback behaviour should not swallow it.
+  # rescuing {APIError} to implement fallback behavior should not swallow it.
   #
   # This is also what makes conformance/skips/ruby.json's stated reason literally true:
   # Ruby has no compile step, so a source-only format passed as a target is caught here.

@@ -75,7 +75,7 @@ namespace LabelZoom.Sdk.Conversion
             return this;
         }
 
-        /// <summary>Colour handling. The server default is <see cref="ColorMode.Grayscale"/>.</summary>
+        /// <summary>Color handling. The server default is <see cref="ColorMode.Grayscale"/>.</summary>
         public ConversionTargetBuilder WithColorMode(ColorMode mode)
         {
             _parameters.Set("colorMode", mode.ToWireToken());
@@ -83,7 +83,7 @@ namespace LabelZoom.Sdk.Conversion
         }
 
         /// <summary>
-        /// Luminance threshold from 0 to 100 used when reducing colour depth. The server default is 70.
+        /// Luminance threshold from 0 to 100 used when reducing color depth. The server default is 70.
         /// </summary>
         public ConversionTargetBuilder WithDarkness(int darkness)
         {
@@ -133,7 +133,7 @@ namespace LabelZoom.Sdk.Conversion
         /// <summary>
         /// Label dimensions <b>in inches</b>, overriding whatever the source document implies.
         /// </summary>
-        /// <param name="widthInches">Width in inches — not dots, not millimetres.</param>
+        /// <param name="widthInches">Width in inches — not dots, not millimeters.</param>
         /// <param name="heightInches">Height in inches.</param>
         public ConversionTargetBuilder WithLabelSize(float widthInches, float heightInches)
         {

@@ -66,7 +66,7 @@ result = client.convert(
 
 ### Async
 
-`AsyncLabelZoomClient` is a mirror, not a wrapper — same arguments, same behaviour, awaited.
+`AsyncLabelZoomClient` is a mirror, not a wrapper — same arguments, same behavior, awaited.
 The test suite asserts the two signatures are identical, so they cannot drift.
 
 ```python
@@ -179,7 +179,7 @@ failures. It subclasses `ValueError`.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full
-jitter, honouring a longer `Retry-After`. Other 4xx responses raise immediately — a malformed
+jitter, honoring a longer `Retry-After`. Other 4xx responses raise immediately — a malformed
 request will not become valid on a second attempt.
 
 ```python

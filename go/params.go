@@ -14,7 +14,7 @@ type Position struct {
 	Y int `json:"y"`
 }
 
-// LabelSize is the media size, in INCHES -- not dots, and not millimetres.
+// LabelSize is the media size, in INCHES -- not dots, and not millimeters.
 //
 // Omitting it entirely is meaningful: it asks the server to detect the size. That is why
 // the fields are pointers and why an unset LabelSize emits no "label" key at all.
@@ -51,7 +51,7 @@ type Options struct {
 	Rotation *int
 	// Scaling is a percentage. Server default 100.
 	Scaling *float64
-	// ColorMode selects colour reduction. Server default GRAYSCALE.
+	// ColorMode selects color reduction. Server default GRAYSCALE.
 	ColorMode *ColorMode
 	// Darkness is a luminance threshold from 0 to 100. Server default 70.
 	Darkness *int

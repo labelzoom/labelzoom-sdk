@@ -25,7 +25,7 @@
 //	}
 //	os.WriteFile("label.png", result.Bytes, 0o644)
 //
-// The behaviour of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
+// The behavior of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
 // the shared fixtures in conformance/, which this package's test suite executes in full.
 package labelzoom
 

@@ -111,7 +111,7 @@ namespace LabelZoom.Sdk
         /// Replaces the delay between retry attempts. Defaults to <see cref="Task.Delay(TimeSpan, CancellationToken)"/>.
         /// </summary>
         /// <remarks>
-        /// Substitute a recording no-op in tests so retry behaviour can be asserted without
+        /// Substitute a recording no-op in tests so retry behavior can be asserted without
         /// spending the wall-clock time.
         /// </remarks>
         public Func<TimeSpan, CancellationToken, Task>? SleepAsync { get; set; }
