@@ -94,7 +94,7 @@ class RateLimitedError(LabelZoomError):
         retry_after_seconds: float | None = None,
     ) -> None:
         super().__init__(message, status=status, request_id=request_id, raw_body=raw_body)
-        #: ``Retry-After`` in seconds, when the server sent one. The SDK already honours this
+        #: ``Retry-After`` in seconds, when the server sent one. The SDK already honors this
         #: during its own retries; this exposes it for callers doing their own.
         self.retry_after_seconds = retry_after_seconds
 
@@ -108,7 +108,7 @@ class LabelZoomValidationError(ValueError):
 
     Deliberately *not* a :class:`LabelZoomError`: this is a bug in the calling code, not a
     server response. It carries no status, it is never retried, and a caller catching
-    ``LabelZoomError`` to implement fallback behaviour should not swallow it.
+    ``LabelZoomError`` to implement fallback behavior should not swallow it.
     """
 
     def __init__(self, parameter: str, message: str) -> None:

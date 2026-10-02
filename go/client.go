@@ -33,7 +33,7 @@ type Client struct {
 //
 // Go gets a request struct rather than the fluent chain the other SDKs expose: a chain in
 // Go has to either panic or defer its errors to a terminal Do(), and both are un-Go. The
-// wire behaviour is identical -- only the ergonomics differ.
+// wire behavior is identical -- only the ergonomics differ.
 type ConvertRequest struct {
 	// From is the format of Body.
 	From SourceFormat
@@ -160,7 +160,7 @@ func (c *Client) Convert(ctx context.Context, request ConvertRequest) (*Result, 
 	for attempt := 1; ; attempt++ {
 		response, err := c.attempt(ctx, endpoint, mediaType, request.Body)
 		if err != nil {
-			// A cancelled or expired context is the caller's decision, not a transport
+			// A canceled or expired context is the caller's decision, not a transport
 			// failure, and must not be retried.
 			if ctx.Err() != nil || attempt >= attempts {
 				return nil, err

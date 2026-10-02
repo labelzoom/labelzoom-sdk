@@ -105,7 +105,7 @@ export function sourceMediaType(format: SourceFormat): string {
   return mediaType;
 }
 
-/** Colour handling when rasterizing or tracing images. */
+/** Color handling when rasterizing or tracing images. */
 export type ColorMode = 'BW' | 'GRAYSCALE' | 'COLOR';
 
 /** How a source PDF is interpreted. */

@@ -105,7 +105,7 @@ jobs:
       # separate static-analysis job that the fixtures quietly depend on.
       - name: Static analysis
         if: matrix.php-version == env.PRIMARY_PHP
-        run: composer analyse
+        run: composer analyze
         working-directory: ./php
 
       # No secrets, no network: the transport is an in-repo PSR-18 stub, so this passes

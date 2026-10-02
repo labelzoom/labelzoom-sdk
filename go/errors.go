@@ -84,7 +84,7 @@ func (e *PayloadTooLargeError) Unwrap() error { return &e.APIError }
 type RateLimitedError struct {
 	APIError
 	// RetryAfterSeconds is the Retry-After header, when the server sent one. The client
-	// already honours it during its own retries; this exposes it for callers doing theirs.
+	// already honors it during its own retries; this exposes it for callers doing theirs.
 	RetryAfterSeconds *float64
 }
 

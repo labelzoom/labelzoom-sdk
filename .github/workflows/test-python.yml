@@ -42,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         # The floor and the ceiling both matter: `X | Y` annotations need 3.10, and the
-        # newest release is where httpx and asyncio behaviour changes show up first.
+        # newest release is where httpx and asyncio behavior changes show up first.
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
 
     steps:

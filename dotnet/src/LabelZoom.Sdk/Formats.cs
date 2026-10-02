@@ -145,16 +145,16 @@ namespace LabelZoom.Sdk
         Jpeg = 10,
     }
 
-    /// <summary>Colour handling when rasterizing or tracing images.</summary>
+    /// <summary>Color handling when rasterizing or tracing images.</summary>
     public enum ColorMode
     {
-        /// <summary>Two-colour black and white.</summary>
+        /// <summary>Two-color black and white.</summary>
         Bw,
 
-        /// <summary>Greyscale. The server default.</summary>
+        /// <summary>Grayscale. The server default.</summary>
         Grayscale,
 
-        /// <summary>Full colour.</summary>
+        /// <summary>Full color.</summary>
         Color,
     }
 

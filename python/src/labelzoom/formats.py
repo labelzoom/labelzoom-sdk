@@ -61,7 +61,7 @@ TargetFormat = Literal[
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
 TARGET_FORMATS: tuple[TargetFormat, ...] = get_args(TargetFormat)
 
-#: Colour handling when rasterizing or tracing images.
+#: Color handling when rasterizing or tracing images.
 ColorMode = Literal["BW", "GRAYSCALE", "COLOR"]
 
 #: How a source PDF is interpreted.

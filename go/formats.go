@@ -141,10 +141,10 @@ func (f TargetFormat) validate() error {
 	}
 }
 
-// ColorMode selects how colour is reduced when rasterizing. Server default GRAYSCALE.
+// ColorMode selects how color is reduced when rasterizing. Server default GRAYSCALE.
 type ColorMode string
 
-// The colour modes the API accepts.
+// The color modes the API accepts.
 const (
 	ColorModeBW        ColorMode = "BW"
 	ColorModeGrayscale ColorMode = "GRAYSCALE"

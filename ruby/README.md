@@ -132,7 +132,7 @@ descends from `ArgumentError`, so rescuing `APIError` to implement a fallback wi
 ## Retries
 
 429s, 5xx responses and transport failures are retried automatically — twice by default, for three
-attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honoured on any
+attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honored on any
 retryable status when it asks for longer than the backoff would wait. No other 4xx is ever retried.
 
 ```ruby

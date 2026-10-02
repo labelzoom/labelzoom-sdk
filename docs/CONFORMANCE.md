@@ -132,7 +132,7 @@ Skips live in `conformance/skips/<lang>.json` and **require a non-empty `reason`
 The only legitimate skips today are `typecheck/*` in Python and Ruby. **PHP does not skip
 them**: it has no compile step either, but `SourceFormat` and `TargetFormat` are real enums, so
 its runner shells out to PHPStan and asserts each snippet is rejected. A dynamically executed
-language with a static analyser in its dev dependencies should run these, not declare them away.
+language with a static analyzer in its dev dependencies should run these, not declare them away.
 
 **Go and Rust run them by actually compiling.** Each writes the snippet into a throwaway
 module with a path dependency on the local SDK, builds it offline, and asserts the compiler

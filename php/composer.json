@@ -48,9 +48,9 @@
         "test": "phpunit",
         "lint": "php-cs-fixer check --diff",
         "format": "php-cs-fixer fix",
-        "analyse": [
-            "phpstan analyse",
-            "phpstan analyse -c phpstan-tests.neon.dist"
+        "analyze": [
+            "phpstan analyse", <!-- en-us:allow: phpstan CLI verb -->
+            "phpstan analyse -c phpstan-tests.neon.dist" <!-- en-us:allow: phpstan CLI verb -->
         ]
     },
     "archive": {

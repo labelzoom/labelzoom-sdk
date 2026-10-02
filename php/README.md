@@ -185,7 +185,7 @@ request id to carry, and a handler written for server failures should not swallo
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honouring a longer `Retry-After` on any retryable status. Other 4xx responses throw immediately —
+honoring a longer `Retry-After` on any retryable status. Other 4xx responses throw immediately —
 a malformed request will not become valid on a second attempt.
 
 ```php
@@ -248,7 +248,7 @@ assert($sleeper->slept === [1.0, 2.0]);
 ```sh
 composer install
 composer test        # offline; no key, no network
-composer analyse     # PHPStan: src at level 9, tests at 5
+composer analyze     # PHPStan: src at level 9, tests at 5
 composer lint        # php-cs-fixer
 ```
 

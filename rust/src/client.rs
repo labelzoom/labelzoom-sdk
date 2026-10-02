@@ -131,7 +131,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Sets a per-request timeout. Only honoured by the bundled transport.
+    /// Sets a per-request timeout. Only honored by the bundled transport.
     #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);

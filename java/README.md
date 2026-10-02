@@ -151,7 +151,7 @@ server failures.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honouring a longer `Retry-After`. Other 4xx surface immediately.
+honoring a longer `Retry-After`. Other 4xx surface immediately.
 
 ```java
 LabelZoomClient.builder()
@@ -163,7 +163,7 @@ LabelZoomClient.builder()
 ## Testing your own code
 
 `HttpTransport` is the seam — implement it to serve canned responses with no sockets. `sleeper`
-and `useJitter` make retry behaviour testable without spending the wall-clock time.
+and `useJitter` make retry behavior testable without spending the wall-clock time.
 
 ```java
 LabelZoomClient.builder()

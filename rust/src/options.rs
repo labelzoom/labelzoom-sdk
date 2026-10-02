@@ -5,17 +5,17 @@ use crate::formats::{SourceFormat, TargetFormat};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-/// How colour is reduced when rasterizing. Server default `GRAYSCALE`.
+/// How color is reduced when rasterizing. Server default `GRAYSCALE`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
 pub enum ColorMode {
     /// Pure black and white.
     #[serde(rename = "BW")]
     Bw,
-    /// Greyscale.
+    /// Grayscale.
     #[serde(rename = "GRAYSCALE")]
     Grayscale,
-    /// Full colour.
+    /// Full color.
     #[serde(rename = "COLOR")]
     Color,
 }
@@ -53,7 +53,7 @@ pub struct Position {
     pub y: i64,
 }
 
-/// The media size, in INCHES -- not dots, and not millimetres.
+/// The media size, in INCHES -- not dots, and not millimeters.
 ///
 /// Omitting it entirely is meaningful: it asks the server to detect the size. That is why
 /// [`ConversionOptions::label`] is an `Option` and why an unset label emits no `label` key
@@ -110,7 +110,7 @@ pub struct ConversionOptions {
     /// Percentage. Server default 100.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scaling: Option<f64>,
-    /// Colour reduction. Server default `GRAYSCALE`.
+    /// Color reduction. Server default `GRAYSCALE`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub color_mode: Option<ColorMode>,
     /// Luminance threshold from 0 to 100. Server default 70.
@@ -179,7 +179,7 @@ impl ConversionOptions {
         self
     }
 
-    /// Sets the colour mode.
+    /// Sets the color mode.
     #[must_use]
     pub fn color_mode(mut self, mode: ColorMode) -> Self {
         self.color_mode = Some(mode);

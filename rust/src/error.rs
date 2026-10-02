@@ -64,7 +64,7 @@ pub enum ApiErrorKind {
     PayloadTooLarge,
     /// HTTP 429. Too many requests.
     RateLimited {
-        /// `Retry-After` in seconds, when the server sent one. The client already honours
+        /// `Retry-After` in seconds, when the server sent one. The client already honors
         /// it during its own retries; this exposes it for callers doing theirs.
         retry_after_seconds: Option<f64>,
     },

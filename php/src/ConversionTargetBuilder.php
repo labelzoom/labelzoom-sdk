@@ -72,7 +72,7 @@ final class ConversionTargetBuilder
         return $this;
     }
 
-    /** Colour handling. The server default is {@see ColorMode::Grayscale}. */
+    /** Color handling. The server default is {@see ColorMode::Grayscale}. */
     public function withColorMode(ColorMode $mode): self
     {
         $this->params['colorMode'] = $mode->value;
@@ -80,7 +80,7 @@ final class ConversionTargetBuilder
         return $this;
     }
 
-    /** Luminance threshold from 0 to 100 used when reducing colour depth. Server default 70. */
+    /** Luminance threshold from 0 to 100 used when reducing color depth. Server default 70. */
     public function withDarkness(int $darkness): self
     {
         if ($darkness < 0 || $darkness > 100) {
@@ -129,7 +129,7 @@ final class ConversionTargetBuilder
     /**
      * Label dimensions **in inches**, overriding whatever the source document implies.
      *
-     * Inches — not dots, not millimetres. This and the 0-based page number in
+     * Inches — not dots, not millimeters. This and the 0-based page number in
      * {@see self::withPdfPage()} are the two most misread parameters in the API.
      */
     public function withLabelSize(float $widthInches, float $heightInches): self

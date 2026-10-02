@@ -39,7 +39,7 @@ module LabelZoom
       url: "text/plain"
     }.freeze
 
-    # Colour reduction. Server default GRAYSCALE.
+    # Color reduction. Server default GRAYSCALE.
     COLOR_MODES = %w[BW GRAYSCALE COLOR].freeze
 
     # How a PDF source is interpreted. Server default IMAGE.

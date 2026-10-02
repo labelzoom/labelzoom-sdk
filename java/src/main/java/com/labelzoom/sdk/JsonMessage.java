@@ -5,7 +5,7 @@ package com.labelzoom.sdk;
  *
  * <p>Deliberately not a JSON parser. The SDK ships with zero runtime dependencies, and the only
  * thing it ever needs to read from a response is this one field. Anything it cannot understand
- * falls back to the raw body, which is the correct behaviour anyway.
+ * falls back to the raw body, which is the correct behavior anyway.
  */
 final class JsonMessage {
 

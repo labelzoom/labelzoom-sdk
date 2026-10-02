@@ -105,7 +105,7 @@ jobs:
         working-directory: ./php
 
       - name: Static analysis
-        run: composer analyse
+        run: composer analyze
         working-directory: ./php
 
       # `git subtree split` replays php/'s commits with the prefix stripped, so the mirror

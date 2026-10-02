@@ -152,7 +152,7 @@ to handle server failures.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honouring a longer `Retry-After`. Other 4xx responses are returned immediately — a malformed
+honoring a longer `Retry-After`. Other 4xx responses are returned immediately — a malformed
 request will not become valid on a second attempt.
 
 ```csharp
