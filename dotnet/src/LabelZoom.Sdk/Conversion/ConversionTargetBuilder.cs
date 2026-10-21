@@ -10,8 +10,9 @@ namespace LabelZoom.Sdk.Conversion
     /// </summary>
     /// <remarks>
     /// Every <c>With*</c> method records its value and is actually sent. Options set here that the
-    /// server does not apply to the chosen format pair are ignored server-side rather than
-    /// rejected, so combining them is safe.
+    /// server does not apply to the chosen format pair are rejected with a 400 rather than ignored,
+    /// so only set what the chosen pair supports — e.g. <see cref="WithDpi"/> applies to the
+    /// <em>target</em> side and is rejected for raster targets fed from dot-authored sources.
     /// </remarks>
     public sealed class ConversionTargetBuilder
     {
@@ -20,7 +21,7 @@ namespace LabelZoom.Sdk.Conversion
         private readonly TargetFormat _target;
         private readonly byte[] _body;
         private readonly string _contentType;
-        private readonly ConversionParameters _parameters = new ConversionParameters();
+        private readonly ConversionParameters _parameters;
 
         internal ConversionTargetBuilder(
             LabelZoomClient client,
@@ -28,15 +29,32 @@ namespace LabelZoom.Sdk.Conversion
             TargetFormat target,
             byte[] body,
             string contentType)
+            : this(client, source, target, body, contentType, new ConversionParameters())
+        {
+        }
+
+        internal ConversionTargetBuilder(
+            LabelZoomClient client,
+            SourceFormat source,
+            TargetFormat target,
+            byte[] body,
+            string contentType,
+            ConversionParameters parameters)
         {
             _client = client;
             _source = source;
             _target = target;
             _body = body;
             _contentType = contentType;
+            _parameters = parameters;
         }
 
-        /// <summary>Output resolution in dots per inch. The server default is 203.</summary>
+        /// <summary>
+        /// The resolution the <b>output</b> is authored at, in dots per inch. The server default is
+        /// 203. This is the target-side dpi; use <see cref="ConversionSourceBuilder.WithDpi"/> to
+        /// declare how the source's positions are interpreted, and both may be set when the chosen
+        /// format pair supports a dpi on each side.
+        /// </summary>
         public ConversionTargetBuilder WithDpi(int dpi)
         {
             if (dpi <= 0)
@@ -44,7 +62,7 @@ namespace LabelZoom.Sdk.Conversion
                 throw new LabelZoomValidationException(nameof(dpi), "DPI must be greater than zero.");
             }
 
-            _parameters.Set("dpi", dpi);
+            _parameters.Set("targetDpi", dpi);
             return this;
         }
 

@@ -58,7 +58,17 @@ class ConversionOptions:
     are the same names and are usually what you want.
     """
 
-    #: Output resolution. Server default 203.
+    #: How the source's absolute positions are interpreted: dots for printer languages, pixels
+    #: for bitmap images, an override of the document's dpi for LabelZoom XML/JSON. Not
+    #: applicable to PDF sources (vector).
+    source_dpi: int | _Unset = UNSET
+    #: The resolution the output is authored at. Applies to printer-language and XML/JSON
+    #: targets, and to raster targets when the source is a bitmap or PDF. Server default 203.
+    target_dpi: int | _Unset = UNSET
+    #: Legacy alias for a single print resolution; the server applies it to whichever side(s)
+    #: of the chosen path support a dpi. Prefer source_dpi/target_dpi.
+    #:
+    #: .. deprecated:: prefer source_dpi or target_dpi.
     dpi: int | _Unset = UNSET
     #: Degrees clockwise. Must be a multiple of 90. Server default 0.
     rotation: int | _Unset = UNSET
@@ -109,6 +119,8 @@ class ConversionOptions:
 
 # Flat field name -> path within the wire JSON. The only place the nesting is described.
 _WIRE_PATHS: dict[str, tuple[str, ...]] = {
+    "source_dpi": ("sourceDpi",),
+    "target_dpi": ("targetDpi",),
     "dpi": ("dpi",),
     "rotation": ("rotation",),
     "scaling": ("scaling",),

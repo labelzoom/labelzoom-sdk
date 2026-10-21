@@ -1,5 +1,8 @@
 package com.labelzoom.sdk;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Chooses the target format. One class covers all thirteen.
  *
@@ -13,18 +16,44 @@ public final class ConversionSourceBuilder {
     private final SourceFormat source;
     private final byte[] body;
     private final String contentType;
+    private final Map<String, Object> params;
 
     ConversionSourceBuilder(
             LabelZoomClient client, SourceFormat source, byte[] body, String contentType) {
+        this(client, source, body, contentType, new LinkedHashMap<>());
+    }
+
+    private ConversionSourceBuilder(
+            LabelZoomClient client,
+            SourceFormat source,
+            byte[] body,
+            String contentType,
+            Map<String, Object> params) {
         this.client = client;
         this.source = source;
         this.body = body;
         this.contentType = contentType;
+        this.params = params;
+    }
+
+    /**
+     * How the <b>source's</b> absolute positions are interpreted, in dots per inch: dots for
+     * printer languages, pixels for bitmap images, an override of the document's dpi for LabelZoom
+     * XML/JSON. Not applicable to PDF sources (vector). This is the source-side dpi; use
+     * {@link ConversionTargetBuilder#withDpi(int)} to author the output at a resolution, and both
+     * may be set when the chosen format pair supports a dpi on each side.
+     */
+    public ConversionSourceBuilder withDpi(int dpi) {
+        if (dpi <= 0) {
+            throw new LabelZoomValidationException("dpi", "DPI must be greater than zero.");
+        }
+        params.put("sourceDpi", dpi);
+        return this;
     }
 
     /** Selects the target format. */
     public ConversionTargetBuilder to(TargetFormat target) {
-        return new ConversionTargetBuilder(client, source, target, body, contentType);
+        return new ConversionTargetBuilder(client, source, target, body, contentType, params);
     }
 
     /** Converts to ZPL. All labels are concatenated into one document. */

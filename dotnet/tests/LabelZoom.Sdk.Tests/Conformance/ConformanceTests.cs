@@ -384,9 +384,10 @@ public sealed class ConformanceTests
         var isBase64Text = given.TryGetProperty("sourceEncoding", out var encoding) &&
                            encoding.GetString() == "base64text";
 
-        var builder = isBase64Text
-            ? client.Convert().FromBase64Text(source, body).To(target)
-            : client.Convert().From(source, body).To(target);
+        var sourceBuilder = isBase64Text
+            ? client.Convert().FromBase64Text(source, body)
+            : client.Convert().From(source, body);
+        var builder = sourceBuilder.To(target);
 
         if (!given.TryGetProperty("options", out var options))
         {
@@ -397,6 +398,10 @@ public sealed class ConformanceTests
         {
             switch (option.Name)
             {
+                case "sourceDpi":
+                    sourceBuilder.WithDpi(option.Value.GetInt32());
+                    break;
+                case "targetDpi":
                 case "dpi":
                     builder.WithDpi(option.Value.GetInt32());
                     break;

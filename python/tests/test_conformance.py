@@ -179,6 +179,10 @@ def _convert_kwargs(given: dict[str, Any]) -> dict[str, Any]:
                 kwargs["zpl_image_compression"] = value["imageCompression"]
         elif key == "colorMode":
             kwargs["color_mode"] = value
+        elif key == "sourceDpi":
+            kwargs["source_dpi"] = value
+        elif key == "targetDpi":
+            kwargs["target_dpi"] = value
         elif key in {"dpi", "rotation", "scaling", "darkness", "watermark", "dialect", "data"}:
             kwargs[key] = value
         else:

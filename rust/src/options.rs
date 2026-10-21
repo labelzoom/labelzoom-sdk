@@ -101,7 +101,19 @@ pub struct ZplOptions {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversionOptions {
-    /// Output resolution. Server default 203.
+    /// How the source's absolute positions are interpreted: dots for printer languages, pixels
+    /// for bitmap images, an override of the document's dpi for LabelZoom XML/JSON. Not
+    /// applicable to PDF sources (vector).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_dpi: Option<i64>,
+    /// The resolution the output is authored at. Applies to printer-language and XML/JSON
+    /// targets, and to raster targets when the source is a bitmap or PDF. Server default 203.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_dpi: Option<i64>,
+    /// Legacy alias for a single print resolution; the server applies it to whichever side(s)
+    /// of the chosen path support a dpi. Prefer `source_dpi` or `target_dpi`.
+    ///
+    /// Deprecated: use `source_dpi` or `target_dpi`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dpi: Option<i64>,
     /// Degrees clockwise. Must be a multiple of 90. Server default 0.
@@ -158,8 +170,23 @@ impl ConversionOptions {
         Self::default()
     }
 
-    /// Sets the output resolution.
+    /// Sets how the source's absolute positions are interpreted. Not applicable to PDF sources.
     #[must_use]
+    pub fn source_dpi(mut self, dpi: i64) -> Self {
+        self.source_dpi = Some(dpi);
+        self
+    }
+
+    /// Sets the resolution the output is authored at.
+    #[must_use]
+    pub fn target_dpi(mut self, dpi: i64) -> Self {
+        self.target_dpi = Some(dpi);
+        self
+    }
+
+    /// Sets the legacy single print resolution. Prefer `source_dpi` or `target_dpi`.
+    #[must_use]
+    #[deprecated(since = "1.1.0", note = "use `source_dpi` or `target_dpi`")]
     pub fn dpi(mut self, dpi: i64) -> Self {
         self.dpi = Some(dpi);
         self

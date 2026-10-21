@@ -125,16 +125,19 @@ function buildRequest(client: LabelZoomClient, given: any) {
   const target = given.target as TargetFormat;
   const body = given.bodyText as string;
 
-  const builder =
+  const sourceBuilder =
     given.sourceEncoding === 'base64text'
-      ? client.convert().fromBase64Text(source, body).to(target)
-      : client.convert().from(source, body).to(target);
+      ? client.convert().fromBase64Text(source, body)
+      : client.convert().from(source, body);
+  const builder = sourceBuilder.to(target);
 
   const options: ConversionOptions | undefined = given.options;
   if (options === undefined) return builder;
 
   for (const [key, value] of Object.entries(options)) {
     switch (key) {
+      case 'sourceDpi': sourceBuilder.withDpi(value as number); break;
+      case 'targetDpi':
       case 'dpi': builder.withDpi(value as number); break;
       case 'rotation': builder.withRotation(value as number); break;
       case 'scaling': builder.withScaling(value as number); break;

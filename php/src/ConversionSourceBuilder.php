@@ -21,10 +21,29 @@ final class ConversionSourceBuilder
     ) {
     }
 
+    private array $params = [];
+
+    /**
+     * How the <b>source's</b> absolute positions are interpreted, in dots per inch: dots for
+     * printer languages, pixels for bitmap images, an override of the document's dpi for
+     * LabelZoom XML/JSON. Not applicable to PDF sources (vector). This is the source-side dpi;
+     * {@see ConversionTargetBuilder::withDpi()} authors the output, and both may be set when the
+     * chosen format pair supports a dpi on each side.
+     */
+    public function withDpi(int $dpi): self
+    {
+        if ($dpi <= 0) {
+            throw new ValidationException('dpi', 'DPI must be greater than zero.');
+        }
+        $this->params['sourceDpi'] = $dpi;
+
+        return $this;
+    }
+
     /** Selects the target format. */
     public function to(TargetFormat $target): ConversionTargetBuilder
     {
-        return new ConversionTargetBuilder($this->client, $this->source, $target, $this->body, $this->contentType);
+        return new ConversionTargetBuilder($this->client, $this->source, $target, $this->body, $this->contentType, $this->params);
     }
 
     /** Converts to ZPL. All labels are concatenated into one document. */

@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 87,
+  "caseCount": 89,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -38,6 +38,8 @@
     "request/param-position",
     "request/param-rotation",
     "request/param-scaling",
+    "request/param-source-and-target-dpi",
+    "request/param-source-dpi",
     "request/param-unset-defaults-not-emitted",
     "request/param-watermark",
     "request/param-zpl-commands-to-ignore",

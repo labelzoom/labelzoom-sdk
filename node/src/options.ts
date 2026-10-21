@@ -11,7 +11,21 @@ export type DataRecord = Record<string, unknown>;
  * client-side default, so a change to a server default reaches you without an SDK upgrade.
  */
 export interface ConversionOptions {
-  /** Output resolution. Server default 203. */
+  /**
+   * How the **source's** absolute positions are interpreted: dots for printer languages, pixels
+   * for bitmap images, an override of the document's dpi for LabelZoom XML/JSON. Not applicable to
+   * PDF sources (vector).
+   */
+  sourceDpi?: number;
+  /**
+   * The resolution the **output** is authored at. Applies to printer-language and XML/JSON
+   * targets, and to raster targets when the source is a bitmap or PDF. Server default 203.
+   */
+  targetDpi?: number;
+  /**
+   * @deprecated legacy alias for a single print resolution; the server applies it to whichever
+   * side(s) of the chosen path support a dpi. Prefer `sourceDpi` / `targetDpi`.
+   */
   dpi?: number;
   /** Degrees clockwise. Must be a multiple of 90. Server default 0. */
   rotation?: number;

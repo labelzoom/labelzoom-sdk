@@ -100,7 +100,8 @@ the URL first if it came from untrusted input.
 
 | Method | Notes |
 |---|---|
-| `WithDpi(int)` | server default 203 |
+| `WithDpi(int)` on the target | resolution the output is authored at; server default 203 |
+| `WithDpi(int)` on the source (`FromZpl(...).WithDpi(300).ToZpl()`) | how the source's positions are interpreted; not applicable to PDF sources |
 | `WithRotation(int)` | must be a multiple of 90; rejected locally otherwise |
 | `WithScaling(float)` | percent, server default 100 |
 | `WithColorMode(ColorMode)` | `Bw`, `Grayscale` (default), `Color` |
