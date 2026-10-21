@@ -230,7 +230,7 @@ Defined **once** per language. Never inlined at a call site.
 ### G — Anonymous mode
 
 - **G1** Constructing a client with no credential **must succeed**. The API has a working anonymous
-  free tier (watermarked, first-label-only, 1 MB body cap, no multi-page, no JSON target, no
+  free tier (watermarked, first label only per request, 1 MB body cap, no multi-page, no JSON target, no
   dialect, no image-to-image). Requiring a token in the constructor is a bug.
 - **G2** `LABELZOOM_API_KEY` is the default credential source when none is passed. Explicitly
   passing null or empty **forces** anonymous mode and must not fall back to the environment.
@@ -311,9 +311,9 @@ body here, which is correct and intended — do not special-case it.
 | `ZPL` | `text/plain` | all labels concatenated |
 | `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | all labels concatenated |
 | `PDF` | `application/pdf` | all labels, one per page |
-| `XML` | `application/xml` | **first label only** |
-| `JSON` | `application/json` | **first label only**; paid |
-| `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only** |
+| `XML` | `application/xml` | **first label only**, unless `labelIndex` selects another |
+| `JSON` | `application/json` | **first label only**, unless `labelIndex` selects another; paid |
+| `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only**, unless `labelIndex` selects another |
 
 **Printer-language output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
 embed a 1-bpp payload directly in the command stream, IPL frames its commands in `STX`/`ETX` and
