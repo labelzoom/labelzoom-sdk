@@ -214,10 +214,10 @@ pub struct ConversionOptions {
     /// ZPL output settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zpl: Option<ZplOptions>,
-    /// Labels side by side in each printed row. Image or PDF to ZPL only.
+    /// Labels side by side in each printed row. Image or PDF to ZPL, IMAGE mode only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub layout: Option<LayoutOptions>,
-    /// Cuts each page into a grid of labels. Image or PDF to ZPL only.
+    /// Cuts each page into a grid of labels. Image or PDF to ZPL, IMAGE mode only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub split: Option<SplitOptions>,
     /// ZERO-BASED index of the one label to convert, on every plan. For image or PDF to ZPL
@@ -352,7 +352,7 @@ impl ConversionOptions {
         self
     }
 
-    /// Image or PDF to ZPL: puts `across` labels side by side in each printed row,
+    /// Image or PDF to ZPL, IMAGE mode: puts `across` labels side by side in each printed row,
     /// `gap_inches` apart. The gap is in **inches**, not dots.
     #[must_use]
     pub fn layout(mut self, across: i64, gap_inches: f64) -> Self {
@@ -369,7 +369,7 @@ impl ConversionOptions {
         self
     }
 
-    /// Image or PDF to ZPL: cuts each page into `rows` x `columns` labels, read left to
+    /// Image or PDF to ZPL, IMAGE mode: cuts each page into `rows` x `columns` labels, read left to
     /// right and then down.
     #[must_use]
     pub fn split(mut self, rows: i64, columns: i64) -> Self {

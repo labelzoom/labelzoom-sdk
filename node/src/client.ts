@@ -468,7 +468,8 @@ export class ConversionTargetBuilder {
   }
 
   /**
-   * Image or PDF to ZPL: `across` labels side by side in each printed row, `gapInches` apart.
+   * Image or PDF to ZPL, IMAGE mode: `across` labels side by side in each printed row,
+   * `gapInches` apart.
    * The gap is in **inches**, not dots.
    */
   withLayout(across: number, gapInches: number): this {
@@ -482,7 +483,10 @@ export class ConversionTargetBuilder {
     return this;
   }
 
-  /** Image or PDF to ZPL: cuts each page into `rows` × `columns` labels, read left to right, then down. */
+  /**
+   * Image or PDF to ZPL, IMAGE mode: cuts each page into `rows` × `columns` labels, read left to
+   * right, then down.
+   */
   withSplit(rows: number, columns: number): this {
     this.#options.split = { ...this.#options.split, rows, columns };
     return this;

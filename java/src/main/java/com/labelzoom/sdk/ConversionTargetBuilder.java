@@ -176,8 +176,8 @@ public final class ConversionTargetBuilder {
     }
 
     /**
-     * Image or PDF to ZPL: puts {@code across} labels side by side in each printed row, for
-     * multi-column roll stock.
+     * Image or PDF to ZPL, IMAGE mode: puts {@code across} labels side by side in each printed
+     * row, for multi-column roll stock.
      *
      * @param across labels across the roll, 1 to 10
      * @param gapInches space between two labels in a row, <b>in inches</b> — not dots
@@ -196,8 +196,8 @@ public final class ConversionTargetBuilder {
     }
 
     /**
-     * Image or PDF to ZPL: cuts each page into {@code rows} × {@code columns} labels, read left to
-     * right and then down. 1 × 1 is no split.
+     * Image or PDF to ZPL, IMAGE mode: cuts each page into {@code rows} × {@code columns} labels,
+     * read left to right and then down. 1 × 1 is no split.
      */
     public ConversionTargetBuilder withSplit(int rows, int columns) {
         Map<String, Object> split = nested("split");

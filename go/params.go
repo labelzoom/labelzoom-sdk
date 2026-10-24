@@ -113,9 +113,9 @@ type Options struct {
 	PDF *PDFOptions
 	// ZPL configures ZPL output.
 	ZPL *ZPLOptions
-	// Layout puts labels side by side in each printed row. Image or PDF to ZPL only.
+	// Layout puts labels side by side in each printed row. Image or PDF to ZPL, IMAGE mode only.
 	Layout *LayoutOptions
-	// Split cuts each page into a grid of labels. Image or PDF to ZPL only.
+	// Split cuts each page into a grid of labels. Image or PDF to ZPL, IMAGE mode only.
 	Split *SplitOptions
 	// LabelIndex is the ZERO-BASED index of the one label to convert, on every plan. For
 	// image or PDF to ZPL it counts the labels after Split, page by page. Omit it to convert

@@ -207,8 +207,8 @@ namespace LabelZoom.Sdk.Conversion
         }
 
         /// <summary>
-        /// Image or PDF to ZPL: puts <paramref name="across"/> labels side by side in each printed
-        /// row, for multi-column roll stock.
+        /// Image or PDF to ZPL, IMAGE mode: puts <paramref name="across"/> labels side by side in
+        /// each printed row, for multi-column roll stock.
         /// </summary>
         /// <param name="across">Labels across the roll, 1 to 10.</param>
         /// <param name="gapInches">Space between two labels in a row, <b>in inches</b> — not dots.</param>
@@ -230,7 +230,7 @@ namespace LabelZoom.Sdk.Conversion
         }
 
         /// <summary>
-        /// Image or PDF to ZPL: cuts each page into <paramref name="rows"/> ×
+        /// Image or PDF to ZPL, IMAGE mode: cuts each page into <paramref name="rows"/> ×
         /// <paramref name="columns"/> labels, read left to right and then down. 1 × 1 is no split.
         /// </summary>
         public ConversionTargetBuilder WithSplit(int rows, int columns)

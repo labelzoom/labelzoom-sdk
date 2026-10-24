@@ -208,7 +208,7 @@ final class ConversionTargetBuilder
     }
 
     /**
-     * Image or PDF to ZPL: puts `$across` labels side by side in each printed row, for
+     * Image or PDF to ZPL, IMAGE mode: puts `$across` labels side by side in each printed row, for
      * multi-column roll stock.
      *
      * The gap is **in inches** — not dots.
@@ -230,8 +230,8 @@ final class ConversionTargetBuilder
     }
 
     /**
-     * Image or PDF to ZPL: cuts each page into `$rows` × `$columns` labels, read left to right
-     * and then down. 1 × 1 is no split.
+     * Image or PDF to ZPL, IMAGE mode: cuts each page into `$rows` × `$columns` labels, read left
+     * to right and then down. 1 × 1 is no split.
      */
     public function withSplit(int $rows, int $columns): self
     {

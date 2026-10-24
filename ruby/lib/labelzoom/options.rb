@@ -34,10 +34,10 @@ module LabelZoom
         image_compression: "imageCompression",
         collapse_copies: "collapseCopies"
       },
-      # Image or PDF to ZPL: labels side by side in each printed row. gap is in INCHES.
+      # Image or PDF to ZPL, IMAGE mode: labels side by side in each printed row. gap is in INCHES.
       layout: { across: "across", gap: "gap", fill: "fill" },
-      # Image or PDF to ZPL: cuts each page into a grid of labels. Every length is in INCHES
-      # on the page as displayed; omit width and height to divide the page equally.
+      # Image or PDF to ZPL, IMAGE mode: cuts each page into a grid of labels. Every length is in
+      # INCHES on the page as displayed; omit width and height to divide the page equally.
       split: {
         rows: "rows",
         columns: "columns",
