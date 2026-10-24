@@ -159,11 +159,31 @@ function buildRequest(client: LabelZoomClient, given: any) {
         break;
       }
       case 'zpl': {
-        const z = value as { commandsToIgnore?: string[]; imageCompression?: any };
+        const z = value as { commandsToIgnore?: string[]; imageCompression?: any; collapseCopies?: boolean };
         if (z.commandsToIgnore !== undefined) builder.withZplCommandsToIgnore(...z.commandsToIgnore);
         if (z.imageCompression !== undefined) builder.withZplImageCompression(z.imageCompression);
+        if (z.collapseCopies !== undefined) builder.withZplCollapseCopies(z.collapseCopies);
         break;
       }
+      case 'layout': {
+        const l = value as { across: number; gap: number; fill?: any };
+        builder.withLayout(l.across, l.gap);
+        if (l.fill !== undefined) builder.withLayoutFill(l.fill);
+        break;
+      }
+      case 'split': {
+        const s = value as {
+          rows: number; columns: number; width?: number; height?: number; left?: number; top?: number;
+          columnGap?: number; rowGap?: number; skipBlank?: boolean;
+        };
+        builder.withSplit(s.rows, s.columns);
+        if (s.width !== undefined) builder.withSplitLabelSize(s.width, s.height as number);
+        if (s.left !== undefined) builder.withSplitMargins(s.left, s.top as number);
+        if (s.columnGap !== undefined) builder.withSplitGaps(s.columnGap, s.rowGap as number);
+        if (s.skipBlank !== undefined) builder.withSplitSkipBlank(s.skipBlank);
+        break;
+      }
+      case 'labelIndex': builder.withLabelIndex(value as number); break;
       case 'data':
         // A bare object means one label, so it is wrapped rather than rejected.
         builder.withData(...(Array.isArray(value) ? value : [value]));

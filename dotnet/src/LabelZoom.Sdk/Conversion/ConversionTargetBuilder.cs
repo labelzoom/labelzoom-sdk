@@ -197,6 +197,103 @@ namespace LabelZoom.Sdk.Conversion
         }
 
         /// <summary>
+        /// Image or PDF to ZPL: sends each run of identical labels as one label with a <c>^PQ</c>
+        /// print quantity. The server default is <c>false</c>.
+        /// </summary>
+        public ConversionTargetBuilder WithZplCollapseCopies(bool collapse = true)
+        {
+            _parameters.SetNested("zpl", "collapseCopies", collapse);
+            return this;
+        }
+
+        /// <summary>
+        /// Image or PDF to ZPL: puts <paramref name="across"/> labels side by side in each printed
+        /// row, for multi-column roll stock.
+        /// </summary>
+        /// <param name="across">Labels across the roll, 1 to 10.</param>
+        /// <param name="gapInches">Space between two labels in a row, <b>in inches</b> — not dots.</param>
+        public ConversionTargetBuilder WithLayout(int across, float gapInches)
+        {
+            _parameters.SetNested("layout", "across", across);
+            _parameters.SetNested("layout", "gap", gapInches);
+            return this;
+        }
+
+        /// <summary>
+        /// How pages fill the columns of a row. The server default is
+        /// <see cref="LayoutFill.Sequential"/>.
+        /// </summary>
+        public ConversionTargetBuilder WithLayoutFill(LayoutFill fill)
+        {
+            _parameters.SetNested("layout", "fill", fill.ToWireToken());
+            return this;
+        }
+
+        /// <summary>
+        /// Image or PDF to ZPL: cuts each page into <paramref name="rows"/> ×
+        /// <paramref name="columns"/> labels, read left to right and then down. 1 × 1 is no split.
+        /// </summary>
+        public ConversionTargetBuilder WithSplit(int rows, int columns)
+        {
+            _parameters.SetNested("split", "rows", rows);
+            _parameters.SetNested("split", "columns", columns);
+            return this;
+        }
+
+        /// <summary>
+        /// The size of one label on the source page, <b>in inches</b>. Omit this to divide the
+        /// page equally.
+        /// </summary>
+        public ConversionTargetBuilder WithSplitLabelSize(float widthInches, float heightInches)
+        {
+            _parameters.SetNested("split", "width", widthInches);
+            _parameters.SetNested("split", "height", heightInches);
+            return this;
+        }
+
+        /// <summary>
+        /// Distance from the page's left and top edges to the first label, <b>in inches</b>.
+        /// </summary>
+        public ConversionTargetBuilder WithSplitMargins(float leftInches, float topInches)
+        {
+            _parameters.SetNested("split", "left", leftInches);
+            _parameters.SetNested("split", "top", topInches);
+            return this;
+        }
+
+        /// <summary>
+        /// Space between two columns and between two rows of labels on the page, <b>in inches</b>.
+        /// </summary>
+        public ConversionTargetBuilder WithSplitGaps(float columnGapInches, float rowGapInches)
+        {
+            _parameters.SetNested("split", "columnGap", columnGapInches);
+            _parameters.SetNested("split", "rowGap", rowGapInches);
+            return this;
+        }
+
+        /// <summary>
+        /// Leaves out labels with nothing printable, such as the unused end of a partly filled
+        /// sheet.
+        /// </summary>
+        public ConversionTargetBuilder WithSplitSkipBlank(bool skipBlank = true)
+        {
+            _parameters.SetNested("split", "skipBlank", skipBlank);
+            return this;
+        }
+
+        /// <summary>
+        /// Converts only one label of a multi-label input, on every plan, identified by a
+        /// <b>0-based</b> index. For image or PDF to ZPL it counts the labels after
+        /// <see cref="WithSplit"/>, page by page.
+        /// </summary>
+        /// <param name="zeroBasedIndex">0 is the first label.</param>
+        public ConversionTargetBuilder WithLabelIndex(int zeroBasedIndex)
+        {
+            _parameters.Set("labelIndex", zeroBasedIndex);
+            return this;
+        }
+
+        /// <summary>
         /// Supplies data to fill the label's variable fields. <b>Each record produces one label.</b>
         /// </summary>
         /// <param name="records">

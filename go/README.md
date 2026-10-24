@@ -110,6 +110,15 @@ Two units are routinely misread and are pinned by the shared fixtures:
   server detect the size.
 - `PDFOptions.PageNumber` is **0-based**. Omit it to convert every page.
 
+For image or PDF to ZPL, three more options shape how many labels come back:
+
+| Field | Notes |
+|---|---|
+| `ZPLOptions.CollapseCopies` | each run of identical labels becomes one label with a `^PQ` count |
+| `Layout` (`LayoutOptions`) | `Across` labels side by side per row, `Gap` **inches** apart; `Fill` is `LayoutFillSequential` (default) or `LayoutFillRepeat` |
+| `Split` (`SplitOptions`) | cuts each page into `Rows` × `Columns` labels; every length is **inches** on the page; leave `Width`/`Height` nil to divide the page equally; `SkipBlank` leaves out empty labels |
+| `LabelIndex` | **0-based**; converts only this label, on every plan |
+
 `Data` is one record per output label; a single record is wrapped rather than rejected.
 `Options.Extra` carries anything the SDK does not model yet — unknown keys are ignored
 server-side, so it is a safe forward-compatibility hatch.

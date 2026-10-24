@@ -29,7 +29,26 @@ module LabelZoom
       position: { x: "x", y: "y" },
       label: { width: "width", height: "height" },
       pdf: { conversion_mode: "conversionMode", page_number: "pageNumber" },
-      zpl: { commands_to_ignore: "commandsToIgnore", image_compression: "imageCompression" }
+      zpl: {
+        commands_to_ignore: "commandsToIgnore",
+        image_compression: "imageCompression",
+        collapse_copies: "collapseCopies"
+      },
+      # Image or PDF to ZPL: labels side by side in each printed row. gap is in INCHES.
+      layout: { across: "across", gap: "gap", fill: "fill" },
+      # Image or PDF to ZPL: cuts each page into a grid of labels. Every length is in INCHES
+      # on the page as displayed; omit width and height to divide the page equally.
+      split: {
+        rows: "rows",
+        columns: "columns",
+        width: "width",
+        height: "height",
+        left: "left",
+        top: "top",
+        column_gap: "columnGap",
+        row_gap: "rowGap",
+        skip_blank: "skipBlank"
+      }
     }.freeze
 
     SCALAR_KEYS = {
@@ -39,7 +58,9 @@ module LabelZoom
       color_mode: "colorMode",
       darkness: "darkness",
       watermark: "watermark",
-      dialect: "dialect"
+      dialect: "dialect",
+      # 0-BASED. For image or PDF to ZPL it counts the labels after split, page by page.
+      label_index: "labelIndex"
     }.freeze
 
     module_function

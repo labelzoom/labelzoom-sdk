@@ -12,7 +12,7 @@ mod support;
 mod typecheck;
 
 use labelzoom::{
-    ApiErrorKind, ColorMode, ConversionOptions, ConvertRequest, Error, LabelZoomClient,
+    ApiErrorKind, ColorMode, ConversionOptions, ConvertRequest, Error, LabelZoomClient, LayoutFill,
     PdfConversionMode, SourceFormat, TargetFormat, ZplImageCompression,
 };
 use libtest_mimic::{Arguments, Failed, Trial};
@@ -276,8 +276,39 @@ fn build_options(given: &Value) -> Result<ConversionOptions, Failed> {
                         other => return Err(format!("unknown imageCompression '{other}'").into()),
                     });
                 }
+                zpl.collapse_copies = value.get("collapseCopies").and_then(Value::as_bool);
                 options.zpl = Some(zpl);
             }
+            "layout" => {
+                let mut layout = labelzoom::LayoutOptions {
+                    across: value.get("across").and_then(Value::as_i64),
+                    gap: value.get("gap").and_then(Value::as_f64),
+                    ..labelzoom::LayoutOptions::default()
+                };
+                if let Some(fill) = value.get("fill").and_then(Value::as_str) {
+                    layout.fill = Some(match fill {
+                        "SEQUENTIAL" => LayoutFill::Sequential,
+                        "REPEAT" => LayoutFill::Repeat,
+                        other => return Err(format!("unknown layout fill '{other}'").into()),
+                    });
+                }
+                options.layout = Some(layout);
+            }
+            "split" => {
+                let inches = |name: &str| value.get(name).and_then(Value::as_f64);
+                options.split = Some(labelzoom::SplitOptions {
+                    rows: value.get("rows").and_then(Value::as_i64),
+                    columns: value.get("columns").and_then(Value::as_i64),
+                    width: inches("width"),
+                    height: inches("height"),
+                    left: inches("left"),
+                    top: inches("top"),
+                    column_gap: inches("columnGap"),
+                    row_gap: inches("rowGap"),
+                    skip_blank: value.get("skipBlank").and_then(Value::as_bool),
+                });
+            }
+            "labelIndex" => options.label_index = value.as_i64(),
             other => {
                 return Err(format!(
                     "Fixture sets option '{other}', which the Rust runner does not map. \

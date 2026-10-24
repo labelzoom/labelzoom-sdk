@@ -197,6 +197,99 @@ final class ConversionTargetBuilder
     }
 
     /**
+     * Image or PDF to ZPL: sends each run of identical labels as one label with a `^PQ` print
+     * quantity. The server default is `false`.
+     */
+    public function withZplCollapseCopies(bool $collapse = true): self
+    {
+        $this->nested('zpl', 'collapseCopies', $collapse);
+
+        return $this;
+    }
+
+    /**
+     * Image or PDF to ZPL: puts `$across` labels side by side in each printed row, for
+     * multi-column roll stock.
+     *
+     * The gap is **in inches** — not dots.
+     */
+    public function withLayout(int $across, float $gapInches): self
+    {
+        $this->nested('layout', 'across', $across);
+        $this->nested('layout', 'gap', $gapInches);
+
+        return $this;
+    }
+
+    /** How pages fill the columns of a row. The server default is {@see LayoutFill::Sequential}. */
+    public function withLayoutFill(LayoutFill $fill): self
+    {
+        $this->nested('layout', 'fill', $fill->value);
+
+        return $this;
+    }
+
+    /**
+     * Image or PDF to ZPL: cuts each page into `$rows` × `$columns` labels, read left to right
+     * and then down. 1 × 1 is no split.
+     */
+    public function withSplit(int $rows, int $columns): self
+    {
+        $this->nested('split', 'rows', $rows);
+        $this->nested('split', 'columns', $columns);
+
+        return $this;
+    }
+
+    /** The size of one label on the source page, **in inches**. Omit this to divide the page equally. */
+    public function withSplitLabelSize(float $widthInches, float $heightInches): self
+    {
+        $this->nested('split', 'width', $widthInches);
+        $this->nested('split', 'height', $heightInches);
+
+        return $this;
+    }
+
+    /** Distance from the page's left and top edges to the first label, **in inches**. */
+    public function withSplitMargins(float $leftInches, float $topInches): self
+    {
+        $this->nested('split', 'left', $leftInches);
+        $this->nested('split', 'top', $topInches);
+
+        return $this;
+    }
+
+    /** Space between two columns and between two rows of labels on the page, **in inches**. */
+    public function withSplitGaps(float $columnGapInches, float $rowGapInches): self
+    {
+        $this->nested('split', 'columnGap', $columnGapInches);
+        $this->nested('split', 'rowGap', $rowGapInches);
+
+        return $this;
+    }
+
+    /** Leaves out labels with nothing printable, such as the unused end of a partly filled sheet. */
+    public function withSplitSkipBlank(bool $skipBlank = true): self
+    {
+        $this->nested('split', 'skipBlank', $skipBlank);
+
+        return $this;
+    }
+
+    /**
+     * Converts only one label of a multi-label input, on every plan, identified by a **0-based**
+     * index.
+     *
+     * For image or PDF to ZPL it counts the labels after {@see self::withSplit()}, page by page.
+     */
+    public function withLabelIndex(int $zeroBasedIndex): self
+    {
+        $this->params['labelIndex'] = $zeroBasedIndex;
+
+        return $this;
+    }
+
+    /**
      * Supplies data to fill the label's variable fields. **Each record produces one label.**
      *
      * A single record may be passed on its own; it is wrapped into a one-element array rather

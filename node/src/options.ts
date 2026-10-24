@@ -1,5 +1,5 @@
 import { LabelZoomValidationError } from './errors.js';
-import type { ColorMode, PdfConversionMode, ZplImageCompression } from './formats.js';
+import type { ColorMode, LayoutFill, PdfConversionMode, ZplImageCompression } from './formats.js';
 
 /** A single label's variable-field values. Each record produces one label. */
 export type DataRecord = Record<string, unknown>;
@@ -42,7 +42,50 @@ export interface ConversionOptions {
     commandsToIgnore?: string[];
     /** Server default `Z64`. */
     imageCompression?: ZplImageCompression;
+    /**
+     * Image or PDF to ZPL: each run of identical labels becomes one label with a `^PQ` print
+     * quantity. Server default `false`.
+     */
+    collapseCopies?: boolean;
   };
+  /** Image or PDF to ZPL: labels side by side in each printed row, for multi-column roll stock. */
+  layout?: {
+    /** Labels across the roll, 1–10. Server default 1. */
+    across?: number;
+    /** Space between two labels in a row, in **inches**. Server default 0. */
+    gap?: number;
+    /** Server default `SEQUENTIAL`. */
+    fill?: LayoutFill;
+  };
+  /**
+   * Image or PDF to ZPL (`IMAGE` mode): cuts each page into a grid of labels, read left to right
+   * and then down. Every length is in **inches** on the page as displayed, from its top-left corner.
+   */
+  split?: {
+    /** Rows of labels on each page, 1–20. Server default 1. */
+    rows?: number;
+    /** Columns of labels on each page, 1–20. Server default 1. */
+    columns?: number;
+    /** One label's width. Omit to divide the page equally. */
+    width?: number;
+    /** One label's height. Omit to divide the page equally. */
+    height?: number;
+    /** Distance from the page's left edge to the first column. Server default 0. */
+    left?: number;
+    /** Distance from the page's top edge to the first row. Server default 0. */
+    top?: number;
+    /** Space between two columns. Server default 0. */
+    columnGap?: number;
+    /** Space between two rows. Server default 0. */
+    rowGap?: number;
+    /** Leave out labels with nothing printable. Server default `false`. */
+    skipBlank?: boolean;
+  };
+  /**
+   * **0-based** index of the one label to convert, on every plan. For image or PDF to ZPL it
+   * counts the labels after `split`, page by page. Omit to convert every label.
+   */
+  labelIndex?: number;
   /**
    * Anything the SDK does not model yet. Unknown keys are ignored server-side, so this is a
    * safe forward-compatibility escape hatch.

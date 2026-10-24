@@ -29,6 +29,12 @@ result = client.convert()
              .withLabelSize(widthInches, heightInches)
              .withPdfConversionMode(IMAGE|NATIVE) .withPdfPage(zeroBasedIndex)
              .withZplCommandsToIgnore([...]) .withZplImageCompression(Z64|COMPRESSED_HEX)
+             .withZplCollapseCopies(bool)
+             .withLayout(across, gapInches) .withLayoutFill(SEQUENTIAL|REPEAT)
+             .withSplit(rows, columns) .withSplitLabelSize(widthInches, heightInches)
+             .withSplitMargins(leftInches, topInches) .withSplitGaps(columnGapInches, rowGapInches)
+             .withSplitSkipBlank(bool)
+             .withLabelIndex(zeroBasedIndex)
              .execute()
       -> ConversionResult { bytes, text, contentType, status, requestId }
 ```
@@ -171,8 +177,15 @@ Defined **once** per language. Never inlined at a call site.
   Leaving the label size unset must emit **no `label` key at all**: that absence is what asks the
   API to detect the label's dimensions from its content, so an SDK that helpfully defaults it to
   4×6 silently overrides detection for every caller who never asked for a size.
+
+  The same two facts extend to the multi-label parameters. `layout.gap` and every `split.*`
+  length are **inches**, because they describe the media and the source sheet, which do not change
+  size when `dpi` or `scaling` does. (`position` is the one length still in dots, and it predates
+  this rule.) `labelIndex` is **0-based**, and `0` must serialize. Leaving `split.width` /
+  `split.height` unset must emit neither key: that absence is what asks the API to divide the page
+  equally.
 - **C5** Enums serialize to exact uppercase wire tokens: `BW|GRAYSCALE|COLOR`, `IMAGE|NATIVE`,
-  `Z64|COMPRESSED_HEX`.
+  `Z64|COMPRESSED_HEX`, `SEQUENTIAL|REPEAT`.
 - **C6** `rotation` must be a multiple of 90, validated **locally**. This raises a validation error
   type that is **distinct from every API error type** and is never retried.
 - **C7** When no options are set, emit no query string at all — a bare URL.
@@ -278,8 +291,51 @@ opaque string and must not attempt to parse or validate it:
 | `withPdfPage` | `pdf.pageNumber` | int | all pages | **0-based** (**C4**) |
 | `withZplCommandsToIgnore` | `zpl.commandsToIgnore` | string[] | `[]` | e.g. `["^PQ"]` |
 | `withZplImageCompression` | `zpl.imageCompression` | enum | `Z64` | `Z64\|COMPRESSED_HEX`; ZPL target only |
+| `withZplCollapseCopies` | `zpl.collapseCopies` | bool | `false` | image or PDF → ZPL: each run of identical labels becomes one label with a `^PQ` count; see [§4.1](#41-multi-label-parameters) |
+| `withLayout` | `layout.across` / `layout.gap` | int / float | `1` / `0` | image or PDF → ZPL: labels side by side per printed row; gap in **inches** (**C4**) |
+| `withLayoutFill` | `layout.fill` | enum | `SEQUENTIAL` | `SEQUENTIAL\|REPEAT` |
+| `withSplit` | `split.rows` / `split.columns` | int | `1` / `1` | image or PDF → ZPL, `IMAGE` mode: cut each page into a grid of labels |
+| `withSplitLabelSize` | `split.width` / `split.height` | float | none — page divided equally | **inches** on the source page (**C4**) |
+| `withSplitMargins` | `split.left` / `split.top` | float | `0` / `0` | **inches** from the page's top-left corner to the first label |
+| `withSplitGaps` | `split.columnGap` / `split.rowGap` | float | `0` / `0` | **inches** |
+| `withSplitSkipBlank` | `split.skipBlank` | bool | `false` | leave out labels with nothing printable |
+| `withLabelIndex` | `labelIndex` | int | all labels | **0-based** (**C4**); converts only this label, on every plan |
 
 Unknown keys are ignored server-side, so a forward-compatible escape hatch costs nothing.
+
+### 4.1 Multi-label parameters
+
+These parameters reshape *how many* labels a conversion returns, so they are where a silent
+mistake costs the most: the server ignores a key it does not know, and a misspelled or dropped
+option comes back as a valid response with the wrong number of labels in it. That is why each
+nested object (`zpl`, `layout`, `split`) must be **merged**, never replaced, when a builder method
+sets one of its fields — `request/param-collapse-copies` pins this for `zpl`.
+
+- **`layout`** is the *output* side: `across` labels share one printed row, `gap` inches apart,
+  for multi-column roll stock. The response sets `^PW` to the width of the whole row, so
+  `label.width` stays the size of **one** label, not the roll. `fill = REPEAT` prints each page
+  across a whole row instead of putting the next page in the next column; it is the setting for a
+  single image or a one-page file, where `SEQUENTIAL` would leave every column after the first
+  blank.
+- **`split`** is the *source* side: each page is cut into `rows` × `columns` labels, read left to
+  right and then down. Lengths are measured on the page **as a viewer displays it**, page rotation
+  included, from its top-left corner, because that is what a caller can measure on the sheet. With
+  `width`/`height` unset the page divides equally, assuming the same margin on the far side as
+  `left`/`top`. A 1 × 1 grid is no split at all, and the other `split` fields then do nothing.
+- **The cells replace the pages.** From the cut onward, every other parameter sees labels rather
+  than pages: `label.*`, `rotation` and `position` apply to each label, `layout` lays labels side
+  by side (so a sheet can print onto a 2-across roll), `zpl.collapseCopies` collapses runs of
+  identical labels in reading order, and `labelIndex` counts labels.
+- **`labelIndex`** selects one label of a multi-label input, and converts it on every plan, which
+  is how a free-tier caller reaches any label but the first. It sits at the top level rather than
+  under `pdf` because it counts labels, and a split page holds several. For image or PDF → ZPL it
+  counts labels page by page, within `pdf.pageNumber`'s page when that is set. The response
+  carries `X-Total-Count` with the number of labels in scope (left out when `split.skipBlank` is
+  on, because only rendering every page could tell), and an out-of-range index is a **404** that
+  still carries the count.
+- **`zpl.collapseCopies`** is off on the server because it changes the label count of the output,
+  so an SDK must not turn it on for a caller (**C1**). It is what turns a marketplace PDF that
+  repeats one label per unit into one label and a print quantity.
 
 ---
 
@@ -288,8 +344,19 @@ Unknown keys are ignored server-side, so a forward-compatible escape hatch costs
 - `rotation` must be a multiple of 90
 - `^PQ` values greater than 1000 are rejected
 - maximum rasterizable label is 15in x 15in at 203 dpi
+- `layout.across` is 1–10 and `layout.gap` is ≥ 0; `layout.across` > 1 is a **400** for anything
+  but image or PDF → ZPL
+- `split.rows` and `split.columns` are 1–20 each, with at most 100 labels a page; `split.width` /
+  `split.height` are > 0 when set, and the margins and gaps are ≥ 0
+- a `split` grid that runs off the first page, or any grid other than 1 × 1 outside image or
+  PDF → ZPL in `IMAGE` mode, is a **400**
+- a negative `labelIndex` is a **400**; one past the last label is a **404** with `X-Total-Count`
 - anonymous free-tier request body cap is 1 MB
 - `application/x-www-form-urlencoded` and `multipart/form-data` are **not** supported
+
+The SDKs check none of the `layout`, `split` or `labelIndex` limits locally. They are server
+policy and can widen without an SDK release; a local check would reject a request the server
+accepts, and the server already answers each with an error that names the parameter.
 
 ---
 
@@ -311,9 +378,9 @@ body here, which is correct and intended — do not special-case it.
 | `ZPL` | `text/plain` | all labels concatenated |
 | `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | all labels concatenated |
 | `PDF` | `application/pdf` | all labels, one per page |
-| `XML` | `application/xml` | **first label only** |
-| `JSON` | `application/json` | **first label only**; paid |
-| `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only** |
+| `XML` | `application/xml` | **first label only**, or the one `labelIndex` selects |
+| `JSON` | `application/json` | **first label only**, or the one `labelIndex` selects; paid |
+| `PNG` `BMP` `GIF` `JPEG` | `image/*` | **first label only**, or the one `labelIndex` selects |
 
 **Printer-language output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
 embed a 1-bpp payload directly in the command stream, IPL frames its commands in `STX`/`ETX` and

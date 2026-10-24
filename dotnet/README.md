@@ -113,6 +113,14 @@ the URL first if it came from untrusted input.
 | `WithPdfPage(int)` | **0-based**; omit to convert every page |
 | `WithZplCommandsToIgnore(params string[])` | e.g. `"^PQ"` |
 | `WithZplImageCompression(ZplImageCompression)` | `Z64` (default) or `CompressedHex` |
+| `WithZplCollapseCopies(bool)` | image or PDF to ZPL: each run of identical labels becomes one label with a `^PQ` count |
+| `WithLayout(int, float)` | image or PDF to ZPL: labels across each row, and the gap between them in **inches** |
+| `WithLayoutFill(LayoutFill)` | `Sequential` (default) or `Repeat` |
+| `WithSplit(int, int)` | image or PDF to ZPL: cut each page into rows × columns of labels |
+| `WithSplitLabelSize(float, float)` | one label on the page, in **inches**; omit to divide the page equally |
+| `WithSplitMargins(float, float)`, `WithSplitGaps(float, float)` | left/top margin and column/row gaps on the page, in **inches** |
+| `WithSplitSkipBlank(bool)` | leave out labels with nothing printable |
+| `WithLabelIndex(int)` | **0-based**; converts only this label, on every plan |
 | `WithData(params object?[])` | one label per record |
 | `WithParameter(string, object?)` | escape hatch for anything not modeled yet |
 

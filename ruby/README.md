@@ -98,6 +98,15 @@ Two units are routinely misread and are pinned by the shared fixtures:
 - `label:` is in **inches**, not dots. Omit it entirely to have the server detect the size.
 - `pdf: { page_number: }` is **0-based**. Omit it to convert every page.
 
+For image or PDF to ZPL, these shape how many labels come back:
+
+| Keyword | Notes |
+|---|---|
+| `zpl: { collapse_copies: true }` | each run of identical labels becomes one label with a `^PQ` count |
+| `layout: { across:, gap:, fill: }` | labels side by side per row; `gap` in **inches**; `fill` is `"SEQUENTIAL"` (default) or `"REPEAT"` |
+| `split: { rows:, columns:, width:, height:, left:, top:, column_gap:, row_gap:, skip_blank: }` | cuts each page into a grid of labels; lengths in **inches**; omit `width:`/`height:` to divide the page equally |
+| `label_index:` | **0-based**; converts only this label, on every plan |
+
 `data:` is one record per output label; a single Hash is wrapped rather than rejected. `extra:`
 carries anything the SDK does not model yet — unknown keys are ignored server-side, so it is a
 safe forward-compatibility hatch.
