@@ -43,7 +43,7 @@ type ZPLOptions struct {
 }
 
 // LayoutOptions puts labels side by side in each printed row, for multi-column roll stock.
-// Image or PDF to ZPL only.
+// Image or PDF to ZPL in IMAGE mode only.
 type LayoutOptions struct {
 	// Across is the number of labels across the roll, 1 to 10. Server default 1.
 	Across *int `json:"across,omitempty"`

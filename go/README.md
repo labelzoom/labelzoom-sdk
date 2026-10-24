@@ -119,6 +119,8 @@ For image or PDF to ZPL, three more options shape how many labels come back:
 | `Split` (`SplitOptions`) | cuts each page into `Rows` × `Columns` labels; every length is **inches** on the page; leave `Width`/`Height` nil to divide the page equally; `SkipBlank` leaves out empty labels |
 | `LabelIndex` | **0-based**; converts only this label, on every plan |
 
+`CollapseCopies`, `Layout` and `Split` need a PDF in `IMAGE` mode, the default. With `NATIVE`, more than 1 across or a split grid returns `400`, and `CollapseCopies` has no effect.
+
 `Data` is one record per output label; a single record is wrapped rather than rejected.
 `Options.Extra` carries anything the SDK does not model yet — unknown keys are ignored
 server-side, so it is a safe forward-compatibility hatch.

@@ -132,9 +132,9 @@ becomes `label_width`, `pdf.pageNumber` becomes `pdf_page_number`.
 | `pdf_page_number` | **0-based**; omit to convert every page |
 | `zpl_commands_to_ignore` | e.g. `["^PQ"]` |
 | `zpl_image_compression` | `"Z64"` (default) or `"COMPRESSED_HEX"` |
-| `zpl_collapse_copies` | image or PDF to ZPL: each run of identical labels becomes one label with a `^PQ` count |
-| `layout_across`, `layout_gap`, `layout_fill` | image or PDF to ZPL: labels side by side per row; gap in **inches**; fill `"SEQUENTIAL"` (default) or `"REPEAT"` |
-| `split_rows`, `split_columns` | image or PDF to ZPL: cut each page into a grid of labels |
+| `zpl_collapse_copies` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
+| `layout_across`, `layout_gap`, `layout_fill` | image or PDF to ZPL, `IMAGE` mode: labels side by side per row; gap in **inches**; fill `"SEQUENTIAL"` (default) or `"REPEAT"` |
+| `split_rows`, `split_columns` | image or PDF to ZPL, `IMAGE` mode: cut each page into a grid of labels |
 | `split_width`, `split_height` | one label on the page, in **inches**; omit to divide the page equally |
 | `split_left`, `split_top`, `split_column_gap`, `split_row_gap` | margins and gaps on the page, in **inches** |
 | `split_skip_blank` | leave out labels with nothing printable |

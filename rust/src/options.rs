@@ -110,7 +110,7 @@ pub struct ZplOptions {
 }
 
 /// Labels side by side in each printed row, for multi-column roll stock. Image or PDF to
-/// ZPL only.
+/// ZPL in `IMAGE` mode only.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutOptions {

@@ -48,7 +48,7 @@ export interface ConversionOptions {
      */
     collapseCopies?: boolean;
   };
-  /** Image or PDF to ZPL: labels side by side in each printed row, for multi-column roll stock. */
+  /** Image or PDF to ZPL (`IMAGE` mode): labels side by side in each printed row, for multi-column roll stock. */
   layout?: {
     /** Labels across the roll, 1–10. Server default 1. */
     across?: number;

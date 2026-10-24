@@ -107,6 +107,8 @@ For image or PDF to ZPL, these shape how many labels come back:
 | `split: { rows:, columns:, width:, height:, left:, top:, column_gap:, row_gap:, skip_blank: }` | cuts each page into a grid of labels; lengths in **inches**; omit `width:`/`height:` to divide the page equally |
 | `label_index:` | **0-based**; converts only this label, on every plan |
 
+`collapse_copies:`, `layout:` and `split:` need a PDF in `IMAGE` mode, the default. With `NATIVE`, more than 1 across or a split grid returns `400`, and `collapse_copies:` has no effect.
+
 `data:` is one record per output label; a single Hash is wrapped rather than rejected. `extra:`
 carries anything the SDK does not model yet — unknown keys are ignored server-side, so it is a
 safe forward-compatibility hatch.

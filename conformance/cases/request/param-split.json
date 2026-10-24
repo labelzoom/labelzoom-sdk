@@ -1,6 +1,6 @@
 {
   "id": "request/param-split",
-  "note": "C1/C4: every split length is INCHES on the source page as displayed, so the grid stays put when dpi or scaling changes. A length the caller set to 0 (rowGap here) must serialize, not be elided as a falsy default. split.* travels as one nested split object inside ?params=.",
+  "note": "C1/C4: every split length is INCHES on the source page as displayed, so a PDF's grid stays put when dpi or scaling changes (an image page measures pixels / dpi, so its grid follows dpi). A length the caller set to 0 (rowGap here) must serialize, not be elided as a falsy default. split.* travels as one nested split object inside ?params=.",
   "given": {
     "client": {
       "apiKey": null

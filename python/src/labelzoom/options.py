@@ -92,7 +92,8 @@ class ConversionOptions:
     #: Image or PDF to ZPL: each run of identical labels becomes one label with a ``^PQ``
     #: print quantity. Server default ``False``.
     zpl_collapse_copies: bool | _Unset = UNSET
-    #: Image or PDF to ZPL: labels side by side in each printed row, 1-10. Server default 1.
+    #: Image or PDF to ZPL (``IMAGE`` mode): labels side by side in each printed row, 1-10.
+    #: Server default 1.
     layout_across: int | _Unset = UNSET
     #: Space between two labels in a row, in **inches**. Server default 0.
     layout_gap: float | _Unset = UNSET
