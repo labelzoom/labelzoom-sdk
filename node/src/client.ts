@@ -8,6 +8,7 @@ import {
   sourceMediaType,
   sourceWireToken,
   targetWireToken,
+  type LayoutFill,
   type SourceFormat,
   type TargetFormat,
 } from './formats.js';
@@ -457,6 +458,70 @@ export class ConversionTargetBuilder {
 
   withZplImageCompression(compression: NonNullable<ConversionOptions['zpl']>['imageCompression']): this {
     this.#options.zpl = { ...this.#options.zpl, imageCompression: compression };
+    return this;
+  }
+
+  /** Image or PDF to ZPL: each run of identical labels becomes one label with a `^PQ` count. */
+  withZplCollapseCopies(collapse = true): this {
+    this.#options.zpl = { ...this.#options.zpl, collapseCopies: collapse };
+    return this;
+  }
+
+  /**
+   * Image or PDF to ZPL, IMAGE mode: `across` labels side by side in each printed row,
+   * `gapInches` apart.
+   * The gap is in **inches**, not dots.
+   */
+  withLayout(across: number, gapInches: number): this {
+    this.#options.layout = { ...this.#options.layout, across, gap: gapInches };
+    return this;
+  }
+
+  /** `SEQUENTIAL` (server default) puts each page in the next column; `REPEAT` fills a row with each page. */
+  withLayoutFill(fill: LayoutFill): this {
+    this.#options.layout = { ...this.#options.layout, fill };
+    return this;
+  }
+
+  /**
+   * Image or PDF to ZPL, IMAGE mode: cuts each page into `rows` × `columns` labels, read left to
+   * right, then down.
+   */
+  withSplit(rows: number, columns: number): this {
+    this.#options.split = { ...this.#options.split, rows, columns };
+    return this;
+  }
+
+  /** The size of one label on the source page, in **inches**. Leave unset to divide the page equally. */
+  withSplitLabelSize(widthInches: number, heightInches: number): this {
+    this.#options.split = { ...this.#options.split, width: widthInches, height: heightInches };
+    return this;
+  }
+
+  /** Distance from the page's left and top edges to the first label, in **inches**. */
+  withSplitMargins(leftInches: number, topInches: number): this {
+    this.#options.split = { ...this.#options.split, left: leftInches, top: topInches };
+    return this;
+  }
+
+  /** Space between two columns and between two rows of labels on the page, in **inches**. */
+  withSplitGaps(columnGapInches: number, rowGapInches: number): this {
+    this.#options.split = { ...this.#options.split, columnGap: columnGapInches, rowGap: rowGapInches };
+    return this;
+  }
+
+  /** Leave out labels with nothing printable, such as the unused end of a partly filled sheet. */
+  withSplitSkipBlank(skipBlank = true): this {
+    this.#options.split = { ...this.#options.split, skipBlank };
+    return this;
+  }
+
+  /**
+   * **0-based** index of the one label to convert, on every plan. For image or PDF to ZPL it
+   * counts the labels after `split`, page by page.
+   */
+  withLabelIndex(zeroBasedIndex: number): this {
+    this.#options.labelIndex = zeroBasedIndex;
     return this;
   }
 

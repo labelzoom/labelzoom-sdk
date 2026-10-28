@@ -44,6 +44,19 @@ pub enum ZplImageCompression {
     CompressedHex,
 }
 
+/// How pages fill the columns of a multi-column row ([`LayoutOptions::across`] above 1).
+/// Server default `SEQUENTIAL`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub enum LayoutFill {
+    /// Each page goes in the next column.
+    #[serde(rename = "SEQUENTIAL")]
+    Sequential,
+    /// Each page fills the whole row.
+    #[serde(rename = "REPEAT")]
+    Repeat,
+}
+
 /// The pixel offset of the extracted region. Server default 0,0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct Position {
@@ -90,6 +103,63 @@ pub struct ZplOptions {
     /// Encoding of embedded images. Server default `Z64`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_compression: Option<ZplImageCompression>,
+    /// Image or PDF to ZPL: send each run of identical labels as one label with a `^PQ`
+    /// print quantity. Server default `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collapse_copies: Option<bool>,
+}
+
+/// Labels side by side in each printed row, for multi-column roll stock. Image or PDF to
+/// ZPL in `IMAGE` mode only.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LayoutOptions {
+    /// Labels across the roll, 1 to 10. Server default 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub across: Option<i64>,
+    /// Space between two labels in a row, in INCHES. Server default 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gap: Option<f64>,
+    /// How pages fill the columns. Server default `SEQUENTIAL`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill: Option<LayoutFill>,
+}
+
+/// Cuts each page into a grid of labels, read left to right and then down. Image or PDF to
+/// ZPL in `IMAGE` mode only.
+///
+/// Every length is in INCHES on the page as displayed, measured from its top-left corner.
+/// Leave `width` and `height` `None` to have the server divide the page equally.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitOptions {
+    /// Rows of labels on each page, 1 to 20. Server default 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rows: Option<i64>,
+    /// Columns of labels on each page, 1 to 20. Server default 1.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub columns: Option<i64>,
+    /// One label's width on the page. `None` divides the page equally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<f64>,
+    /// One label's height on the page. `None` divides the page equally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<f64>,
+    /// Distance from the page's left edge to the first column. Server default 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<f64>,
+    /// Distance from the page's top edge to the first row. Server default 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<f64>,
+    /// Space between two columns. Server default 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_gap: Option<f64>,
+    /// Space between two rows. Server default 0.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub row_gap: Option<f64>,
+    /// Leave out labels with nothing printable. Server default `false`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_blank: Option<bool>,
 }
 
 /// The conversion parameters, in the shape the API expects.
@@ -144,6 +214,16 @@ pub struct ConversionOptions {
     /// ZPL output settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zpl: Option<ZplOptions>,
+    /// Labels side by side in each printed row. Image or PDF to ZPL, IMAGE mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub layout: Option<LayoutOptions>,
+    /// Cuts each page into a grid of labels. Image or PDF to ZPL, IMAGE mode only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub split: Option<SplitOptions>,
+    /// ZERO-BASED index of the one label to convert, on every plan. For image or PDF to ZPL
+    /// it counts the labels after `split`, page by page. Leave `None` to convert every label.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_index: Option<i64>,
     /// Anything this crate does not model yet. Unknown keys are ignored server-side, so
     /// this is a safe forward-compatibility escape hatch. Merged at the top level of the
     /// params object.
@@ -259,6 +339,91 @@ impl ConversionOptions {
         self.zpl
             .get_or_insert_with(ZplOptions::default)
             .image_compression = Some(compression);
+        self
+    }
+
+    /// Image or PDF to ZPL: sends each run of identical labels as one label with a `^PQ`
+    /// print quantity.
+    #[must_use]
+    pub fn zpl_collapse_copies(mut self, collapse: bool) -> Self {
+        self.zpl
+            .get_or_insert_with(ZplOptions::default)
+            .collapse_copies = Some(collapse);
+        self
+    }
+
+    /// Image or PDF to ZPL, IMAGE mode: puts `across` labels side by side in each printed row,
+    /// `gap_inches` apart. The gap is in **inches**, not dots.
+    #[must_use]
+    pub fn layout(mut self, across: i64, gap_inches: f64) -> Self {
+        let layout = self.layout.get_or_insert_with(LayoutOptions::default);
+        layout.across = Some(across);
+        layout.gap = Some(gap_inches);
+        self
+    }
+
+    /// Sets how pages fill the columns of a row.
+    #[must_use]
+    pub fn layout_fill(mut self, fill: LayoutFill) -> Self {
+        self.layout.get_or_insert_with(LayoutOptions::default).fill = Some(fill);
+        self
+    }
+
+    /// Image or PDF to ZPL, IMAGE mode: cuts each page into `rows` x `columns` labels, read left to
+    /// right and then down.
+    #[must_use]
+    pub fn split(mut self, rows: i64, columns: i64) -> Self {
+        let split = self.split.get_or_insert_with(SplitOptions::default);
+        split.rows = Some(rows);
+        split.columns = Some(columns);
+        self
+    }
+
+    /// Sets the size of one label on the source page, in **inches**. Leave it unset to
+    /// divide the page equally.
+    #[must_use]
+    pub fn split_label_size(mut self, width_inches: f64, height_inches: f64) -> Self {
+        let split = self.split.get_or_insert_with(SplitOptions::default);
+        split.width = Some(width_inches);
+        split.height = Some(height_inches);
+        self
+    }
+
+    /// Sets the distance from the page's left and top edges to the first label, in
+    /// **inches**.
+    #[must_use]
+    pub fn split_margins(mut self, left_inches: f64, top_inches: f64) -> Self {
+        let split = self.split.get_or_insert_with(SplitOptions::default);
+        split.left = Some(left_inches);
+        split.top = Some(top_inches);
+        self
+    }
+
+    /// Sets the space between two columns and between two rows of labels on the page, in
+    /// **inches**.
+    #[must_use]
+    pub fn split_gaps(mut self, column_gap_inches: f64, row_gap_inches: f64) -> Self {
+        let split = self.split.get_or_insert_with(SplitOptions::default);
+        split.column_gap = Some(column_gap_inches);
+        split.row_gap = Some(row_gap_inches);
+        self
+    }
+
+    /// Leaves out labels with nothing printable, such as the unused end of a partly filled
+    /// sheet.
+    #[must_use]
+    pub fn split_skip_blank(mut self, skip_blank: bool) -> Self {
+        self.split
+            .get_or_insert_with(SplitOptions::default)
+            .skip_blank = Some(skip_blank);
+        self
+    }
+
+    /// Selects the one label to convert, on every plan. **Zero-based**; for image or PDF to
+    /// ZPL it counts the labels after `split`, page by page.
+    #[must_use]
+    pub fn label_index(mut self, zero_based_index: i64) -> Self {
+        self.label_index = Some(zero_based_index);
         self
     }
 

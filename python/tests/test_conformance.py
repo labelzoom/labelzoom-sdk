@@ -177,6 +177,32 @@ def _convert_kwargs(given: dict[str, Any]) -> dict[str, Any]:
                 kwargs["zpl_commands_to_ignore"] = value["commandsToIgnore"]
             if "imageCompression" in value:
                 kwargs["zpl_image_compression"] = value["imageCompression"]
+            if "collapseCopies" in value:
+                kwargs["zpl_collapse_copies"] = value["collapseCopies"]
+        elif key == "layout":
+            for wire, kwarg in (
+                ("across", "layout_across"),
+                ("gap", "layout_gap"),
+                ("fill", "layout_fill"),
+            ):
+                if wire in value:
+                    kwargs[kwarg] = value[wire]
+        elif key == "split":
+            for wire, kwarg in (
+                ("rows", "split_rows"),
+                ("columns", "split_columns"),
+                ("width", "split_width"),
+                ("height", "split_height"),
+                ("left", "split_left"),
+                ("top", "split_top"),
+                ("columnGap", "split_column_gap"),
+                ("rowGap", "split_row_gap"),
+                ("skipBlank", "split_skip_blank"),
+            ):
+                if wire in value:
+                    kwargs[kwarg] = value[wire]
+        elif key == "labelIndex":
+            kwargs["label_index"] = value
         elif key == "colorMode":
             kwargs["color_mode"] = value
         elif key in {"dpi", "rotation", "scaling", "darkness", "watermark", "dialect", "data"}:
@@ -395,7 +421,7 @@ def test_conformance(case_id: str, is_async: bool, monkeypatch: pytest.MonkeyPat
 
 
 def test_sync_and_async_convert_signatures_match() -> None:
-    """The two clients duplicate a 20-argument signature; this is what keeps them identical.
+    """The two clients duplicate a 34-argument signature; this is what keeps them identical.
 
     Nothing else would catch an option added to the sync client and forgotten on the async
     one -- the conformance cases would keep passing, because the runner only calls what the

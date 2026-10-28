@@ -8,7 +8,7 @@ from dataclasses import dataclass, fields
 from typing import Any, Final, Literal
 
 from .errors import LabelZoomValidationError
-from .formats import ColorMode, PdfConversionMode, ZplImageCompression
+from .formats import ColorMode, LayoutFill, PdfConversionMode, ZplImageCompression
 
 __all__ = ["UNSET", "ConversionOptions", "DataRecord"]
 
@@ -89,6 +89,38 @@ class ConversionOptions:
     zpl_commands_to_ignore: Sequence[str] | _Unset = UNSET
     #: Server default ``Z64``. ZPL targets only.
     zpl_image_compression: ZplImageCompression | _Unset = UNSET
+    #: Image or PDF to ZPL: each run of identical labels becomes one label with a ``^PQ``
+    #: print quantity. Server default ``False``.
+    zpl_collapse_copies: bool | _Unset = UNSET
+    #: Image or PDF to ZPL (``IMAGE`` mode): labels side by side in each printed row, 1-10.
+    #: Server default 1.
+    layout_across: int | _Unset = UNSET
+    #: Space between two labels in a row, in **inches**. Server default 0.
+    layout_gap: float | _Unset = UNSET
+    #: Server default ``SEQUENTIAL``.
+    layout_fill: LayoutFill | _Unset = UNSET
+    #: Image or PDF to ZPL (``IMAGE`` mode): rows of labels on each page, 1-20.
+    #: Server default 1.
+    split_rows: int | _Unset = UNSET
+    #: Columns of labels on each page, 1-20. Server default 1.
+    split_columns: int | _Unset = UNSET
+    #: One label's width on the page, in **inches**. Omit to divide the page equally.
+    split_width: float | _Unset = UNSET
+    #: One label's height on the page, in **inches**. Omit to divide the page equally.
+    split_height: float | _Unset = UNSET
+    #: **Inches** from the page's left edge to the first column. Server default 0.
+    split_left: float | _Unset = UNSET
+    #: **Inches** from the page's top edge to the first row. Server default 0.
+    split_top: float | _Unset = UNSET
+    #: Space between two columns, in **inches**. Server default 0.
+    split_column_gap: float | _Unset = UNSET
+    #: Space between two rows, in **inches**. Server default 0.
+    split_row_gap: float | _Unset = UNSET
+    #: Leave out labels with nothing printable. Server default ``False``.
+    split_skip_blank: bool | _Unset = UNSET
+    #: **0-based** index of the one label to convert, on every plan. For image or PDF to ZPL
+    #: it counts the labels after ``split``, page by page. Omit to convert every label.
+    label_index: int | _Unset = UNSET
     #: Anything the SDK does not model yet, merged in at the top level of ``params``.
     #: Unknown keys are ignored server-side, so this is a safe forward-compatibility hatch.
     extra: Mapping[str, Any] | _Unset = UNSET
@@ -125,6 +157,20 @@ _WIRE_PATHS: dict[str, tuple[str, ...]] = {
     "pdf_page_number": ("pdf", "pageNumber"),
     "zpl_commands_to_ignore": ("zpl", "commandsToIgnore"),
     "zpl_image_compression": ("zpl", "imageCompression"),
+    "zpl_collapse_copies": ("zpl", "collapseCopies"),
+    "layout_across": ("layout", "across"),
+    "layout_gap": ("layout", "gap"),
+    "layout_fill": ("layout", "fill"),
+    "split_rows": ("split", "rows"),
+    "split_columns": ("split", "columns"),
+    "split_width": ("split", "width"),
+    "split_height": ("split", "height"),
+    "split_left": ("split", "left"),
+    "split_top": ("split", "top"),
+    "split_column_gap": ("split", "columnGap"),
+    "split_row_gap": ("split", "rowGap"),
+    "split_skip_blank": ("split", "skipBlank"),
+    "label_index": ("labelIndex",),
 }
 
 

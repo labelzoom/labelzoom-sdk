@@ -117,6 +117,14 @@ untrusted input.
 | `withPdfPage(int)` | **0-based**; omit to convert every page |
 | `withZplCommandsToIgnore(String...)` | e.g. `"^PQ"` |
 | `withZplImageCompression(ZplImageCompression)` | `Z64` (default) or `COMPRESSED_HEX` |
+| `withZplCollapseCopies(boolean)` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
+| `withLayout(int, float)` | image or PDF to ZPL, `IMAGE` mode: labels across each row, and the gap between them in **inches** |
+| `withLayoutFill(LayoutFill)` | `SEQUENTIAL` (default) or `REPEAT` |
+| `withSplit(int, int)` | image or PDF to ZPL, `IMAGE` mode: cut each page into rows × columns of labels |
+| `withSplitLabelSize(float, float)` | one label on the page, in **inches**; omit to divide the page equally |
+| `withSplitMargins(float, float)`, `withSplitGaps(float, float)` | left/top margin and column/row gaps on the page, in **inches** |
+| `withSplitSkipBlank(boolean)` | leave out labels with nothing printable |
+| `withLabelIndex(int)` | **0-based**; converts only this label, on every plan |
 | `withData(Map...)` | one label per record |
 | `withParameter(String, Object)` | escape hatch for anything not modeled yet |
 

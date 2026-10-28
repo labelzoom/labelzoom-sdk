@@ -84,7 +84,17 @@ def convert_kwargs(given)
                                       "pageNumber" => :page_number)
     when "zpl"
       kwargs[:zpl] = symbolize(value, "commandsToIgnore" => :commands_to_ignore,
-                                      "imageCompression" => :image_compression)
+                                      "imageCompression" => :image_compression,
+                                      "collapseCopies" => :collapse_copies)
+    when "layout"
+      kwargs[:layout] = symbolize(value, "across" => :across, "gap" => :gap, "fill" => :fill)
+    when "split"
+      kwargs[:split] = symbolize(value, "rows" => :rows, "columns" => :columns,
+                                        "width" => :width, "height" => :height,
+                                        "left" => :left, "top" => :top,
+                                        "columnGap" => :column_gap, "rowGap" => :row_gap,
+                                        "skipBlank" => :skip_blank)
+    when "labelIndex" then kwargs[:label_index] = value
     when "dpi", "rotation", "scaling", "darkness", "watermark", "dialect", "data"
       kwargs[key.to_sym] = value
     else
