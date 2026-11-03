@@ -56,14 +56,31 @@ Or as a chain, matching the other LabelZoom SDKs:
 ```ts
 const result = await client.convert()
   .fromZpl('^XA^FO20,20^A0N,28^FDHello^FS^XZ')
+    .withLabelSize(4, 6)
   .toPng()
-  .withDpi(300)
-  .withLabelSize(4, 6)
+    .withDpi(300)
   .execute();
 ```
 
-Both forms do the same thing. The object form is what most TypeScript users reach for; the chain
-exists for parity with the .NET, Java, and PHP SDKs.
+Both forms send the same request. The object form is what most TypeScript users reach for; the
+chain exists for parity with the .NET, Java, and PHP SDKs.
+
+The chain has two stages. `from*` picks the source and returns the **source stage**, where you set
+options that change how the source is read. `to*` picks the target and returns the **target
+stage**, where you set options that change the output and then call `execute`. Each stage offers
+only the options that act on its side, and a named `from*` or `to*` offers only the options for
+that format, so `fromZpl(zpl).withPage(0)` is a compile error.
+
+A Letter sheet of four labels, printed two across on a 2-up roll:
+
+```ts
+const result = await client.convert()
+  .fromPdf(sheet)
+    .withSplit({ rows: 2, columns: 2, skipBlank: true })
+  .toZpl()
+    .withLayout({ across: 2, gap: 0.125 })      // inches
+  .execute();
+```
 
 With a key — passed explicitly, or picked up from `LABELZOOM_API_KEY`:
 
@@ -78,8 +95,8 @@ Filling variable fields — **each record produces one label**:
 ```ts
 const result = await client.convert()
   .fromZpl(template)
+    .withData({ name: 'ACME Corp', sku: '12345' }, { name: 'Globex', sku: '67890' })
   .toPdf()
-  .withData({ name: 'ACME Corp', sku: '12345' }, { name: 'Globex', sku: '67890' })
   .execute();                                    // a 2-page PDF
 ```
 
@@ -138,6 +155,36 @@ first if it came from untrusted input.
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
 to a server default reaches you without an SDK upgrade. Unknown keys are ignored server-side, so
 the index signature on `ConversionOptions` is a safe forward-compatibility escape hatch.
+
+### Chain methods by stage
+
+| Stage | Method | On |
+|---|---|---|
+| Source | `withLabelSize`, `withLabelIndex`, `withData` | every source |
+| Source | `withPage`, `withConversionMode` | `fromPdf` |
+| Source | `withSplit({ … })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
+| Source | `withCommandsToIgnore` | `fromZpl` |
+| Target | `withDpi`, `withRotation`, `withScaling`, `withColorMode`, `withDarkness`, `withPosition`, `withWatermark`, `withDialect`, `withParameter` | every target |
+| Target | `withImageCompression`, `withCollapseCopies`, `withLayout({ … })` | `toZpl` |
+
+`from(format, body)`, `fromBase64Text` and `fromUrl` return a `DynamicSourceBuilder`, and
+`to(target)` returns a `DynamicTargetBuilder`. The compiler can't know the format there, so they
+offer every option, named with the format it applies to: `withPdfPage`, `withPdfConversionMode`,
+`withZplCommandsToIgnore`, `withZplImageCompression` and `withZplCollapseCopies`.
+
+### Migrating from 1.x
+
+The object form (`client.convert({ from, to, body, options })`) is unchanged. In the chain, every
+option used to be set after `to*`. In 2.0, move the source options before it:
+
+| 1.x | 2.0 |
+|---|---|
+| `.toZpl().withPdfPage(0)` | `.fromPdf(pdf).withPage(0).toZpl()` |
+| `.withPdfConversionMode(m)` | `.fromPdf(pdf).withConversionMode(m)` |
+| `.withZplCommandsToIgnore('^PQ')` | `.fromZpl(zpl).withCommandsToIgnore('^PQ')` |
+| `.withLabelSize(w, h)`, `.withLabelIndex(i)`, `.withData(...)` | same name, before `to*` |
+| `.withZplImageCompression(c)` | `.toZpl().withImageCompression(c)` |
+| `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
 ## Errors
 
