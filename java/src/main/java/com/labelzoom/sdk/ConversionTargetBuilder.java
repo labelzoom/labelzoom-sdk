@@ -167,6 +167,88 @@ public final class ConversionTargetBuilder {
     }
 
     /**
+     * Image or PDF to ZPL: sends each run of identical labels as one label with a {@code ^PQ}
+     * print quantity. The server default is {@code false}.
+     */
+    public ConversionTargetBuilder withZplCollapseCopies(boolean collapse) {
+        nested("zpl").put("collapseCopies", collapse);
+        return this;
+    }
+
+    /**
+     * Image or PDF to ZPL, IMAGE mode: puts {@code across} labels side by side in each printed
+     * row, for multi-column roll stock.
+     *
+     * @param across labels across the roll, 1 to 10
+     * @param gapInches space between two labels in a row, <b>in inches</b> — not dots
+     */
+    public ConversionTargetBuilder withLayout(int across, float gapInches) {
+        Map<String, Object> layout = nested("layout");
+        layout.put("across", across);
+        layout.put("gap", gapInches);
+        return this;
+    }
+
+    /** How pages fill the columns of a row. The server default is {@link LayoutFill#SEQUENTIAL}. */
+    public ConversionTargetBuilder withLayoutFill(LayoutFill fill) {
+        nested("layout").put("fill", fill.wireToken());
+        return this;
+    }
+
+    /**
+     * Image or PDF to ZPL, IMAGE mode: cuts each page into {@code rows} × {@code columns} labels,
+     * read left to right and then down. 1 × 1 is no split.
+     */
+    public ConversionTargetBuilder withSplit(int rows, int columns) {
+        Map<String, Object> split = nested("split");
+        split.put("rows", rows);
+        split.put("columns", columns);
+        return this;
+    }
+
+    /** The size of one label on the source page, <b>in inches</b>. Omit this to divide the page equally. */
+    public ConversionTargetBuilder withSplitLabelSize(float widthInches, float heightInches) {
+        Map<String, Object> split = nested("split");
+        split.put("width", widthInches);
+        split.put("height", heightInches);
+        return this;
+    }
+
+    /** Distance from the page's left and top edges to the first label, <b>in inches</b>. */
+    public ConversionTargetBuilder withSplitMargins(float leftInches, float topInches) {
+        Map<String, Object> split = nested("split");
+        split.put("left", leftInches);
+        split.put("top", topInches);
+        return this;
+    }
+
+    /** Space between two columns and between two rows of labels on the page, <b>in inches</b>. */
+    public ConversionTargetBuilder withSplitGaps(float columnGapInches, float rowGapInches) {
+        Map<String, Object> split = nested("split");
+        split.put("columnGap", columnGapInches);
+        split.put("rowGap", rowGapInches);
+        return this;
+    }
+
+    /** Leaves out labels with nothing printable, such as the unused end of a partly filled sheet. */
+    public ConversionTargetBuilder withSplitSkipBlank(boolean skipBlank) {
+        nested("split").put("skipBlank", skipBlank);
+        return this;
+    }
+
+    /**
+     * Converts only one label of a multi-label input, on every plan, identified by a <b>0-based</b>
+     * index. For image or PDF to ZPL it counts the labels after {@link #withSplit(int, int)}, page
+     * by page.
+     *
+     * @param zeroBasedIndex 0 selects the first label
+     */
+    public ConversionTargetBuilder withLabelIndex(int zeroBasedIndex) {
+        params.put("labelIndex", zeroBasedIndex);
+        return this;
+    }
+
+    /**
      * Supplies data to fill the label's variable fields. <b>Each record produces one label.</b>
      *
      * @param records maps whose keys are the label's variable field names

@@ -1,8 +1,8 @@
 namespace LabelZoom.Sdk.Tests;
 
 /// <summary>
-/// Pins the numeric value of every <see cref="SourceFormat"/> and <see cref="TargetFormat"/>
-/// member.
+/// Pins the numeric value of every <see cref="SourceFormat"/>, <see cref="TargetFormat"/> and
+/// <see cref="LayoutFill"/> member.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -66,11 +66,23 @@ public sealed class FormatValueTests
     public void TargetFormatValueIsStable(TargetFormat format, int expected) =>
         Assert.Equal(expected, (int)format);
 
+    public static TheoryData<LayoutFill, int> LayoutFillValues => new()
+    {
+        { LayoutFill.Sequential, 0 },
+        { LayoutFill.Repeat, 1 },
+    };
+
+    [Theory]
+    [MemberData(nameof(LayoutFillValues))]
+    public void LayoutFillValueIsStable(LayoutFill fill, int expected) =>
+        Assert.Equal(expected, (int)fill);
+
     // Without this, a new member added with no row above would never be checked.
     [Fact]
     public void EveryMemberIsPinned()
     {
         Assert.Equal(Enum.GetValues<SourceFormat>().Length, SourceValues.Count);
         Assert.Equal(Enum.GetValues<TargetFormat>().Length, TargetValues.Count);
+        Assert.Equal(Enum.GetValues<LayoutFill>().Length, LayoutFillValues.Count);
     }
 }

@@ -171,3 +171,15 @@ const (
 	ZPLImageCompressionZ64           ZPLImageCompression = "Z64"
 	ZPLImageCompressionCompressedHex ZPLImageCompression = "COMPRESSED_HEX"
 )
+
+// LayoutFill selects how pages fill the columns of a multi-column row ([LayoutOptions].Across
+// above 1). Server default SEQUENTIAL.
+type LayoutFill string
+
+// The layout fills the API accepts.
+const (
+	// LayoutFillSequential puts each page in the next column.
+	LayoutFillSequential LayoutFill = "SEQUENTIAL"
+	// LayoutFillRepeat prints each page across the whole row.
+	LayoutFillRepeat LayoutFill = "REPEAT"
+)

@@ -115,6 +115,14 @@ Every `with*` call maps to one field of the API's `?params=` object.
 | `withPdfPage(int)` | **0-based**; omit to convert every page |
 | `withZplCommandsToIgnore(array)` | e.g. `['^PQ']` |
 | `withZplImageCompression(ZplImageCompression)` | `Z64` (default) or `CompressedHex` |
+| `withZplCollapseCopies(bool)` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
+| `withLayout(int, float)` | image or PDF to ZPL, `IMAGE` mode: labels across each row, and the gap between them in **inches** |
+| `withLayoutFill(LayoutFill)` | `Sequential` (default) or `Repeat` |
+| `withSplit(int, int)` | image or PDF to ZPL, `IMAGE` mode: cut each page into rows × columns of labels |
+| `withSplitLabelSize(float, float)` | one label on the page, in **inches**; omit to divide the page equally |
+| `withSplitMargins(float, float)`, `withSplitGaps(float, float)` | left/top margin and column/row gaps on the page, in **inches** |
+| `withSplitSkipBlank(bool)` | leave out labels with nothing printable |
+| `withLabelIndex(int)` | **0-based**; converts only this label, on every plan |
 | `withData(array)` | one label per record |
 | `withParameter(string, mixed)` | anything not modeled yet; sent as-is |
 

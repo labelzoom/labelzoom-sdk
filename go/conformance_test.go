@@ -344,6 +344,49 @@ func buildOptions(t *testing.T, wire map[string]any) *labelzoom.Options {
 			if compression, ok := zpl["imageCompression"].(string); ok {
 				options.ZPL.ImageCompression = labelzoom.Ptr(labelzoom.ZPLImageCompression(compression))
 			}
+			if collapse, ok := zpl["collapseCopies"].(bool); ok {
+				options.ZPL.CollapseCopies = labelzoom.Ptr(collapse)
+			}
+		case "layout":
+			layout := value.(map[string]any)
+			options.Layout = &labelzoom.LayoutOptions{}
+			if across, ok := layout["across"].(float64); ok {
+				options.Layout.Across = labelzoom.Ptr(int(across))
+			}
+			if gap, ok := layout["gap"].(float64); ok {
+				options.Layout.Gap = labelzoom.Ptr(gap)
+			}
+			if fill, ok := layout["fill"].(string); ok {
+				options.Layout.Fill = labelzoom.Ptr(labelzoom.LayoutFill(fill))
+			}
+		case "split":
+			split := value.(map[string]any)
+			options.Split = &labelzoom.SplitOptions{}
+			for name, field := range map[string]**int{
+				"rows":    &options.Split.Rows,
+				"columns": &options.Split.Columns,
+			} {
+				if count, ok := split[name].(float64); ok {
+					*field = labelzoom.Ptr(int(count))
+				}
+			}
+			for name, field := range map[string]**float64{
+				"width":     &options.Split.Width,
+				"height":    &options.Split.Height,
+				"left":      &options.Split.Left,
+				"top":       &options.Split.Top,
+				"columnGap": &options.Split.ColumnGap,
+				"rowGap":    &options.Split.RowGap,
+			} {
+				if inches, ok := split[name].(float64); ok {
+					*field = labelzoom.Ptr(inches)
+				}
+			}
+			if skip, ok := split["skipBlank"].(bool); ok {
+				options.Split.SkipBlank = labelzoom.Ptr(skip)
+			}
+		case "labelIndex":
+			options.LabelIndex = labelzoom.Ptr(int(value.(float64)))
 		default:
 			t.Fatalf("fixture sets option %q, which the Go runner does not map. "+
 				"Add it to buildOptions rather than skipping the case.", key)

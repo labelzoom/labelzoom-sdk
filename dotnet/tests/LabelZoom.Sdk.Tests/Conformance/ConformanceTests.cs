@@ -453,6 +453,51 @@ public sealed class ConformanceTests
                             ParseEnum<ZplImageCompression>(compression.GetString()!));
                     }
 
+                    if (option.Value.TryGetProperty("collapseCopies", out var collapse))
+                    {
+                        builder.WithZplCollapseCopies(collapse.GetBoolean());
+                    }
+
+                    break;
+                case "layout":
+                    builder.WithLayout(
+                        option.Value.GetProperty("across").GetInt32(),
+                        option.Value.GetProperty("gap").GetSingle());
+                    if (option.Value.TryGetProperty("fill", out var fill))
+                    {
+                        builder.WithLayoutFill(ParseEnum<LayoutFill>(fill.GetString()!));
+                    }
+
+                    break;
+                case "split":
+                    builder.WithSplit(
+                        option.Value.GetProperty("rows").GetInt32(),
+                        option.Value.GetProperty("columns").GetInt32());
+                    if (option.Value.TryGetProperty("width", out var splitWidth))
+                    {
+                        builder.WithSplitLabelSize(
+                            splitWidth.GetSingle(), option.Value.GetProperty("height").GetSingle());
+                    }
+
+                    if (option.Value.TryGetProperty("left", out var left))
+                    {
+                        builder.WithSplitMargins(left.GetSingle(), option.Value.GetProperty("top").GetSingle());
+                    }
+
+                    if (option.Value.TryGetProperty("columnGap", out var columnGap))
+                    {
+                        builder.WithSplitGaps(
+                            columnGap.GetSingle(), option.Value.GetProperty("rowGap").GetSingle());
+                    }
+
+                    if (option.Value.TryGetProperty("skipBlank", out var skipBlank))
+                    {
+                        builder.WithSplitSkipBlank(skipBlank.GetBoolean());
+                    }
+
+                    break;
+                case "labelIndex":
+                    builder.WithLabelIndex(option.Value.GetInt32());
                     break;
                 case "data":
                     // A bare object means one label, so it is wrapped rather than rejected.

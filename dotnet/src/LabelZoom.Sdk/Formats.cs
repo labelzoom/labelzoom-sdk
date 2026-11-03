@@ -179,6 +179,23 @@ namespace LabelZoom.Sdk
     }
 
     /// <summary>
+    /// How pages fill the columns of a multi-column row, when
+    /// <see cref="Conversion.ConversionTargetBuilder.WithLayout"/> puts more than one label across.
+    /// </summary>
+    /// <remarks>
+    /// The values are explicit because C# compiles enum members into callers as numbers: a new
+    /// member takes the next unused value, and an existing one never changes.
+    /// </remarks>
+    public enum LayoutFill
+    {
+        /// <summary>Each page goes in the next column. The server default.</summary>
+        Sequential = 0,
+
+        /// <summary>Each page fills the whole row.</summary>
+        Repeat = 1,
+    }
+
+    /// <summary>
     /// Wire tokens and media types for <see cref="SourceFormat"/> and <see cref="TargetFormat"/>.
     /// </summary>
     /// <remarks>
@@ -286,6 +303,14 @@ namespace LabelZoom.Sdk
                 ZplImageCompression.Z64 => "Z64",
                 ZplImageCompression.CompressedHex => "COMPRESSED_HEX",
                 _ => throw new ArgumentOutOfRangeException(nameof(compression), compression, null),
+            };
+
+        internal static string ToWireToken(this LayoutFill fill) =>
+            fill switch
+            {
+                LayoutFill.Sequential => "SEQUENTIAL",
+                LayoutFill.Repeat => "REPEAT",
+                _ => throw new ArgumentOutOfRangeException(nameof(fill), fill, null),
             };
     }
 }

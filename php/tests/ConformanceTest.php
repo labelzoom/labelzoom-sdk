@@ -18,6 +18,7 @@ use LabelZoom\Sdk\Exception\TransportException;
 use LabelZoom\Sdk\Exception\UnauthorizedException;
 use LabelZoom\Sdk\Exception\ValidationException;
 use LabelZoom\Sdk\LabelZoomClient;
+use LabelZoom\Sdk\LayoutFill;
 use LabelZoom\Sdk\PdfConversionMode;
 use LabelZoom\Sdk\SourceFormat;
 use LabelZoom\Sdk\TargetFormat;
@@ -300,6 +301,9 @@ final class ConformanceTest extends TestCase
                 'data' => $builder->withData($value),
                 'pdf' => self::applyPdf($builder, $value),
                 'zpl' => self::applyZpl($builder, $value),
+                'layout' => self::applyLayout($builder, $value),
+                'split' => self::applySplit($builder, $value),
+                'labelIndex' => $builder->withLabelIndex((int) $value),
                 // Silently ignoring an unmapped option would let a new fixture pass without
                 // ever exercising what it was added to pin.
                 default => throw new \LogicException(
@@ -341,6 +345,44 @@ final class ConformanceTest extends TestCase
             $builder = $builder->withZplImageCompression(
                 ZplImageCompression::from((string) $zpl['imageCompression']),
             );
+        }
+        if (isset($zpl['collapseCopies'])) {
+            $builder = $builder->withZplCollapseCopies((bool) $zpl['collapseCopies']);
+        }
+
+        return $builder;
+    }
+
+    /**
+     * @param array<string, mixed> $layout
+     */
+    private static function applyLayout(ConversionTargetBuilder $builder, array $layout): ConversionTargetBuilder
+    {
+        $builder = $builder->withLayout((int) $layout['across'], (float) $layout['gap']);
+        if (isset($layout['fill'])) {
+            $builder = $builder->withLayoutFill(LayoutFill::from((string) $layout['fill']));
+        }
+
+        return $builder;
+    }
+
+    /**
+     * @param array<string, mixed> $split
+     */
+    private static function applySplit(ConversionTargetBuilder $builder, array $split): ConversionTargetBuilder
+    {
+        $builder = $builder->withSplit((int) $split['rows'], (int) $split['columns']);
+        if (isset($split['width'])) {
+            $builder = $builder->withSplitLabelSize((float) $split['width'], (float) $split['height']);
+        }
+        if (isset($split['left'])) {
+            $builder = $builder->withSplitMargins((float) $split['left'], (float) $split['top']);
+        }
+        if (isset($split['columnGap'])) {
+            $builder = $builder->withSplitGaps((float) $split['columnGap'], (float) $split['rowGap']);
+        }
+        if (isset($split['skipBlank'])) {
+            $builder = $builder->withSplitSkipBlank((bool) $split['skipBlank']);
         }
 
         return $builder;

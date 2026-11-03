@@ -19,6 +19,7 @@ export {
   type ColorMode,
   type PdfConversionMode,
   type ZplImageCompression,
+  type LayoutFill,
 } from './formats.js';
 
 export { type ConversionOptions, type DataRecord } from './options.js';

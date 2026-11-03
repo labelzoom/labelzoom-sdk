@@ -113,3 +113,9 @@ export type PdfConversionMode = 'IMAGE' | 'NATIVE';
 
 /** Image compression used when writing ZPL. */
 export type ZplImageCompression = 'Z64' | 'COMPRESSED_HEX';
+
+/**
+ * How pages fill the columns of a multi-column row (`layout.across` > 1). `SEQUENTIAL` puts each
+ * page in the next column; `REPEAT` prints each page across the whole row.
+ */
+export type LayoutFill = 'SEQUENTIAL' | 'REPEAT';

@@ -129,6 +129,10 @@ first if it came from untrusted input.
 | `pdf.pageNumber` | **0-based**; omit to convert every page |
 | `zpl.commandsToIgnore` | e.g. `['^PQ']` |
 | `zpl.imageCompression` | `'Z64'` (default) or `'COMPRESSED_HEX'` |
+| `zpl.collapseCopies` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
+| `layout` | image or PDF to ZPL, `IMAGE` mode: `{ across, gap, fill }`, labels side by side per row; `gap` in **inches**; `fill` is `'SEQUENTIAL'` (default) or `'REPEAT'` |
+| `split` | image or PDF to ZPL, `IMAGE` mode: `{ rows, columns, width, height, left, top, columnGap, rowGap, skipBlank }` cuts each page into a grid of labels; lengths in **inches**; omit `width`/`height` to divide the page equally |
+| `labelIndex` | **0-based**; converts only this label, on every plan |
 | `data` | one label per record |
 
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
