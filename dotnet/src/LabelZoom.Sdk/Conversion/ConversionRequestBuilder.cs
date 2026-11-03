@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using System.Text;
 
@@ -8,10 +7,17 @@ namespace LabelZoom.Sdk.Conversion
     /// Chooses the source document. Returned by <see cref="LabelZoomClient.Convert"/>.
     /// </summary>
     /// <remarks>
-    /// There is one source builder and one target builder for all 12 x 8 format combinations, not
-    /// a class per format. The named <c>From*</c> methods below are one-line delegations to
-    /// <see cref="From(SourceFormat, byte[])"/>: they exist for discoverability and, holding no
-    /// logic of their own, cannot drift away from the format table.
+    /// <para>
+    /// A named <c>From*</c> method returns a source stage typed for that format, so only the options
+    /// that apply to it are offered: <see cref="FromPdf(byte[])"/> returns a
+    /// <see cref="PdfSourceBuilder"/> with <see cref="PdfSourceBuilder.WithPage"/>, and
+    /// <see cref="FromZpl"/> doesn't.
+    /// </para>
+    /// <para>
+    /// <see cref="From(SourceFormat, byte[])"/> and the other methods that take a
+    /// <see cref="SourceFormat"/> pick the format at run time and return a
+    /// <see cref="DynamicSourceBuilder"/>, which offers every source option.
+    /// </para>
     /// </remarks>
     public sealed class ConversionRequestBuilder
     {
@@ -22,59 +28,23 @@ namespace LabelZoom.Sdk.Conversion
         /// <summary>Uses raw bytes as the source document.</summary>
         /// <param name="format">The format those bytes are in.</param>
         /// <param name="body">The document. Must not be empty.</param>
-        public ConversionSourceBuilder From(SourceFormat format, byte[] body)
-        {
-            if (body is null)
-            {
-                throw new LabelZoomValidationException(nameof(body), "Source body cannot be null.");
-            }
-
-            if (body.Length == 0)
-            {
-                // The gateway rejects a zero-length body with 400. Catching it here saves a round
-                // trip and says something more useful than "Request body is required".
-                throw new LabelZoomValidationException(
-                    nameof(body), "Source body cannot be empty; the API rejects zero-length requests.");
-            }
-
-            return new ConversionSourceBuilder(_client, format, body, format.ToMediaType());
-        }
+        public DynamicSourceBuilder From(SourceFormat format, byte[] body) =>
+            new DynamicSourceBuilder(Draft(format, body));
 
         /// <summary>Uses text as the source document, encoded as UTF-8.</summary>
-        public ConversionSourceBuilder From(SourceFormat format, string body)
-        {
-            if (body is null)
-            {
-                throw new LabelZoomValidationException(nameof(body), "Source body cannot be null.");
-            }
-
-            return From(format, Encoding.UTF8.GetBytes(body));
-        }
+        public DynamicSourceBuilder From(SourceFormat format, string body) =>
+            new DynamicSourceBuilder(Draft(format, Utf8(body)));
 
         /// <summary>Reads a stream to completion and uses it as the source document.</summary>
         /// <remarks>
         /// The stream is buffered rather than streamed, because a retried request needs to send
         /// the same body again and a consumed stream cannot be replayed.
         /// </remarks>
-        public ConversionSourceBuilder From(SourceFormat format, Stream body)
-        {
-            if (body is null)
-            {
-                throw new LabelZoomValidationException(nameof(body), "Source stream cannot be null.");
-            }
-
-            if (!body.CanRead)
-            {
-                throw new LabelZoomValidationException(nameof(body), "Source stream is not readable.");
-            }
-
-            using var buffer = new MemoryStream();
-            body.CopyTo(buffer);
-            return From(format, buffer.ToArray());
-        }
+        public DynamicSourceBuilder From(SourceFormat format, Stream body) =>
+            new DynamicSourceBuilder(Draft(format, ReadAll(body)));
 
         /// <summary>Reads a file from disk and uses it as the source document.</summary>
-        public ConversionSourceBuilder FromFile(SourceFormat format, string path)
+        public DynamicSourceBuilder FromFile(SourceFormat format, string path)
         {
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -90,49 +60,52 @@ namespace LabelZoom.Sdk.Conversion
         }
 
         /// <summary>Converts from ZPL.</summary>
-        public ConversionSourceBuilder FromZpl(string zpl) => From(SourceFormat.Zpl, zpl);
+        public ZplSourceBuilder FromZpl(string zpl) =>
+            new ZplSourceBuilder(Draft(SourceFormat.Zpl, Utf8(zpl)));
 
         /// <summary>Converts from EPL/EPL2.</summary>
-        public ConversionSourceBuilder FromEpl(string epl) => From(SourceFormat.Epl, epl);
+        public SourceBuilder FromEpl(string epl) => Text(SourceFormat.Epl, epl);
 
         /// <summary>Converts from Intermec IPL.</summary>
-        public ConversionSourceBuilder FromIpl(string ipl) => From(SourceFormat.Ipl, ipl);
+        public SourceBuilder FromIpl(string ipl) => Text(SourceFormat.Ipl, ipl);
 
         /// <summary>Converts from TSPL/TSPL2.</summary>
-        public ConversionSourceBuilder FromTspl(string tspl) => From(SourceFormat.Tspl, tspl);
+        public SourceBuilder FromTspl(string tspl) => Text(SourceFormat.Tspl, tspl);
 
         /// <summary>Converts from DPL.</summary>
-        public ConversionSourceBuilder FromDpl(string dpl) => From(SourceFormat.Dpl, dpl);
+        public SourceBuilder FromDpl(string dpl) => Text(SourceFormat.Dpl, dpl);
 
         /// <summary>Converts from SATO SBPL.</summary>
-        public ConversionSourceBuilder FromSbpl(string sbpl) => From(SourceFormat.Sbpl, sbpl);
+        public SourceBuilder FromSbpl(string sbpl) => Text(SourceFormat.Sbpl, sbpl);
 
         /// <summary>Converts from LabelZoom XML.</summary>
-        public ConversionSourceBuilder FromXml(string xml) => From(SourceFormat.Xml, xml);
+        public SourceBuilder FromXml(string xml) => Text(SourceFormat.Xml, xml);
 
         /// <summary>Converts from LabelZoom JSON.</summary>
-        public ConversionSourceBuilder FromJson(string json) => From(SourceFormat.Json, json);
+        public SourceBuilder FromJson(string json) => Text(SourceFormat.Json, json);
 
         /// <summary>Converts from a PDF document.</summary>
-        public ConversionSourceBuilder FromPdf(byte[] pdf) => From(SourceFormat.Pdf, pdf);
+        public PdfSourceBuilder FromPdf(byte[] pdf) =>
+            new PdfSourceBuilder(Draft(SourceFormat.Pdf, pdf));
 
         /// <summary>Converts from a PDF document.</summary>
-        public ConversionSourceBuilder FromPdf(Stream pdf) => From(SourceFormat.Pdf, pdf);
+        public PdfSourceBuilder FromPdf(Stream pdf) =>
+            new PdfSourceBuilder(Draft(SourceFormat.Pdf, ReadAll(pdf)));
 
         /// <summary>Converts from a PNG image.</summary>
-        public ConversionSourceBuilder FromPng(byte[] png) => From(SourceFormat.Png, png);
+        public ImageSourceBuilder FromPng(byte[] png) => Image(SourceFormat.Png, png);
 
         /// <summary>Converts from a PNG image.</summary>
-        public ConversionSourceBuilder FromPng(Stream png) => From(SourceFormat.Png, png);
+        public ImageSourceBuilder FromPng(Stream png) => Image(SourceFormat.Png, ReadAll(png));
 
         /// <summary>Converts from a BMP image.</summary>
-        public ConversionSourceBuilder FromBmp(byte[] bmp) => From(SourceFormat.Bmp, bmp);
+        public ImageSourceBuilder FromBmp(byte[] bmp) => Image(SourceFormat.Bmp, bmp);
 
         /// <summary>Converts from a GIF image.</summary>
-        public ConversionSourceBuilder FromGif(byte[] gif) => From(SourceFormat.Gif, gif);
+        public ImageSourceBuilder FromGif(byte[] gif) => Image(SourceFormat.Gif, gif);
 
         /// <summary>Converts from a JPEG image.</summary>
-        public ConversionSourceBuilder FromJpeg(byte[] jpeg) => From(SourceFormat.Jpeg, jpeg);
+        public ImageSourceBuilder FromJpeg(byte[] jpeg) => Image(SourceFormat.Jpeg, jpeg);
 
         /// <summary>
         /// Uses a base64-encoded document as the source, sent as <c>text/plain</c>.
@@ -142,7 +115,7 @@ namespace LabelZoom.Sdk.Conversion
         /// as base64 text. Prefer <see cref="From(SourceFormat, byte[])"/> — this exists for
         /// callers whose transport has already base64-encoded the payload for them.
         /// </remarks>
-        public ConversionSourceBuilder FromBase64Text(SourceFormat format, string base64)
+        public DynamicSourceBuilder FromBase64Text(SourceFormat format, string base64)
         {
             if (string.IsNullOrEmpty(base64))
             {
@@ -150,8 +123,8 @@ namespace LabelZoom.Sdk.Conversion
                     nameof(base64), "Base64 body cannot be null or empty.");
             }
 
-            return new ConversionSourceBuilder(
-                _client, format, Encoding.UTF8.GetBytes(base64), "text/plain");
+            return new DynamicSourceBuilder(
+                new ConversionDraft(_client, format, Encoding.UTF8.GetBytes(base64), "text/plain"));
         }
 
         /// <summary>
@@ -161,7 +134,7 @@ namespace LabelZoom.Sdk.Conversion
         /// This performs a server-side fetch of a URL you supply. Validate the URL before passing
         /// it if it came from untrusted input.
         /// </remarks>
-        public ConversionSourceBuilder FromUrl(string url)
+        public DynamicSourceBuilder FromUrl(string url)
         {
             if (string.IsNullOrWhiteSpace(url))
             {
@@ -169,6 +142,57 @@ namespace LabelZoom.Sdk.Conversion
             }
 
             return From(SourceFormat.Url, url);
+        }
+
+        private SourceBuilder Text(SourceFormat format, string body) =>
+            new SourceBuilder(Draft(format, Utf8(body)));
+
+        private ImageSourceBuilder Image(SourceFormat format, byte[] body) =>
+            new ImageSourceBuilder(Draft(format, body));
+
+        private ConversionDraft Draft(SourceFormat format, byte[] body)
+        {
+            if (body is null)
+            {
+                throw new LabelZoomValidationException(nameof(body), "Source body cannot be null.");
+            }
+
+            if (body.Length == 0)
+            {
+                // The gateway rejects a zero-length body with 400. Catching it here saves a round
+                // trip and says something more useful than "Request body is required".
+                throw new LabelZoomValidationException(
+                    nameof(body), "Source body cannot be empty; the API rejects zero-length requests.");
+            }
+
+            return new ConversionDraft(_client, format, body, format.ToMediaType());
+        }
+
+        private static byte[] Utf8(string body)
+        {
+            if (body is null)
+            {
+                throw new LabelZoomValidationException(nameof(body), "Source body cannot be null.");
+            }
+
+            return Encoding.UTF8.GetBytes(body);
+        }
+
+        private static byte[] ReadAll(Stream body)
+        {
+            if (body is null)
+            {
+                throw new LabelZoomValidationException(nameof(body), "Source stream cannot be null.");
+            }
+
+            if (!body.CanRead)
+            {
+                throw new LabelZoomValidationException(nameof(body), "Source stream is not readable.");
+            }
+
+            using var buffer = new MemoryStream();
+            body.CopyTo(buffer);
+            return buffer.ToArray();
         }
     }
 }

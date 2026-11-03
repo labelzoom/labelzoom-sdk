@@ -1,8 +1,5 @@
 export {
   LabelZoomClient,
-  ConversionRequestBuilder,
-  ConversionSourceBuilder,
-  ConversionTargetBuilder,
   DEFAULT_BASE_URL,
   API_KEY_ENV_VAR,
   type LabelZoomClientOptions,
@@ -10,6 +7,22 @@ export {
   type ConvertRequest,
   type ConversionBody,
 } from './client.js';
+
+export {
+  ConversionRequestBuilder,
+  SourceStage,
+  SourceBuilder,
+  ZplSourceBuilder,
+  ImageSourceBuilder,
+  PdfSourceBuilder,
+  DynamicSourceBuilder,
+  TargetStage,
+  TargetBuilder,
+  ZplTargetBuilder,
+  DynamicTargetBuilder,
+  type SplitOptions,
+  type LayoutOptions,
+} from './builders.js';
 
 export {
   SOURCE_FORMATS,
