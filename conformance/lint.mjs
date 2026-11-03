@@ -177,6 +177,19 @@ const SKIP_DIRS = new Set([
   'node_modules', 'bin', 'obj', '.git', 'dist',   // node, .NET, python
   'target', 'vendor', 'pkg', '.bundle', 'coverage', 'tmp',   // rust, ruby, go
 ]);
+// samples/ is hand-written code outside every conformance runner, so the fixtures cannot see
+// it drift. These are the two header rules a copied snippet most often gets wrong.
+const SAMPLE_ACCEPT = /\bAccept\b[^\n]*?["']([\w.+*-]+\/[\w.+*-]+)["']/g;
+const lintSample = (where, text) => {
+  for (const [, value] of text.matchAll(SAMPLE_ACCEPT)) {
+    if (value !== '*/*') {
+      fail(where, `sends Accept: ${value}; rule B2 requires Accept: */* for every target`);
+    }
+  }
+  if (/\/api\/v2\.5\//.test(text)) {
+    fail(where, 'calls /api/v2.5, which is 403 for anonymous callers (rule H1); use /api/v2');
+  }
+};
 const scan = (dir, rel = '') => {
   for (const entry of readdirSync(join(REPO, dir, rel), { withFileTypes: true })) {
     const next = join(rel, entry.name);
@@ -186,12 +199,13 @@ const scan = (dir, rel = '') => {
       // thousands of files under target/, and this scan is the always-required check.
       if (SKIP_DIRS.has(entry.name)) continue;
       scan(dir, next);
-    } else if (/\.(cs|ts|js|mjs|java|py|php|go|rb|rs|json|md|toml|gemspec)$/.test(entry.name)) {
+    } else if (/\.(cs|ts|js|mjs|java|py|php|go|rb|rs|json|md|toml|gemspec|ps1|vb|vbproj|groovy)$/.test(entry.name)) {
       const text = readFileSync(join(REPO, dir, next), 'utf8');
       if (LEGACY_HOSTS.test(text)) {
         fail(join(dir, next), 'references a legacy host (api/www.labelzoom.net); ' +
                               'rule A3 requires api.labelzoom.com');
       }
+      if (dir === 'samples') lintSample(join(dir, next), text);
     }
   }
 };

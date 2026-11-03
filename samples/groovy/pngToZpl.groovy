@@ -8,7 +8,7 @@ def post = new URL('https://api.labelzoom.com/api/v2/convert/png/to/zpl').openCo
 post.setRequestMethod('POST')
 post.setDoOutput(true)
 post.setRequestProperty('Content-Type', 'image/png')
-post.setRequestProperty('Accept', 'text/plain')
+post.setRequestProperty('Accept', '*/*')
 post.getOutputStream().write(file.bytes)
 def postRC = post.getResponseCode()
 if (!postRC.equals(200)) {
