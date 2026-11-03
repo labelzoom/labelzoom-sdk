@@ -2,6 +2,9 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'signing'
+    // Checks the compiled SDK against the Android API, so it stays usable there. See
+    // AndroidCompatibilityTest for the java.net.http half of that guarantee.
+    id 'ru.vyarus.animalsniffer' version '2.0.1'
 }
 
 group = 'com.labelzoom'
@@ -43,6 +46,21 @@ dependencies {
     // Test-only: the conformance runner has to parse the shared fixtures. Keeping this out
     // of the published artifact is the whole point of hand-rolling the writer.
     testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+}
+
+// Android API 26 (8.0), without core library desugaring: java.time, which the SDK's public API
+// uses, starts there. Two references are ignored on purpose:
+//   - java.net.http: only JdkHttpTransport uses it, and an Android app passes its own
+//     transport. AndroidCompatibilityTest pins that, and the R8 rule in META-INF/proguard/
+//     keeps a minified build from failing on the missing classes.
+//   - java.lang.Record: the Android build tools desugar records at every API level.
+dependencies {
+    signature 'com.toasttab.android:gummy-bears-api-26:0.16.0@signature'
+}
+
+animalsniffer {
+    sourceSets = [sourceSets.main]
+    ignore 'java.net.http.*', 'java.lang.Record'
 }
 
 test {

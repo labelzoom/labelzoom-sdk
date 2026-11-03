@@ -104,7 +104,7 @@ public final class ConversionTargetBuilder {
      * {@link LabelZoomForbiddenException#isPaidFeature()} is set.
      */
     public ConversionTargetBuilder withDialect(String dialect) {
-        if (dialect == null || dialect.isBlank()) {
+        if (dialect == null || Compat.isBlank(dialect)) {
             throw new LabelZoomValidationException("dialect", "Dialect cannot be null or blank.");
         }
         params.put("dialect", dialect);
@@ -211,7 +211,7 @@ public final class ConversionTargetBuilder {
      * is a safe forward-compatibility escape hatch.
      */
     public ConversionTargetBuilder withParameter(String key, Object value) {
-        if (key == null || key.isBlank()) {
+        if (key == null || Compat.isBlank(key)) {
             throw new LabelZoomValidationException("params", "Parameter key cannot be null or blank.");
         }
         params.put(key, value);
@@ -220,7 +220,7 @@ public final class ConversionTargetBuilder {
 
     /** Adds a raw query-string parameter alongside {@code params}. */
     public ConversionTargetBuilder withRawQueryParameter(String key, String value) {
-        if (key == null || key.isBlank()) {
+        if (key == null || Compat.isBlank(key)) {
             throw new LabelZoomValidationException(
                     "params", "Query parameter key cannot be null or blank.");
         }
