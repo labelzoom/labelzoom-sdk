@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 87,
+  "caseCount": 90,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -76,7 +76,9 @@
     "response/error-401",
     "response/error-403-not-paid-feature",
     "response/error-403-paid-feature",
+    "response/error-403-paid-feature-problem-json",
     "response/error-413",
+    "response/error-429-problem-json",
     "response/error-429-retry-after",
     "response/error-500",
     "response/error-502-html-body",
@@ -84,6 +86,7 @@
     "response/error-empty-body",
     "response/error-gateway-400",
     "response/error-malformed-json-body",
+    "response/error-problem-json",
     "response/error-spring-404",
     "response/request-id-absent",
     "response/request-id-uppercase-header",
