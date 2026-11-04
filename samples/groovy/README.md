@@ -1,4 +1,4 @@
-![LabelZoom Logo](../docs/LabelZoom_Logo_f_400px.png)
+![LabelZoom Logo](../../docs/LabelZoom_Logo_f_400px.png)
 
 # LabelZoom Groovy Samples
 
