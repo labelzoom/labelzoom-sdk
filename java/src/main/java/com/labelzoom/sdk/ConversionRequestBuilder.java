@@ -56,7 +56,7 @@ public final class ConversionRequestBuilder {
             throw new LabelZoomValidationException("body", "Source stream cannot be null.");
         }
         try {
-            return from(format, body.readAllBytes());
+            return from(format, Compat.readAllBytes(body));
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read the source stream", e);
         }
@@ -165,7 +165,7 @@ public final class ConversionRequestBuilder {
      * <p>Validate the URL before passing it if it came from untrusted input.
      */
     public ConversionSourceBuilder fromUrl(String url) {
-        if (url == null || url.isBlank()) {
+        if (url == null || Compat.isBlank(url)) {
             throw new LabelZoomValidationException("body", "URL cannot be null or blank.");
         }
         return from(SourceFormat.URL, url);

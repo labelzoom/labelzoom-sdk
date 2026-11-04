@@ -5,7 +5,7 @@
 Official Java client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
 between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
 
-**Java 17+. Zero runtime dependencies.**
+**Java 17+, or Android 8.0 (API 26)+. Zero runtime dependencies.**
 
 That second point is deliberate. This SDK gets dropped into WMS, ERP, and TMS deployments whose
 classpaths are already crowded, and a transitive Jackson or Gson is a genuine source of version
@@ -159,6 +159,56 @@ LabelZoomClient.builder()
         .timeout(Duration.ofSeconds(30))
         .build();
 ```
+
+## Android
+
+Android has no `java.net.http`, which the default transport uses, so pass your own
+`HttpTransport`. This one uses [OkHttp](https://square.github.io/okhttp/):
+
+```java
+import com.labelzoom.sdk.HttpTransport;
+import java.io.IOException;
+import okhttp3.OkHttpClient;
+import okhttp3.RequestBody;
+
+final class OkHttpTransport implements HttpTransport {
+
+    private final OkHttpClient client;
+
+    OkHttpTransport(OkHttpClient client) {
+        this.client = client;
+    }
+
+    @Override
+    public Response send(Request request) throws IOException {
+        okhttp3.Request.Builder builder = new okhttp3.Request.Builder()
+                .url(request.uri())
+                // No media type here: the SDK sets Content-Type itself, below.
+                .post(RequestBody.create(request.body(), null));
+        request.headers().forEach(builder::header);
+
+        try (okhttp3.Response response = client.newCall(builder.build()).execute()) {
+            return new Response(
+                    response.code(), response.headers().toMultimap(), response.body().bytes());
+        }
+    }
+}
+```
+
+```java
+LabelZoomClient client = LabelZoomClient.builder()
+        .apiKey("lz_live_...")   // Android has no LABELZOOM_API_KEY environment variable
+        .transport(new OkHttpTransport(new OkHttpClient()))
+        .build();
+```
+
+- Set timeouts on the `OkHttpClient`. `LabelZoomClient.Builder.timeout` applies only to the
+  default transport.
+- `execute()` blocks, so call it off the main thread.
+- Your app needs the `android.permission.INTERNET` permission.
+- No R8 or ProGuard rule is needed. The jar ships one that covers the default transport's
+  `java.net.http` references.
+- Core library desugaring isn't needed.
 
 ## Testing your own code
 
