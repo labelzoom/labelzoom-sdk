@@ -45,7 +45,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // Test-only: the conformance runner has to parse the shared fixtures. Keeping this out
     // of the published artifact is the whole point of hand-rolling the writer.
-    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind:2.22.4'
 }
 
 // Android API 26 (8.0), without core library desugaring: java.time, which the SDK's public API

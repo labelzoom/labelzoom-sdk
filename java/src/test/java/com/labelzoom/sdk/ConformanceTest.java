@@ -118,7 +118,7 @@ class ConformanceTest {
 
         Map<String, String> headers = lowercaseHeaders(request.headers());
         if (expect.has("headers")) {
-            expect.get("headers").fields().forEachRemaining(e ->
+            expect.get("headers").properties().forEach(e ->
                     assertEquals(e.getValue().asText(), headers.get(e.getKey().toLowerCase()),
                             "header " + e.getKey()));
         }
@@ -127,7 +127,7 @@ class ConformanceTest {
                     "header " + absent.asText() + " must be absent");
         }
         if (expect.has("headersMatch")) {
-            expect.get("headersMatch").fields().forEachRemaining(e -> {
+            expect.get("headersMatch").properties().forEach(e -> {
                 String value = headers.get(e.getKey().toLowerCase());
                 assertNotNull(value, "header " + e.getKey());
                 assertTrue(java.util.regex.Pattern.compile(e.getValue().asText()).matcher(value).find(),
@@ -135,7 +135,7 @@ class ConformanceTest {
             });
         }
         if (expect.has("headersNotMatch")) {
-            expect.get("headersNotMatch").fields().forEachRemaining(e -> {
+            expect.get("headersNotMatch").properties().forEach(e -> {
                 String value = headers.get(e.getKey().toLowerCase());
                 if (value != null) {
                     assertFalse(java.util.regex.Pattern.compile(e.getValue().asText()).matcher(value).find(),
@@ -146,7 +146,7 @@ class ConformanceTest {
 
         Map<String, String> query = parseQuery(uri.getRawQuery());
         if (expect.has("queryJson")) {
-            Iterator<Map.Entry<String, JsonNode>> it = expect.get("queryJson").fields();
+            Iterator<Map.Entry<String, JsonNode>> it = expect.get("queryJson").properties().iterator();
             while (it.hasNext()) {
                 Map.Entry<String, JsonNode> entry = it.next();
                 String raw = query.get(entry.getKey());
@@ -161,7 +161,7 @@ class ConformanceTest {
             assertNull(query.get(absent.asText()), "query parameter " + absent.asText());
         }
         if (expect.has("queryJsonAbsentKeys")) {
-            Iterator<Map.Entry<String, JsonNode>> it = expect.get("queryJsonAbsentKeys").fields();
+            Iterator<Map.Entry<String, JsonNode>> it = expect.get("queryJsonAbsentKeys").properties().iterator();
             while (it.hasNext()) {
                 Map.Entry<String, JsonNode> entry = it.next();
                 JsonNode actual = parse(query.get(entry.getKey()));
@@ -299,7 +299,7 @@ class ConformanceTest {
         // a lookup, so a real key in the developer's shell can never change a result.
         Map<String, String> environment = new LinkedHashMap<>();
         if (given.has("env")) {
-            given.get("env").fields().forEachRemaining(e -> environment.put(e.getKey(), e.getValue().asText()));
+            given.get("env").properties().forEach(e -> environment.put(e.getKey(), e.getValue().asText()));
         }
         builder.environmentLookup(environment::get);
 
@@ -340,7 +340,7 @@ class ConformanceTest {
             return builder;
         }
 
-        Iterator<Map.Entry<String, JsonNode>> it = given.get("options").fields();
+        Iterator<Map.Entry<String, JsonNode>> it = given.get("options").properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> option = it.next();
             JsonNode v = option.getValue();
@@ -413,7 +413,7 @@ class ConformanceTest {
         }
         Map<String, List<String>> headers = new LinkedHashMap<>();
         if (node.has("headers")) {
-            node.get("headers").fields().forEachRemaining(e ->
+            node.get("headers").properties().forEach(e ->
                     headers.put(e.getKey(), List.of(e.getValue().asText())));
         }
         byte[] body;
@@ -491,7 +491,7 @@ class ConformanceTest {
         if (expected.isObject()) {
             assertTrue(actual.isObject(), path + ": expected an object");
             assertEquals(expected.size(), actual.size(), path + ": property count");
-            expected.fields().forEachRemaining(e -> {
+            expected.properties().forEach(e -> {
                 assertTrue(actual.has(e.getKey()), path + "." + e.getKey() + " is missing");
                 assertJsonEquivalent(e.getValue(), actual.get(e.getKey()), path + "." + e.getKey());
             });
