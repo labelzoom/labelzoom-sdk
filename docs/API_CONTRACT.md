@@ -193,10 +193,27 @@ Defined **once** per language. Never inlined at a call site.
 - **E1** Every non-2xx response becomes a typed error. The response body is **never** discarded;
   it carries the server's error detail.
 - **E2** Message extraction, in order:
-  1. JSON `.message` — covers both the gateway shape `{"message": "..."}` and the Spring shape
-     `{"timestamp","status","error","message","path"}`
+  1. JSON `.message` (top-level)
   2. raw body text, truncated to 512 characters
   3. the HTTP reason phrase
+
+  > The API's error body is an RFC 9457 problem document, sent as `application/problem+json`:
+  >
+  > ```json
+  > { "type": "about:blank", "title": "Bad Request", "status": 400,
+  >   "detail": "Query parameter 'params' is not valid JSON",
+  >   "instance": "/api/v2/convert/zpl/to/pdf",
+  >   "message": "Query parameter 'params' is not valid JSON",
+  >   "requestId": "..." }
+  > ```
+  >
+  > `message` is a permanent extension member equal to `detail`, so step 1 covers it, and it is
+  > written before any other extension member. Do not branch on the `application/problem+json`
+  > media type: parse any JSON error body the same way.
+  >
+  > Older servers send `{"message": "..."}` or `{"timestamp","status","error","message","path"}`,
+  > and step 1 covers both. Keep handling them, because a deployment can lag behind the newest
+  > shape. The `response/error-*` fixtures pin every shape.
 - **E3** Errors carry `status`, `message`, `requestId`, and `rawBody`. A 429 additionally carries
   `retryAfterSeconds`, parsed from `Retry-After`.
 - **E4** Status maps to type:
@@ -296,11 +313,13 @@ Unknown keys are ignored server-side, so a forward-compatible escape hatch costs
 ## 6. Rate limiting
 
 The gateway rate-limits on two independent keys — client IP, and the credential when present.
-On breach it returns **429** with `Retry-After: 60` and body
-`{"error":"Too many requests. Please try again later."}`.
+On breach it returns **429** with `Retry-After: 60` and a problem document whose `message` (and
+`detail`) is `Too many requests. Please try again later.` The body also carries `error` with the
+same text, for older readers.
 
-Note that this body uses `error`, not `message`. **E2**'s extraction order falls through to the raw
-body here, which is correct and intended — do not special-case it.
+Older servers send `{"error":"Too many requests. Please try again later."}` with no `message`.
+**E2**'s extraction order falls through to the raw body there, which is correct and intended. Do
+not special-case either shape (`response/error-429-problem-json`, `response/error-429-retry-after`).
 
 ---
 
