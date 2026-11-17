@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace LabelZoom\Sdk;
 
 use LabelZoom\Sdk\Exception\ValidationException;
+use LabelZoom\Sdk\Internal\ConversionDraft;
 
 /**
- * Chooses the source document.
+ * Chooses the source document. Returned by `LabelZoomClient::convert()`.
  *
- * There is one source builder and one target builder for all 13 x 8 format combinations, not a
- * class per format. The named `from*` methods are one-line delegations to
- * {@see self::from()}: they exist for discoverability and, holding no logic of their own, cannot
- * drift away from the format table.
+ * A named `from*` method returns a source stage typed for that format, so only the options that
+ * apply to it are offered: `fromPdf()` returns a {@see PdfSourceBuilder} with `withPage()`, which
+ * `fromZpl()` doesn't have. The methods that take a {@see SourceFormat} pick the format at run time
+ * and return a {@see DynamicSourceBuilder}, which offers every source option. No subclass knows a
+ * format: it is fixed here, once, and every option is written by one shared function (contract
+ * section 1.2).
  */
 final class ConversionRequestBuilder
 {
@@ -27,7 +30,12 @@ final class ConversionRequestBuilder
      * PHP strings are byte strings, so this is equally correct for ZPL text and for the contents
      * of a PDF.
      */
-    public function from(SourceFormat $format, string $body): ConversionSourceBuilder
+    public function from(SourceFormat $format, string $body): DynamicSourceBuilder
+    {
+        return new DynamicSourceBuilder($this->draft($format, $body));
+    }
+
+    private function draft(SourceFormat $format, string $body): ConversionDraft
     {
         if ($body === '') {
             // The gateway rejects a zero-length body with 400. Catching it here saves a round trip
@@ -38,11 +46,11 @@ final class ConversionRequestBuilder
             );
         }
 
-        return new ConversionSourceBuilder($this->client, $format, $body, $format->mediaType());
+        return new ConversionDraft($this->client, $format, $body, $format->mediaType());
     }
 
     /** Reads a file from disk and uses it as the source document. */
-    public function fromFile(SourceFormat $format, string $path): ConversionSourceBuilder
+    public function fromFile(SourceFormat $format, string $path): DynamicSourceBuilder
     {
         $contents = @file_get_contents($path);
         if ($contents === false) {
@@ -60,7 +68,7 @@ final class ConversionRequestBuilder
      *
      * @param resource $stream
      */
-    public function fromStream(SourceFormat $format, $stream): ConversionSourceBuilder
+    public function fromStream(SourceFormat $format, $stream): DynamicSourceBuilder
     {
         if (!is_resource($stream)) {
             throw new ValidationException('body', 'Source stream is not a valid resource.');
@@ -80,91 +88,91 @@ final class ConversionRequestBuilder
      * base64 text. Prefer {@see self::from()}; this exists for callers whose transport has already
      * base64-encoded the payload.
      */
-    public function fromBase64Text(SourceFormat $format, string $base64): ConversionSourceBuilder
+    public function fromBase64Text(SourceFormat $format, string $base64): DynamicSourceBuilder
     {
         if ($base64 === '') {
             throw new ValidationException('body', 'Base64 body cannot be empty.');
         }
 
-        return new ConversionSourceBuilder($this->client, $format, $base64, 'text/plain');
+        return new DynamicSourceBuilder(new ConversionDraft($this->client, $format, $base64, 'text/plain'));
     }
 
     /** Converts from ZPL. */
-    public function fromZpl(string $zpl): ConversionSourceBuilder
+    public function fromZpl(string $zpl): ZplSourceBuilder
     {
-        return $this->from(SourceFormat::Zpl, $zpl);
+        return new ZplSourceBuilder($this->draft(SourceFormat::Zpl, $zpl));
     }
 
     /** Converts from EPL/EPL2. */
-    public function fromEpl(string $epl): ConversionSourceBuilder
+    public function fromEpl(string $epl): PrinterLanguageSourceBuilder
     {
-        return $this->from(SourceFormat::Epl, $epl);
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Epl, $epl));
     }
 
     /** Converts from Intermec IPL. */
-    public function fromIpl(string $ipl): ConversionSourceBuilder
+    public function fromIpl(string $ipl): PrinterLanguageSourceBuilder
     {
-        return $this->from(SourceFormat::Ipl, $ipl);
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Ipl, $ipl));
     }
 
     /** Converts from TSPL/TSPL2. */
-    public function fromTspl(string $tspl): ConversionSourceBuilder
+    public function fromTspl(string $tspl): PrinterLanguageSourceBuilder
     {
-        return $this->from(SourceFormat::Tspl, $tspl);
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Tspl, $tspl));
     }
 
     /** Converts from DPL. */
-    public function fromDpl(string $dpl): ConversionSourceBuilder
+    public function fromDpl(string $dpl): PrinterLanguageSourceBuilder
     {
-        return $this->from(SourceFormat::Dpl, $dpl);
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Dpl, $dpl));
     }
 
     /** Converts from SATO SBPL. */
-    public function fromSbpl(string $sbpl): ConversionSourceBuilder
+    public function fromSbpl(string $sbpl): PrinterLanguageSourceBuilder
     {
-        return $this->from(SourceFormat::Sbpl, $sbpl);
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Sbpl, $sbpl));
     }
 
     /** Converts from LabelZoom XML. */
-    public function fromXml(string $xml): ConversionSourceBuilder
+    public function fromXml(string $xml): SourceBuilder
     {
-        return $this->from(SourceFormat::Xml, $xml);
+        return new SourceBuilder($this->draft(SourceFormat::Xml, $xml));
     }
 
     /** Converts from LabelZoom JSON. */
-    public function fromJson(string $json): ConversionSourceBuilder
+    public function fromJson(string $json): SourceBuilder
     {
-        return $this->from(SourceFormat::Json, $json);
+        return new SourceBuilder($this->draft(SourceFormat::Json, $json));
     }
 
     /** Converts from a PDF document. */
-    public function fromPdf(string $pdf): ConversionSourceBuilder
+    public function fromPdf(string $pdf): PdfSourceBuilder
     {
-        return $this->from(SourceFormat::Pdf, $pdf);
+        return new PdfSourceBuilder($this->draft(SourceFormat::Pdf, $pdf));
     }
 
     /** Converts from a PNG image. */
-    public function fromPng(string $png): ConversionSourceBuilder
+    public function fromPng(string $png): ImageSourceBuilder
     {
-        return $this->from(SourceFormat::Png, $png);
+        return new ImageSourceBuilder($this->draft(SourceFormat::Png, $png));
     }
 
     /** Converts from a BMP image. */
-    public function fromBmp(string $bmp): ConversionSourceBuilder
+    public function fromBmp(string $bmp): ImageSourceBuilder
     {
-        return $this->from(SourceFormat::Bmp, $bmp);
+        return new ImageSourceBuilder($this->draft(SourceFormat::Bmp, $bmp));
     }
 
     /** Converts from a GIF image. */
-    public function fromGif(string $gif): ConversionSourceBuilder
+    public function fromGif(string $gif): ImageSourceBuilder
     {
-        return $this->from(SourceFormat::Gif, $gif);
+        return new ImageSourceBuilder($this->draft(SourceFormat::Gif, $gif));
     }
 
     /** Converts from a JPEG image. */
-    public function fromJpeg(string $jpeg): ConversionSourceBuilder
+    public function fromJpeg(string $jpeg): ImageSourceBuilder
     {
-        return $this->from(SourceFormat::Jpeg, $jpeg);
+        return new ImageSourceBuilder($this->draft(SourceFormat::Jpeg, $jpeg));
     }
 
     /**
@@ -173,7 +181,7 @@ final class ConversionRequestBuilder
      * This hands a caller-supplied URL to a server-side fetch. Validate it first if it came from
      * untrusted input.
      */
-    public function fromUrl(string $url): ConversionSourceBuilder
+    public function fromUrl(string $url): DynamicSourceBuilder
     {
         if (trim($url) === '') {
             throw new ValidationException('body', 'URL cannot be empty.');

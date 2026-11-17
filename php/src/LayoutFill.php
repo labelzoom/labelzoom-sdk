@@ -6,7 +6,7 @@ namespace LabelZoom\Sdk;
 
 /**
  * How pages fill the columns of a multi-column row, when
- * {@see ConversionTargetBuilder::withLayout()} puts more than one label across. The server
+ * {@see ZplTargetBuilder::withLayout()} puts more than one label across. The server
  * default is {@see self::Sequential}.
  */
 enum LayoutFill: string

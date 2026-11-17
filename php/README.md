@@ -40,9 +40,9 @@ $client = new LabelZoomClient();            // anonymous; this works
 
 $result = $client->convert()
     ->fromZpl('^XA^FO20,20^A0N,28^FDHello^FS^XZ')
+        ->withLabelSize(widthInches: 4, heightInches: 6)
     ->toPng()
-    ->withTargetDpi(300)
-    ->withLabelSize(widthInches: 4, heightInches: 6)
+        ->withDpi(300)
     ->execute();
 
 $result->save('label.png');
@@ -60,6 +60,38 @@ different, so a config value that resolves to empty cannot silently pick up an u
 
 The client is stateless once constructed and safe to keep for the life of the process. Create one
 per application, not one per request.
+
+A conversion is built in two stages. `from*` picks the source and returns the **source stage**,
+where you set options that change how the source is read. `to*` picks the target and returns the
+**target stage**, where you set options that change the output and then call `execute()`. Each
+stage offers only the options that act on its side, and a named `from*` or `to*` offers only the
+options for that format, so `fromZpl($zpl)->withPage(0)` fails static analysis.
+
+A Letter sheet of four labels, printed two across on a 2-up roll:
+
+```php
+use LabelZoom\Sdk\LayoutOptions;
+use LabelZoom\Sdk\SplitOptions;
+
+$result = $client->convert()
+    ->fromPdf($sheet)
+        ->withSplit(fn (SplitOptions $s) => $s->rows(2)->columns(2)->skipBlank())
+    ->toZpl()
+        ->withLayout(fn (LayoutOptions $l) => $l->across(2)->gap(0.125))   // inches
+    ->execute();
+```
+
+To move a label made for a 300 dpi printer to a 203 dpi one at the same physical size, set the
+resolution on both stages:
+
+```php
+$result = $client->convert()
+    ->fromZpl($zplFor300Dpi)
+        ->withDpi(300)                 // what the job was made for
+    ->toZpl()
+        ->withDpi(203)                 // the printer it's going to
+    ->execute();
+```
 
 ## Formats
 
@@ -100,32 +132,64 @@ first if it came from untrusted input.
 
 Every `with*` call maps to one field of the API's `?params=` object.
 
-| Method | Notes |
+### Source stage
+
+Set after `from*`, before `to*`.
+
+| Method | On | Notes |
+|---|---|---|
+| `withDpi(int)` | printer-language and image sources | the resolution the job or image was made for; server default 203 |
+| `withLabelSize(float, float)` | every source | **inches**, not dots; replaces the size the source declares |
+| `withLabelIndex(int)` | every source | **0-based**; converts only this label, on every plan |
+| `withData(array)` | every source | one label per record |
+| `withPage(int)` | `fromPdf` | **0-based**; omit to convert every page |
+| `withConversionMode(PdfConversionMode)` | `fromPdf` | `Image` (default) or `Native` |
+| `withSplit(fn (SplitOptions $s) => …)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | ZPL target, `IMAGE` mode: cut each page into a grid of labels. `rows`, `columns`, `labelSize`, `margins`, `gaps` (all **inches**), `skipBlank` |
+| `withRaster(fn (RasterOptions $r) => …)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | how the picture is rasterized. `scaling` (percent), `position` (output dots from the label's top-left; negative crops), `darkness` (0–100, default 70), `colorMode` (`Grayscale` dithers, the default) |
+| `withCommandsToIgnore(array)` | `fromZpl` | e.g. `['^PQ']` |
+
+### Target stage
+
+Set after `to*`, before `execute()`.
+
+| Method | On | Notes |
+|---|---|---|
+| `withDpi(int)` | every target but `toPdf` | the resolution of the output; server default is the source's, else 203 |
+| `withRotation(int)` | every target | must be a multiple of 90; rejected locally otherwise |
+| `withWatermark(bool)` | every target | forced on for the free tier regardless |
+| `withDialect(string)` | every target | e.g. `'moca'`; **paid** |
+| `withParameter(string, mixed)` | every target | anything not modeled yet; sent as-is |
+| `withImageCompression(ZplImageCompression)` | `toZpl` | `Z64` (default) or `CompressedHex` |
+| `withCollapseCopies(bool)` | `toZpl` | image or PDF source: each run of identical labels becomes one label with a `^PQ` count |
+| `withLayout(fn (LayoutOptions $l) => …)` | `toZpl` | image or PDF source, `IMAGE` mode: labels side by side per row. `across`, `gap` (**inches**), `fill` (`Sequential` or `Repeat`) |
+| `withColorMode(ColorMode)`, `withDarkness(int)` | `toPng`, `toBmp`, `toGif`, `toJpeg` | `Bw` renders black and white at the darkness threshold; anything else renders in color |
+
+### Formats chosen at run time
+
+`from()`, `fromFile()`, `fromStream()`, `fromBase64Text()` and `fromUrl()` return a
+`DynamicSourceBuilder`, and `to(TargetFormat)` returns a `DynamicTargetBuilder`. Static analysis
+can't know the format there, so they offer every option, named with the format it applies to:
+`withPdfPage`, `withPdfConversionMode`, `withZplCommandsToIgnore`, `withZplImageCompression` and
+`withZplCollapseCopies`, plus `withRaster`, `withColorMode` and `withDarkness`. The server ignores
+an option that doesn't apply to the format.
+
+### Migrating from 1.x
+
+In 1.x every option was set after `to*`. In 2.0, move the source options before it.
+
+| 1.x | 2.0 |
 |---|---|
-| `withSourceDpi(int)` | the resolution the job or image was made for; server default 203 |
-| `withTargetDpi(int)` | the resolution of the output; server default is the source's, else 203. Not for a PDF target |
-| `withRotation(int)` | must be a multiple of 90; rejected locally otherwise |
-| `withScaling(float)` | percent, server default 100 |
-| `withColorMode(ColorMode)` | `Bw`, `Grayscale` (default), `Color` |
-| `withDarkness(int)` | 0–100, server default 70 |
-| `withPosition(int $x, int $y)` | pixel offset of the extracted region |
-| `withWatermark(bool)` | forced on for the free tier regardless |
-| `withDialect(string)` | e.g. `'moca'`; **paid** |
-| `withLabelSize(float, float)` | **inches**, not dots |
-| `withPdfConversionMode(PdfConversionMode)` | `Image` (default) or `Native` |
-| `withPdfPage(int)` | **0-based**; omit to convert every page |
-| `withZplCommandsToIgnore(array)` | e.g. `['^PQ']` |
-| `withZplImageCompression(ZplImageCompression)` | `Z64` (default) or `CompressedHex` |
-| `withZplCollapseCopies(bool)` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
-| `withLayout(int, float)` | image or PDF to ZPL, `IMAGE` mode: labels across each row, and the gap between them in **inches** |
-| `withLayoutFill(LayoutFill)` | `Sequential` (default) or `Repeat` |
-| `withSplit(int, int)` | image or PDF to ZPL, `IMAGE` mode: cut each page into rows × columns of labels |
-| `withSplitLabelSize(float, float)` | one label on the page, in **inches**; omit to divide the page equally |
-| `withSplitMargins(float, float)`, `withSplitGaps(float, float)` | left/top margin and column/row gaps on the page, in **inches** |
-| `withSplitSkipBlank(bool)` | leave out labels with nothing printable |
-| `withLabelIndex(int)` | **0-based**; converts only this label, on every plan |
-| `withData(array)` | one label per record |
-| `withParameter(string, mixed)` | anything not modeled yet; sent as-is |
+| `->toZpl()->withPdfPage(0)` | `->fromPdf($pdf)->withPage(0)->toZpl()` |
+| `->withPdfConversionMode($m)` | `->fromPdf($pdf)->withConversionMode($m)` |
+| `->withZplCommandsToIgnore(['^PQ'])` | `->fromZpl($zpl)->withCommandsToIgnore(['^PQ'])` |
+| `->withLabelSize($w, $h)`, `->withLabelIndex($i)`, `->withData(...)` | same name, before `to*` |
+| `->withZplImageCompression($c)` | `->toZpl()->withImageCompression($c)` |
+| `->withDpi($d)`, which set both resolutions | `->withDpi($d)` on the target stage for the output; add it on the source stage too if the job was made for `$d` |
+| `->withScaling($p)`, `->withPosition($x, $y)` | `->fromPdf($pdf)->withRaster(fn (RasterOptions $r) => $r->scaling($p)->position($x, $y))`, or `fromPng()` and the other images |
+| `->withDarkness($d)`, `->withColorMode($m)` | in `withRaster()` for an image or PDF source; on `toPng()` and the other image targets for black-and-white output |
+| `->withLayout($across, $gap)`, `->withLayoutFill($f)` | `->toZpl()->withLayout(fn (LayoutOptions $l) => $l->across($across)->gap($gap)->fill($f))` |
+| `->withSplit($r, $c)` and the other `withSplit*` | `->withSplit(fn (SplitOptions $s) => $s->rows($r)->columns($c)...)` on the image or PDF source |
+| `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
 to a server default reaches you without an SDK upgrade.
@@ -136,11 +200,11 @@ rejected. **Each record produces one label.**
 ```php
 $result = $client->convert()
     ->fromZpl($template)
+        ->withData([
+            ['sku' => 'A-1', 'qty' => 12],
+            ['sku' => 'B-2', 'qty' => 4],
+        ])
     ->toPdf()
-    ->withData([
-        ['sku' => 'A-1', 'qty' => 12],
-        ['sku' => 'B-2', 'qty' => 4],
-    ])
     ->execute();                       // a 2-page PDF
 ```
 
