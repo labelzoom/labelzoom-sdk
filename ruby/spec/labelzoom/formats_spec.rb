@@ -38,7 +38,9 @@ RSpec.describe LabelZoom::Formats do
   # compile error. Ruby's equivalent is that the target set is strictly narrower than the
   # source set, checked on every call.
   it "does not accept every source as a target" do
-    expect(LabelZoom::SOURCE_FORMATS - LabelZoom::TARGET_FORMATS).to contain_exactly(:jpg, :url)
+    expect(LabelZoom::SOURCE_FORMATS - LabelZoom::TARGET_FORMATS).to contain_exactly(
+      :esclabel, :fingerprint, :ezpl, :tpcl, :nlbl, :lbl, :btw, :dymo, :jpg, :url
+    )
   end
 
   # Positive controls. The printer languages became TARGETS in contract 1.1.0, when the
@@ -46,7 +48,7 @@ RSpec.describe LabelZoom::Formats do
   # removed. A rejection test with no positive control would pass just as happily if
   # target! rejected everything.
   it "accepts the printer languages as targets" do
-    %i[epl ipl tspl dpl sbpl].each do |format|
+    %i[epl ipl tspl dpl sbpl cpcl].each do |format|
       expect(described_class.target!(format)).to eq(format)
     end
   end

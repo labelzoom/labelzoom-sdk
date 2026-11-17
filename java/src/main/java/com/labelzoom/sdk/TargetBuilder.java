@@ -1,6 +1,6 @@
 package com.labelzoom.sdk;
 
-/** The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON. */
+/** The target stage for EPL, IPL, TSPL, DPL, SBPL, CPCL, LabelZoom XML and LabelZoom JSON. */
 public final class TargetBuilder extends TargetStage<TargetBuilder> {
 
     TargetBuilder(ConversionDraft draft, TargetFormat target) {

@@ -7,7 +7,7 @@ namespace LabelZoom\Sdk;
 use LabelZoom\Sdk\Internal\ParameterWriters;
 
 /**
- * The source stage for a ZPL document.
+ * The source stage for a ZPL or ESC/Label document.
  */
 final class ZplSourceBuilder extends SourceStage
 {

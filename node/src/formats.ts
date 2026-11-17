@@ -12,6 +12,24 @@ export type SourceFormat =
   | 'tspl'
   | 'dpl'
   | 'sbpl'
+  /** Epson ColorWorks ESC/Label, a dialect of ZPL. */
+  | 'esclabel'
+  /** Honeywell/Intermec Fingerprint and Direct Protocol. */
+  | 'fingerprint'
+  /** GoDEX EZPL. Not an EPL dialect. */
+  | 'ezpl'
+  /** Zebra CPCL, for Zebra mobile printers. */
+  | 'cpcl'
+  /** Toshiba TEC TPCL. */
+  | 'tpcl'
+  /** A NiceLabel or ZebraDesigner 3 `.nlbl` design file. Binary. */
+  | 'nlbl'
+  /** A NiceLabel `.lbl` design file. Binary. */
+  | 'lbl'
+  /** A BarTender `.btw` design file. Binary. */
+  | 'btw'
+  /** A DYMO Label `.label` or `.dymo` design file (XML). */
+  | 'dymo'
   | 'xml'
   | 'json'
   | 'pdf'
@@ -45,6 +63,7 @@ export type TargetFormat =
   | 'tspl'
   | 'dpl'
   | 'sbpl'
+  | 'cpcl'
   | 'xml'
   | 'json'
   | 'pdf'
@@ -55,11 +74,12 @@ export type TargetFormat =
 
 export const SOURCE_FORMATS: readonly SourceFormat[] = [
   'zpl', 'epl', 'ipl', 'tspl', 'dpl', 'sbpl',
+  'esclabel', 'fingerprint', 'ezpl', 'cpcl', 'tpcl', 'nlbl', 'lbl', 'btw', 'dymo',
   'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg', 'jpg', 'url',
 ];
 
 export const TARGET_FORMATS: readonly TargetFormat[] = [
-  'zpl', 'epl', 'ipl', 'tspl', 'dpl', 'sbpl',
+  'zpl', 'epl', 'ipl', 'tspl', 'dpl', 'sbpl', 'cpcl',
   'xml', 'json', 'pdf', 'png', 'bmp', 'gif', 'jpeg',
 ];
 
@@ -77,6 +97,15 @@ const SOURCE_MEDIA_TYPES: Record<SourceFormat, string> = {
   tspl: 'text/plain',
   dpl: 'text/plain',
   sbpl: 'text/plain',
+  esclabel: 'text/plain',
+  fingerprint: 'text/plain',
+  ezpl: 'text/plain',
+  cpcl: 'text/plain',
+  tpcl: 'text/plain',
+  nlbl: 'application/octet-stream',
+  lbl: 'application/octet-stream',
+  btw: 'application/octet-stream',
+  dymo: 'application/xml',
   xml: 'application/xml',
   json: 'application/json',
   pdf: 'application/pdf',

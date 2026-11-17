@@ -133,6 +133,60 @@ final class ConversionRequestBuilder
         return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Sbpl, $sbpl));
     }
 
+    /** Converts from Epson ColorWorks ESC/Label. A dialect of ZPL, so it takes the ZPL source options. */
+    public function fromEscLabel(string $escLabel): ZplSourceBuilder
+    {
+        return new ZplSourceBuilder($this->draft(SourceFormat::EscLabel, $escLabel));
+    }
+
+    /** Converts from Honeywell/Intermec Fingerprint or Direct Protocol. */
+    public function fromFingerprint(string $fingerprint): PrinterLanguageSourceBuilder
+    {
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Fingerprint, $fingerprint));
+    }
+
+    /** Converts from GoDEX EZPL. */
+    public function fromEzpl(string $ezpl): PrinterLanguageSourceBuilder
+    {
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Ezpl, $ezpl));
+    }
+
+    /** Converts from Zebra CPCL. */
+    public function fromCpcl(string $cpcl): PrinterLanguageSourceBuilder
+    {
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Cpcl, $cpcl));
+    }
+
+    /** Converts from Toshiba TEC TPCL. */
+    public function fromTpcl(string $tpcl): PrinterLanguageSourceBuilder
+    {
+        return new PrinterLanguageSourceBuilder($this->draft(SourceFormat::Tpcl, $tpcl));
+    }
+
+    /** Converts from a NiceLabel or ZebraDesigner 3 `.nlbl` file. Pass the file's bytes. */
+    public function fromNlbl(string $nlbl): SourceBuilder
+    {
+        return new SourceBuilder($this->draft(SourceFormat::Nlbl, $nlbl));
+    }
+
+    /** Converts from a NiceLabel `.lbl` file. Pass the file's bytes. */
+    public function fromLbl(string $lbl): SourceBuilder
+    {
+        return new SourceBuilder($this->draft(SourceFormat::Lbl, $lbl));
+    }
+
+    /** Converts from a BarTender `.btw` file. Pass the file's bytes. */
+    public function fromBtw(string $btw): SourceBuilder
+    {
+        return new SourceBuilder($this->draft(SourceFormat::Btw, $btw));
+    }
+
+    /** Converts from a DYMO Label `.label` or `.dymo` file. */
+    public function fromDymo(string $dymo): SourceBuilder
+    {
+        return new SourceBuilder($this->draft(SourceFormat::Dymo, $dymo));
+    }
+
     /** Converts from LabelZoom XML. */
     public function fromXml(string $xml): SourceBuilder
     {

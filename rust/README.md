@@ -3,7 +3,8 @@
 # LabelZoom Rust SDK
 
 Official Rust client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 Rust 1.85+. Blocking, with a rustls-backed HTTP stack — no async runtime, and no OpenSSL headers
 needed to build it anywhere.
@@ -68,10 +69,14 @@ conformance suite proves. See [API_CONTRACT.md §9](../docs/API_CONTRACT.md#9-di
 
 ## Formats
 
-**Sources:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
-`Jpg` `Url`
+**Sources:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `EscLabel` `Fingerprint` `Ezpl` `Cpcl` `Tpcl`
+`Nlbl` `Lbl` `Btw` `Dymo` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg` `Jpg` `Url`
 
-**Targets:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+**Targets:** `Zpl` `Epl` `Ipl` `Tspl` `Dpl` `Sbpl` `Cpcl` `Xml` `Json` `Pdf` `Png` `Bmp` `Gif` `Jpeg`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `SourceFormat` and `TargetFormat` are separate enums. `SourceFormat::Jpg` is an input spelling
 that normalizes to `jpeg` on the wire, and `SourceFormat::Url` tells the server to go fetch a

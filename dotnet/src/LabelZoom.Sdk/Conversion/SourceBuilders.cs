@@ -3,8 +3,8 @@ using System;
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// The source stage for LabelZoom XML and LabelZoom JSON. They record their own resolution, so there is
-    /// no <c>WithDpi</c>.
+    /// The source stage for LabelZoom XML and JSON, NiceLabel, BarTender and DYMO. They measure in
+    /// physical units or record their own resolution, so there is no <c>WithDpi</c>.
     /// </summary>
     public sealed class SourceBuilder : SourceStage<SourceBuilder>
     {
@@ -14,7 +14,9 @@ namespace LabelZoom.Sdk.Conversion
         }
     }
 
-    /// <summary>The source stage for EPL, IPL, TSPL, DPL and SBPL.</summary>
+    /// <summary>
+    /// The source stage for EPL, IPL, TSPL, DPL, SBPL, Fingerprint, EZPL, CPCL and TPCL.
+    /// </summary>
     public sealed class PrinterLanguageSourceBuilder : SourceStage<PrinterLanguageSourceBuilder>
     {
         internal PrinterLanguageSourceBuilder(ConversionDraft draft)
@@ -33,7 +35,7 @@ namespace LabelZoom.Sdk.Conversion
         }
     }
 
-    /// <summary>The source stage for a ZPL document.</summary>
+    /// <summary>The source stage for a ZPL or ESC/Label document.</summary>
     public sealed class ZplSourceBuilder : SourceStage<ZplSourceBuilder>
     {
         internal ZplSourceBuilder(ConversionDraft draft)

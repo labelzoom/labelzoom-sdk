@@ -133,6 +133,66 @@ public final class ConversionRequestBuilder {
         return new PrinterLanguageSourceBuilder(validated(SourceFormat.SBPL, utf8(sbpl)));
     }
 
+    /** Converts from Epson ColorWorks ESC/Label. A dialect of ZPL, so it takes the ZPL source options. */
+    public ZplSourceBuilder fromEscLabel(String escLabel) {
+        return new ZplSourceBuilder(validated(SourceFormat.ESCLABEL, utf8(escLabel)));
+    }
+
+    /** Converts from Honeywell/Intermec Fingerprint or Direct Protocol. */
+    public PrinterLanguageSourceBuilder fromFingerprint(String fingerprint) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.FINGERPRINT, utf8(fingerprint)));
+    }
+
+    /** Converts from GoDEX EZPL. */
+    public PrinterLanguageSourceBuilder fromEzpl(String ezpl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.EZPL, utf8(ezpl)));
+    }
+
+    /** Converts from Zebra CPCL. */
+    public PrinterLanguageSourceBuilder fromCpcl(String cpcl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.CPCL, utf8(cpcl)));
+    }
+
+    /** Converts from Toshiba TEC TPCL. */
+    public PrinterLanguageSourceBuilder fromTpcl(String tpcl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.TPCL, utf8(tpcl)));
+    }
+
+    /** Converts from a NiceLabel or ZebraDesigner 3 {@code .nlbl} file. */
+    public SourceBuilder fromNlbl(byte[] nlbl) {
+        return new SourceBuilder(validated(SourceFormat.NLBL, nlbl));
+    }
+
+    /** Converts from a NiceLabel or ZebraDesigner 3 {@code .nlbl} file. */
+    public SourceBuilder fromNlbl(InputStream nlbl) {
+        return fromNlbl(readAll(nlbl));
+    }
+
+    /** Converts from a NiceLabel {@code .lbl} file. */
+    public SourceBuilder fromLbl(byte[] lbl) {
+        return new SourceBuilder(validated(SourceFormat.LBL, lbl));
+    }
+
+    /** Converts from a NiceLabel {@code .lbl} file. */
+    public SourceBuilder fromLbl(InputStream lbl) {
+        return fromLbl(readAll(lbl));
+    }
+
+    /** Converts from a BarTender {@code .btw} file. */
+    public SourceBuilder fromBtw(byte[] btw) {
+        return new SourceBuilder(validated(SourceFormat.BTW, btw));
+    }
+
+    /** Converts from a BarTender {@code .btw} file. */
+    public SourceBuilder fromBtw(InputStream btw) {
+        return fromBtw(readAll(btw));
+    }
+
+    /** Converts from a DYMO Label {@code .label} or {@code .dymo} file. */
+    public SourceBuilder fromDymo(String dymo) {
+        return new SourceBuilder(validated(SourceFormat.DYMO, utf8(dymo)));
+    }
+
     /** Converts from LabelZoom XML. */
     public SourceBuilder fromXml(String xml) {
         return new SourceBuilder(validated(SourceFormat.XML, utf8(xml)));

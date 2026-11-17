@@ -12,11 +12,11 @@ type SourceFormat string
 
 // TargetFormat is the format to convert into.
 //
-// There is no TargetURL: URL is a fetch instruction, not an output format. The printer
-// languages round-trip -- EPL, IPL, TSPL, DPL and SBPL are targets as well as sources.
+// There is no TargetURL: URL is a fetch instruction, not an output format. Most printer
+// languages round-trip -- EPL, IPL, TSPL, DPL, SBPL and CPCL are targets as well as sources.
 type TargetFormat string
 
-// The fourteen document formats, plus URL.
+// The twenty-three document formats, plus URL.
 const (
 	SourceZPL  SourceFormat = "zpl"
 	SourceEPL  SourceFormat = "epl"
@@ -24,6 +24,24 @@ const (
 	SourceTSPL SourceFormat = "tspl"
 	SourceDPL  SourceFormat = "dpl"
 	SourceSBPL SourceFormat = "sbpl"
+	// SourceESCLabel is Epson ColorWorks ESC/Label, a dialect of ZPL.
+	SourceESCLabel SourceFormat = "esclabel"
+	// SourceFingerprint is Honeywell/Intermec Fingerprint and Direct Protocol.
+	SourceFingerprint SourceFormat = "fingerprint"
+	// SourceEZPL is GoDEX EZPL. It is not an EPL dialect.
+	SourceEZPL SourceFormat = "ezpl"
+	// SourceCPCL is Zebra CPCL, for Zebra's mobile printers.
+	SourceCPCL SourceFormat = "cpcl"
+	// SourceTPCL is Toshiba TEC TPCL.
+	SourceTPCL SourceFormat = "tpcl"
+	// SourceNLBL is a NiceLabel or ZebraDesigner 3 .nlbl design file. Send its bytes.
+	SourceNLBL SourceFormat = "nlbl"
+	// SourceLBL is a NiceLabel .lbl design file. Send its bytes.
+	SourceLBL SourceFormat = "lbl"
+	// SourceBTW is a BarTender .btw design file. Send its bytes.
+	SourceBTW SourceFormat = "btw"
+	// SourceDYMO is a DYMO Label .label or .dymo design file (XML).
+	SourceDYMO SourceFormat = "dymo"
 	SourceXML  SourceFormat = "xml"
 	SourceJSON SourceFormat = "json"
 	SourcePDF  SourceFormat = "pdf"
@@ -39,7 +57,7 @@ const (
 	SourceURL SourceFormat = "url"
 )
 
-// The thirteen output formats.
+// The fourteen output formats.
 const (
 	TargetZPL TargetFormat = "zpl"
 	// TargetEPL output can inline raw binary (the GW command); read Result.Bytes rather
@@ -55,6 +73,8 @@ const (
 	// TargetSBPL frames every command with ESC and embeds graphics inline; read
 	// Result.Bytes rather than Result.Text when a label might carry graphics.
 	TargetSBPL TargetFormat = "sbpl"
+	// TargetCPCL is Zebra CPCL. Graphics are written as hex, so the output is plain text.
+	TargetCPCL TargetFormat = "cpcl"
 	TargetXML  TargetFormat = "xml"
 	TargetJSON TargetFormat = "json"
 	TargetPDF  TargetFormat = "pdf"
@@ -68,6 +88,8 @@ const (
 func SourceFormats() []SourceFormat {
 	return []SourceFormat{
 		SourceZPL, SourceEPL, SourceIPL, SourceTSPL, SourceDPL, SourceSBPL,
+		SourceESCLabel, SourceFingerprint, SourceEZPL, SourceCPCL, SourceTPCL,
+		SourceNLBL, SourceLBL, SourceBTW, SourceDYMO,
 		SourceXML, SourceJSON, SourcePDF, SourcePNG, SourceBMP, SourceGIF,
 		SourceJPEG, SourceJPG, SourceURL,
 	}
@@ -76,7 +98,7 @@ func SourceFormats() []SourceFormat {
 // TargetFormats lists every accepted target, in the contract's order.
 func TargetFormats() []TargetFormat {
 	return []TargetFormat{
-		TargetZPL, TargetEPL, TargetIPL, TargetTSPL, TargetDPL, TargetSBPL,
+		TargetZPL, TargetEPL, TargetIPL, TargetTSPL, TargetDPL, TargetSBPL, TargetCPCL,
 		TargetXML, TargetJSON, TargetPDF, TargetPNG, TargetBMP, TargetGIF,
 		TargetJPEG,
 	}
@@ -88,20 +110,29 @@ func TargetFormats() []TargetFormat {
 // design had a builder class per format, each independently knowing this mapping, and they
 // drifted -- one of them emitted the source type as the target.
 var sourceMediaTypes = map[SourceFormat]string{
-	SourceZPL:  "text/plain",
-	SourceEPL:  "text/plain",
-	SourceIPL:  "text/plain",
-	SourceTSPL: "text/plain",
-	SourceDPL:  "text/plain",
-	SourceSBPL: "text/plain",
-	SourceXML:  "application/xml",
-	SourceJSON: "application/json",
-	SourcePDF:  "application/pdf",
-	SourcePNG:  "image/png",
-	SourceBMP:  "image/bmp",
-	SourceGIF:  "image/gif",
-	SourceJPEG: "image/jpeg",
-	SourceJPG:  "image/jpeg",
+	SourceZPL:         "text/plain",
+	SourceEPL:         "text/plain",
+	SourceIPL:         "text/plain",
+	SourceTSPL:        "text/plain",
+	SourceDPL:         "text/plain",
+	SourceSBPL:        "text/plain",
+	SourceESCLabel:    "text/plain",
+	SourceFingerprint: "text/plain",
+	SourceEZPL:        "text/plain",
+	SourceCPCL:        "text/plain",
+	SourceTPCL:        "text/plain",
+	SourceNLBL:        "application/octet-stream",
+	SourceLBL:         "application/octet-stream",
+	SourceBTW:         "application/octet-stream",
+	SourceDYMO:        "application/xml",
+	SourceXML:         "application/xml",
+	SourceJSON:        "application/json",
+	SourcePDF:         "application/pdf",
+	SourcePNG:         "image/png",
+	SourceBMP:         "image/bmp",
+	SourceGIF:         "image/gif",
+	SourceJPEG:        "image/jpeg",
+	SourceJPG:         "image/jpeg",
 	// The body is the URL itself.
 	SourceURL: "text/plain",
 }

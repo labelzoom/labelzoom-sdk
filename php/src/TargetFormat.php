@@ -45,6 +45,12 @@ enum TargetFormat: string
      */
     case Sbpl = 'sbpl';
 
+    /**
+     * Zebra CPCL, for Zebra's mobile printers. All labels are concatenated. Graphics are written as
+     * hex, so the output is plain text.
+     */
+    case Cpcl = 'cpcl';
+
     /** LabelZoom XML. First label only. */
     case Xml = 'xml';
 

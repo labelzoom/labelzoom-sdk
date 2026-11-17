@@ -77,6 +77,24 @@ export class ConversionRequestBuilder {
   fromTspl(tspl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('tspl', tspl)); }
   fromDpl(dpl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('dpl', dpl)); }
   fromSbpl(sbpl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('sbpl', sbpl)); }
+  /** Epson ColorWorks ESC/Label. A dialect of ZPL, so it takes the ZPL source options. */
+  fromEscLabel(escLabel: ConversionBody): ZplSourceBuilder { return new ZplSourceBuilder(this.#draft('esclabel', escLabel)); }
+  /** Honeywell/Intermec Fingerprint and Direct Protocol. */
+  fromFingerprint(fingerprint: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('fingerprint', fingerprint)); }
+  /** GoDEX EZPL. */
+  fromEzpl(ezpl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('ezpl', ezpl)); }
+  /** Zebra CPCL. */
+  fromCpcl(cpcl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('cpcl', cpcl)); }
+  /** Toshiba TEC TPCL. */
+  fromTpcl(tpcl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('tpcl', tpcl)); }
+  /** A NiceLabel or ZebraDesigner 3 `.nlbl` file. Pass the file's bytes, not text. */
+  fromNlbl(nlbl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('nlbl', nlbl)); }
+  /** A NiceLabel `.lbl` file. Pass the file's bytes, not text. */
+  fromLbl(lbl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('lbl', lbl)); }
+  /** A BarTender `.btw` file. Pass the file's bytes, not text. */
+  fromBtw(btw: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('btw', btw)); }
+  /** A DYMO Label `.label` or `.dymo` file. */
+  fromDymo(dymo: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('dymo', dymo)); }
   fromXml(xml: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('xml', xml)); }
   fromJson(json: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('json', json)); }
   fromPdf(pdf: ConversionBody): PdfSourceBuilder { return new PdfSourceBuilder(this.#draft('pdf', pdf)); }
@@ -144,6 +162,8 @@ export abstract class SourceStage {
   toDpl(): TargetBuilder { return new TargetBuilder(this.draft, 'dpl'); }
   /** SBPL frames every command with `ESC`; prefer `result.bytes` over `result.text`. */
   toSbpl(): TargetBuilder { return new TargetBuilder(this.draft, 'sbpl'); }
+  /** CPCL writes graphics as hex, so `result.text` is safe. */
+  toCpcl(): TargetBuilder { return new TargetBuilder(this.draft, 'cpcl'); }
   toXml(): TargetBuilder { return new TargetBuilder(this.draft, 'xml'); }
   toJson(): TargetBuilder { return new TargetBuilder(this.draft, 'json'); }
   toPdf(): PdfTargetBuilder { return new PdfTargetBuilder(this.draft); }
@@ -153,13 +173,16 @@ export abstract class SourceStage {
   toJpeg(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'jpeg'); }
 }
 
-/** The source stage for LabelZoom XML and JSON. They record their own resolution, so there is no `withDpi`. */
+/**
+ * The source stage for LabelZoom XML and JSON, NiceLabel, BarTender and DYMO. These record their
+ * own resolution or measure in physical units, so there is no `withDpi`.
+ */
 export class SourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
 }
 
-/** The source stage for EPL, IPL, TSPL, DPL and SBPL. */
+/** The source stage for EPL, IPL, TSPL, DPL, SBPL, Fingerprint, EZPL, CPCL and TPCL. */
 export class PrinterLanguageSourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
@@ -168,7 +191,7 @@ export class PrinterLanguageSourceBuilder extends SourceStage {
   withDpi(dpi: number): this { this.draft.options.sourceDpi = dpi; return this; }
 }
 
-/** The source stage for a ZPL document. */
+/** The source stage for a ZPL or ESC/Label document. */
 export class ZplSourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
@@ -337,7 +360,7 @@ export abstract class TargetStage {
   }
 }
 
-/** The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and JSON. */
+/** The target stage for EPL, IPL, TSPL, DPL, SBPL, CPCL, LabelZoom XML and JSON. */
 export class TargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft, target: TargetFormat) { super(draft, target); }

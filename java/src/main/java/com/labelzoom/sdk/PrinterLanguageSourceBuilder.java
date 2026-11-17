@@ -1,6 +1,6 @@
 package com.labelzoom.sdk;
 
-/** The source stage for EPL, IPL, TSPL, DPL and SBPL. */
+/** The source stage for EPL, IPL, TSPL, DPL, SBPL, Fingerprint, EZPL, CPCL and TPCL. */
 public final class PrinterLanguageSourceBuilder extends SourceStage<PrinterLanguageSourceBuilder> {
 
     PrinterLanguageSourceBuilder(ConversionDraft draft) {

@@ -1,6 +1,6 @@
 package com.labelzoom.sdk;
 
-/** The source stage for a ZPL document. */
+/** The source stage for a ZPL or ESC/Label document. */
 public final class ZplSourceBuilder extends SourceStage<ZplSourceBuilder> {
 
     ZplSourceBuilder(ConversionDraft draft) {

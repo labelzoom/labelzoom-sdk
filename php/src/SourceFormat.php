@@ -36,6 +36,33 @@ enum SourceFormat: string
     /** SATO Barcode Printer Language. */
     case Sbpl = 'sbpl';
 
+    /** Epson ColorWorks ESC/Label, a dialect of ZPL. */
+    case EscLabel = 'esclabel';
+
+    /** Honeywell/Intermec Fingerprint and Direct Protocol. */
+    case Fingerprint = 'fingerprint';
+
+    /** GoDEX EZPL. Not an EPL dialect. */
+    case Ezpl = 'ezpl';
+
+    /** Zebra CPCL, for Zebra's mobile printers. */
+    case Cpcl = 'cpcl';
+
+    /** Toshiba TEC TPCL. */
+    case Tpcl = 'tpcl';
+
+    /** A NiceLabel or ZebraDesigner 3 `.nlbl` design file. Binary. */
+    case Nlbl = 'nlbl';
+
+    /** A NiceLabel `.lbl` design file. Binary. */
+    case Lbl = 'lbl';
+
+    /** A BarTender `.btw` design file. Binary. */
+    case Btw = 'btw';
+
+    /** A DYMO Label `.label` or `.dymo` design file (XML). */
+    case Dymo = 'dymo';
+
     /** LabelZoom XML. */
     case Xml = 'xml';
 
@@ -83,13 +110,15 @@ enum SourceFormat: string
      * The `Content-Type` a request carrying this format must send.
      *
      * The format metadata table lives here and only here (contract §1.3) — never inlined at a
-     * call site, where the fifteen copies would drift.
+     * call site, where the copies would drift.
      */
     public function mediaType(): string
     {
         return match ($this) {
-            self::Zpl, self::Epl, self::Ipl, self::Tspl, self::Dpl, self::Sbpl, self::Url => 'text/plain',
-            self::Xml => 'application/xml',
+            self::Zpl, self::Epl, self::Ipl, self::Tspl, self::Dpl, self::Sbpl,
+            self::EscLabel, self::Fingerprint, self::Ezpl, self::Cpcl, self::Tpcl, self::Url => 'text/plain',
+            self::Nlbl, self::Lbl, self::Btw => 'application/octet-stream',
+            self::Xml, self::Dymo => 'application/xml',
             self::Json => 'application/json',
             self::Pdf => 'application/pdf',
             self::Png => 'image/png',

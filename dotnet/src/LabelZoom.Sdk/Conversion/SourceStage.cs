@@ -99,6 +99,12 @@ namespace LabelZoom.Sdk.Conversion
         /// </summary>
         public TargetBuilder ToSbpl() => new TargetBuilder(Draft, TargetFormat.Sbpl);
 
+        /// <summary>
+        /// Converts to Zebra CPCL, for Zebra's mobile printers. All labels are concatenated. Graphics
+        /// are written as hex, so the output is plain text.
+        /// </summary>
+        public TargetBuilder ToCpcl() => new TargetBuilder(Draft, TargetFormat.Cpcl);
+
         /// <summary>Converts to LabelZoom XML. Returns the first label only.</summary>
         public TargetBuilder ToXml() => new TargetBuilder(Draft, TargetFormat.Xml);
 

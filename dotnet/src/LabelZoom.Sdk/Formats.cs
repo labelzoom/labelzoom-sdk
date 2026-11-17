@@ -37,6 +37,43 @@ namespace LabelZoom.Sdk
         /// <summary>SATO Barcode Printer Language. Sent as <c>text/plain</c>.</summary>
         Sbpl = 14,
 
+        /// <summary>
+        /// Epson ColorWorks ESC/Label, a dialect of ZPL with color. Sent as <c>text/plain</c>.
+        /// </summary>
+        EscLabel = 15,
+
+        /// <summary>
+        /// Honeywell and Intermec Fingerprint and Direct Protocol. Sent as <c>text/plain</c>.
+        /// </summary>
+        Fingerprint = 16,
+
+        /// <summary>GoDEX EZPL. Sent as <c>text/plain</c>.</summary>
+        Ezpl = 17,
+
+        /// <summary>Zebra CPCL, for Zebra's mobile printers. Sent as <c>text/plain</c>.</summary>
+        Cpcl = 18,
+
+        /// <summary>Toshiba TEC TPCL. Sent as <c>text/plain</c>.</summary>
+        Tpcl = 19,
+
+        /// <summary>
+        /// A NiceLabel or ZebraDesigner 3 <c>.nlbl</c> file. Sent as
+        /// <c>application/octet-stream</c>.
+        /// </summary>
+        Nlbl = 20,
+
+        /// <summary>A NiceLabel Pro 4 or 5 <c>.lbl</c> file. Sent as <c>application/octet-stream</c>.</summary>
+        Lbl = 21,
+
+        /// <summary>A BarTender <c>.btw</c> or <c>.btc</c> file. Sent as <c>application/octet-stream</c>.</summary>
+        Btw = 22,
+
+        /// <summary>
+        /// A DYMO Connect <c>.dymo</c> or DYMO Label <c>.label</c> file. Sent as
+        /// <c>application/xml</c>.
+        /// </summary>
+        Dymo = 23,
+
         /// <summary>LabelZoom XML. Sent as <c>application/xml</c>.</summary>
         Xml = 4,
 
@@ -122,6 +159,12 @@ namespace LabelZoom.Sdk
         /// <see cref="ConversionResult.Bytes"/>.
         /// </summary>
         Sbpl = 12,
+
+        /// <summary>
+        /// Zebra CPCL, for Zebra's mobile printers. All labels are concatenated. Graphics are
+        /// embedded inline, so prefer <see cref="ConversionResult.Bytes"/>.
+        /// </summary>
+        Cpcl = 13,
 
         /// <summary>LabelZoom XML. First label only.</summary>
         Xml = 4,
@@ -215,6 +258,15 @@ namespace LabelZoom.Sdk
                 [SourceFormat.Tspl] = "tspl",
                 [SourceFormat.Dpl] = "dpl",
                 [SourceFormat.Sbpl] = "sbpl",
+                [SourceFormat.EscLabel] = "esclabel",
+                [SourceFormat.Fingerprint] = "fingerprint",
+                [SourceFormat.Ezpl] = "ezpl",
+                [SourceFormat.Cpcl] = "cpcl",
+                [SourceFormat.Tpcl] = "tpcl",
+                [SourceFormat.Nlbl] = "nlbl",
+                [SourceFormat.Lbl] = "lbl",
+                [SourceFormat.Btw] = "btw",
+                [SourceFormat.Dymo] = "dymo",
                 [SourceFormat.Xml] = "xml",
                 [SourceFormat.Json] = "json",
                 [SourceFormat.Pdf] = "pdf",
@@ -236,6 +288,15 @@ namespace LabelZoom.Sdk
                 [SourceFormat.Tspl] = "text/plain",
                 [SourceFormat.Dpl] = "text/plain",
                 [SourceFormat.Sbpl] = "text/plain",
+                [SourceFormat.EscLabel] = "text/plain",
+                [SourceFormat.Fingerprint] = "text/plain",
+                [SourceFormat.Ezpl] = "text/plain",
+                [SourceFormat.Cpcl] = "text/plain",
+                [SourceFormat.Tpcl] = "text/plain",
+                [SourceFormat.Nlbl] = "application/octet-stream",
+                [SourceFormat.Lbl] = "application/octet-stream",
+                [SourceFormat.Btw] = "application/octet-stream",
+                [SourceFormat.Dymo] = "application/xml",
                 [SourceFormat.Xml] = "application/xml",
                 [SourceFormat.Json] = "application/json",
                 [SourceFormat.Pdf] = "application/pdf",
@@ -256,6 +317,7 @@ namespace LabelZoom.Sdk
                 [TargetFormat.Tspl] = "tspl",
                 [TargetFormat.Dpl] = "dpl",
                 [TargetFormat.Sbpl] = "sbpl",
+                [TargetFormat.Cpcl] = "cpcl",
                 [TargetFormat.Xml] = "xml",
                 [TargetFormat.Json] = "json",
                 [TargetFormat.Pdf] = "pdf",

@@ -3,7 +3,8 @@
 # LabelZoom Ruby SDK
 
 Official Ruby client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 Ruby 3.1+. **No runtime dependencies** — `net/http`, `json`, `uri` and `openssl` are all standard
 library.
@@ -56,11 +57,16 @@ empty string — forces the free tier and suppresses that fallback.
 
 ## Formats
 
-**Sources:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
-`:gif` `:jpeg` `:jpg` `:url`
+**Sources:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:esclabel` `:fingerprint` `:ezpl`
+`:cpcl` `:tpcl` `:nlbl` `:lbl` `:btw` `:dymo` `:xml` `:json` `:pdf` `:png` `:bmp` `:gif` `:jpeg`
+`:jpg` `:url`
 
-**Targets:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:xml` `:json` `:pdf` `:png` `:bmp`
-`:gif` `:jpeg`
+**Targets:** `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:cpcl` `:xml` `:json` `:pdf` `:png`
+`:bmp` `:gif` `:jpeg`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `:jpg` is an input spelling that normalizes to `jpeg` on the wire, and `:url` tells the server to
 go fetch a document rather than naming a format — so neither is a target. The statically typed

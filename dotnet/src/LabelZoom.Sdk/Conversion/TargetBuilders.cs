@@ -3,7 +3,7 @@ using System;
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON.
+    /// The target stage for EPL, IPL, TSPL, DPL, SBPL, CPCL, LabelZoom XML and LabelZoom JSON.
     /// </summary>
     public sealed class TargetBuilder : TargetStage<TargetBuilder>
     {

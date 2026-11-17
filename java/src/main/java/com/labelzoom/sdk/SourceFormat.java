@@ -30,6 +30,33 @@ public enum SourceFormat {
     /** SATO Barcode Printer Language. */
     SBPL("sbpl", "text/plain"),
 
+    /** Epson ColorWorks ESC/Label, a dialect of ZPL. */
+    ESCLABEL("esclabel", "text/plain"),
+
+    /** Honeywell/Intermec Fingerprint and Direct Protocol. */
+    FINGERPRINT("fingerprint", "text/plain"),
+
+    /** GoDEX EZPL. Not an EPL dialect. */
+    EZPL("ezpl", "text/plain"),
+
+    /** Zebra CPCL, for Zebra's mobile printers. */
+    CPCL("cpcl", "text/plain"),
+
+    /** Toshiba TEC TPCL. */
+    TPCL("tpcl", "text/plain"),
+
+    /** A NiceLabel or ZebraDesigner 3 {@code .nlbl} design file. Binary. */
+    NLBL("nlbl", "application/octet-stream"),
+
+    /** A NiceLabel {@code .lbl} design file. Binary. */
+    LBL("lbl", "application/octet-stream"),
+
+    /** A BarTender {@code .btw} design file. Binary. */
+    BTW("btw", "application/octet-stream"),
+
+    /** A DYMO Label {@code .label} or {@code .dymo} design file (XML). */
+    DYMO("dymo", "application/xml"),
+
     /** LabelZoom XML. */
     XML("xml", "application/xml"),
 
