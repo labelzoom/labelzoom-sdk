@@ -57,8 +57,8 @@ pub use client::{ClientBuilder, LabelZoomClient, API_KEY_ENV_VAR, DEFAULT_BASE_U
 pub use error::{ApiError, ApiErrorKind, Error, TransportError, ValidationError};
 pub use formats::{SourceFormat, TargetFormat};
 pub use options::{
-    ColorMode, ConversionOptions, ConvertRequest, LabelSize, PdfConversionMode, PdfOptions,
-    Position, ZplImageCompression, ZplOptions,
+    ColorMode, ConversionOptions, ConvertRequest, LabelSize, LayoutFill, LayoutOptions,
+    PdfConversionMode, PdfOptions, Position, SplitOptions, ZplImageCompression, ZplOptions,
 };
 pub use result::ConversionResult;
 pub use transport::{HttpRequest, HttpResponse, Sleeper, ThreadSleeper, Transport};

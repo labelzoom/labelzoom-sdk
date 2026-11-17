@@ -56,14 +56,31 @@ Or as a chain, matching the other LabelZoom SDKs:
 ```ts
 const result = await client.convert()
   .fromZpl('^XA^FO20,20^A0N,28^FDHello^FS^XZ')
+    .withLabelSize(4, 6)
   .toPng()
-  .withDpi(300)
-  .withLabelSize(4, 6)
+    .withDpi(300)
   .execute();
 ```
 
-Both forms do the same thing. The object form is what most TypeScript users reach for; the chain
-exists for parity with the .NET, Java, and PHP SDKs.
+Both forms send the same request. The object form is what most TypeScript users reach for; the
+chain exists for parity with the .NET, Java, and PHP SDKs.
+
+The chain has two stages. `from*` picks the source and returns the **source stage**, where you set
+options that change how the source is read. `to*` picks the target and returns the **target
+stage**, where you set options that change the output and then call `execute`. Each stage offers
+only the options that act on its side, and a named `from*` or `to*` offers only the options for
+that format, so `fromZpl(zpl).withPage(0)` is a compile error.
+
+A Letter sheet of four labels, printed two across on a 2-up roll:
+
+```ts
+const result = await client.convert()
+  .fromPdf(sheet)
+    .withSplit({ rows: 2, columns: 2, skipBlank: true })
+  .toZpl()
+    .withLayout({ across: 2, gap: 0.125 })      // inches
+  .execute();
+```
 
 With a key — passed explicitly, or picked up from `LABELZOOM_API_KEY`:
 
@@ -78,8 +95,8 @@ Filling variable fields — **each record produces one label**:
 ```ts
 const result = await client.convert()
   .fromZpl(template)
+    .withData({ name: 'ACME Corp', sku: '12345' }, { name: 'Globex', sku: '67890' })
   .toPdf()
-  .withData({ name: 'ACME Corp', sku: '12345' }, { name: 'Globex', sku: '67890' })
   .execute();                                    // a 2-page PDF
 ```
 
@@ -129,11 +146,67 @@ first if it came from untrusted input.
 | `pdf.pageNumber` | **0-based**; omit to convert every page |
 | `zpl.commandsToIgnore` | e.g. `['^PQ']` |
 | `zpl.imageCompression` | `'Z64'` (default) or `'COMPRESSED_HEX'` |
+| `zpl.collapseCopies` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
+| `layout` | image or PDF to ZPL, `IMAGE` mode: `{ across, gap, fill }`, labels side by side per row; `gap` in **inches**; `fill` is `'SEQUENTIAL'` (default) or `'REPEAT'` |
+| `split` | image or PDF to ZPL, `IMAGE` mode: `{ rows, columns, width, height, left, top, columnGap, rowGap, skipBlank }` cuts each page into a grid of labels; lengths in **inches**; omit `width`/`height` to divide the page equally |
+| `labelIndex` | **0-based**; converts only this label, on every plan |
 | `data` | one label per record |
 
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
 to a server default reaches you without an SDK upgrade. Unknown keys are ignored server-side, so
 the index signature on `ConversionOptions` is a safe forward-compatibility escape hatch.
+
+### Chain methods by stage
+
+| Stage | Method | On |
+|---|---|---|
+| Source | `withLabelSize`, `withLabelIndex`, `withData` | every source |
+| Source | `withPage`, `withConversionMode` | `fromPdf` |
+| Source | `withSplit({ … })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
+| Source | `withRaster({ scaling, position, darkness, colorMode })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
+| Source | `withCommandsToIgnore` | `fromZpl` |
+| Target | `withDpi`, `withRotation`, `withWatermark`, `withDialect`, `withParameter` | every target |
+| Target | `withImageCompression`, `withCollapseCopies`, `withLayout({ … })` | `toZpl` |
+| Target | `withColorMode`, `withDarkness` | `toPng`, `toBmp`, `toGif`, `toJpeg` |
+
+`withRaster` sets how an image or PDF source is rasterized: `scaling` in percent, `position` in output
+dots from the label's top-left corner, `darkness` from 0 to 100, and `colorMode`. A negative
+`position` crops the picture, so to crop it, set a negative position and the size of the label it's
+cut to:
+
+```ts
+await client.convert()
+  .fromPng(photo)
+    .withLabelSize(4, 6)
+    .withRaster({ position: { x: -120, y: -80 } })   // trims 120 dots off the left, 80 off the top
+  .toZpl()
+  .execute();
+```
+
+On an image target, `withColorMode('BW')` renders black and white at the `withDarkness` threshold;
+anything else renders in color.
+
+`from(format, body)`, `fromBase64Text` and `fromUrl` return a `DynamicSourceBuilder`, and
+`to(target)` returns a `DynamicTargetBuilder`. The compiler can't know the format there, so they
+offer every option, named with the format it applies to: `withPdfPage`, `withPdfConversionMode`,
+`withZplCommandsToIgnore`, `withZplImageCompression` and `withZplCollapseCopies`, plus `withRaster`,
+`withColorMode` and `withDarkness`.
+
+### Migrating from 1.x
+
+The object form (`client.convert({ from, to, body, options })`) is unchanged. In the chain, every
+option used to be set after `to*`. In 2.0, move the source options before it:
+
+| 1.x | 2.0 |
+|---|---|
+| `.toZpl().withPdfPage(0)` | `.fromPdf(pdf).withPage(0).toZpl()` |
+| `.withPdfConversionMode(m)` | `.fromPdf(pdf).withConversionMode(m)` |
+| `.withZplCommandsToIgnore('^PQ')` | `.fromZpl(zpl).withCommandsToIgnore('^PQ')` |
+| `.withLabelSize(w, h)`, `.withLabelIndex(i)`, `.withData(...)` | same name, before `to*` |
+| `.withZplImageCompression(c)` | `.toZpl().withImageCompression(c)` |
+| `.withScaling(p)`, `.withPosition(x, y)` | `.fromPdf(pdf).withRaster({ scaling: p, position: { x, y } })`, or `fromPng` and the other images |
+| `.withDarkness(d)`, `.withColorMode(m)` | in `withRaster` for an image or PDF source; on `toPng` and the other image targets for black-and-white output |
+| `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
 ## Errors
 

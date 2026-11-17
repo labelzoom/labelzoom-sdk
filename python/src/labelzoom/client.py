@@ -25,6 +25,7 @@ from .errors import (
 )
 from .formats import (
     ColorMode,
+    LayoutFill,
     PdfConversionMode,
     SourceFormat,
     TargetFormat,
@@ -262,6 +263,20 @@ class LabelZoomClient(_BaseClient):
         pdf_page_number: int | _Unset = UNSET,
         zpl_commands_to_ignore: Sequence[str] | _Unset = UNSET,
         zpl_image_compression: ZplImageCompression | _Unset = UNSET,
+        zpl_collapse_copies: bool | _Unset = UNSET,
+        layout_across: int | _Unset = UNSET,
+        layout_gap: float | _Unset = UNSET,
+        layout_fill: LayoutFill | _Unset = UNSET,
+        split_rows: int | _Unset = UNSET,
+        split_columns: int | _Unset = UNSET,
+        split_width: float | _Unset = UNSET,
+        split_height: float | _Unset = UNSET,
+        split_left: float | _Unset = UNSET,
+        split_top: float | _Unset = UNSET,
+        split_column_gap: float | _Unset = UNSET,
+        split_row_gap: float | _Unset = UNSET,
+        split_skip_blank: bool | _Unset = UNSET,
+        label_index: int | _Unset = UNSET,
         extra: Mapping[str, Any] | _Unset = UNSET,
     ) -> ConversionResult:
         """Convert a label from one format to another.
@@ -281,6 +296,12 @@ class LabelZoomClient(_BaseClient):
         :param label_width: **Inches**, not dots.
         :param label_height: **Inches**, not dots.
         :param pdf_page_number: **0-based**. Omit to convert every page.
+        :param layout_gap: **Inches**, not dots.
+        :param split_width: The ``split_*`` lengths are **inches** on the source page, from
+            its top-left corner. Omit ``split_width`` and ``split_height`` to divide the page
+            equally.
+        :param label_index: **0-based**. For image or PDF to ZPL it counts the labels after
+            ``split``, page by page. Omit to convert every label.
         :raises LabelZoomValidationError: The request was rejected locally; nothing was sent.
         :raises LabelZoomError: The API returned a non-2xx response.
         """
@@ -301,6 +322,20 @@ class LabelZoomClient(_BaseClient):
             pdf_page_number=pdf_page_number,
             zpl_commands_to_ignore=zpl_commands_to_ignore,
             zpl_image_compression=zpl_image_compression,
+            zpl_collapse_copies=zpl_collapse_copies,
+            layout_across=layout_across,
+            layout_gap=layout_gap,
+            layout_fill=layout_fill,
+            split_rows=split_rows,
+            split_columns=split_columns,
+            split_width=split_width,
+            split_height=split_height,
+            split_left=split_left,
+            split_top=split_top,
+            split_column_gap=split_column_gap,
+            split_row_gap=split_row_gap,
+            split_skip_blank=split_skip_blank,
+            label_index=label_index,
             extra=extra,
         )
         request = self._build_request(self._http, source, target, body, as_base64_text, merged)
@@ -398,6 +433,20 @@ class AsyncLabelZoomClient(_BaseClient):
         pdf_page_number: int | _Unset = UNSET,
         zpl_commands_to_ignore: Sequence[str] | _Unset = UNSET,
         zpl_image_compression: ZplImageCompression | _Unset = UNSET,
+        zpl_collapse_copies: bool | _Unset = UNSET,
+        layout_across: int | _Unset = UNSET,
+        layout_gap: float | _Unset = UNSET,
+        layout_fill: LayoutFill | _Unset = UNSET,
+        split_rows: int | _Unset = UNSET,
+        split_columns: int | _Unset = UNSET,
+        split_width: float | _Unset = UNSET,
+        split_height: float | _Unset = UNSET,
+        split_left: float | _Unset = UNSET,
+        split_top: float | _Unset = UNSET,
+        split_column_gap: float | _Unset = UNSET,
+        split_row_gap: float | _Unset = UNSET,
+        split_skip_blank: bool | _Unset = UNSET,
+        label_index: int | _Unset = UNSET,
         extra: Mapping[str, Any] | _Unset = UNSET,
     ) -> ConversionResult:
         """Convert a label from one format to another. See :meth:`LabelZoomClient.convert`."""
@@ -418,6 +467,20 @@ class AsyncLabelZoomClient(_BaseClient):
             pdf_page_number=pdf_page_number,
             zpl_commands_to_ignore=zpl_commands_to_ignore,
             zpl_image_compression=zpl_image_compression,
+            zpl_collapse_copies=zpl_collapse_copies,
+            layout_across=layout_across,
+            layout_gap=layout_gap,
+            layout_fill=layout_fill,
+            split_rows=split_rows,
+            split_columns=split_columns,
+            split_width=split_width,
+            split_height=split_height,
+            split_left=split_left,
+            split_top=split_top,
+            split_column_gap=split_column_gap,
+            split_row_gap=split_row_gap,
+            split_skip_blank=split_skip_blank,
+            label_index=label_index,
             extra=extra,
         )
         request = self._build_request(self._http, source, target, body, as_base64_text, merged)

@@ -70,6 +70,10 @@ PdfConversionMode = Literal["IMAGE", "NATIVE"]
 #: Image compression used when writing ZPL.
 ZplImageCompression = Literal["Z64", "COMPRESSED_HEX"]
 
+#: How pages fill the columns of a multi-column row (``layout_across`` > 1). ``SEQUENTIAL``
+#: puts each page in the next column; ``REPEAT`` prints each page across the whole row.
+LayoutFill = Literal["SEQUENTIAL", "REPEAT"]
+
 # The one place in the SDK that knows the format matrix.
 #
 # The superseded .NET builder hierarchy spread this across seven classes and they drifted:

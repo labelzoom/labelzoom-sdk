@@ -56,9 +56,9 @@ public sealed class IntegrationTests
         using var client = NewClient();
 
         var result = await client.Convert()
-            .FromFile(SourceFormat.Pdf, Path.Combine("TestData", "4x6_document.pdf"))
+            .FromPdf(File.ReadAllBytes(Path.Combine("TestData", "4x6_document.pdf")))
+                .WithPage(0)
             .ToZpl()
-            .WithPdfPage(0)
             .ExecuteAsync();
 
         Assert.Contains("^XA", result.Text);

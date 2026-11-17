@@ -375,7 +375,13 @@ public sealed class ConformanceTests
     }
 
     /// <summary>Translates the fixture's wire-shaped options into fluent SDK calls.</summary>
-    private static ConversionTargetBuilder BuildRequest(LabelZoomClient client, JsonElement given)
+    /// <remarks>
+    /// The fixtures are wire-shaped, so one fixture object can mix source and target options: the
+    /// <c>zpl</c> group holds both <c>commandsToIgnore</c> (source) and <c>imageCompression</c>
+    /// (target). The runner applies the source options before <c>To</c> and the target options
+    /// after it, which is the order the staged builders require.
+    /// </remarks>
+    private static DynamicTargetBuilder BuildRequest(LabelZoomClient client, JsonElement given)
     {
         var source = ParseSource(given.GetProperty("source").GetString()!);
         var target = ParseTarget(given.GetProperty("target").GetString()!);
@@ -384,45 +390,38 @@ public sealed class ConformanceTests
         var isBase64Text = given.TryGetProperty("sourceEncoding", out var encoding) &&
                            encoding.GetString() == "base64text";
 
-        var builder = isBase64Text
-            ? client.Convert().FromBase64Text(source, body).To(target)
-            : client.Convert().From(source, body).To(target);
+        var sourceStage = isBase64Text
+            ? client.Convert().FromBase64Text(source, body)
+            : client.Convert().From(source, body);
 
-        if (!given.TryGetProperty("options", out var options))
+        var hasOptions = given.TryGetProperty("options", out var options);
+
+        if (hasOptions)
         {
-            return builder;
+            ApplySourceOptions(sourceStage, options);
         }
 
+        var targetStage = sourceStage.To(target);
+
+        if (hasOptions)
+        {
+            ApplyTargetOptions(targetStage, options);
+        }
+
+        return targetStage;
+    }
+
+    private static readonly HashSet<string> TargetOptionNames = new HashSet<string>
+    {
+        "dpi", "rotation", "watermark", "dialect", "layout",
+    };
+
+    private static void ApplySourceOptions(DynamicSourceBuilder builder, JsonElement options)
+    {
         foreach (var option in options.EnumerateObject())
         {
             switch (option.Name)
             {
-                case "dpi":
-                    builder.WithDpi(option.Value.GetInt32());
-                    break;
-                case "rotation":
-                    builder.WithRotation(option.Value.GetInt32());
-                    break;
-                case "scaling":
-                    builder.WithScaling(option.Value.GetSingle());
-                    break;
-                case "colorMode":
-                    builder.WithColorMode(ParseEnum<ColorMode>(option.Value.GetString()!));
-                    break;
-                case "darkness":
-                    builder.WithDarkness(option.Value.GetInt32());
-                    break;
-                case "watermark":
-                    builder.WithWatermark(option.Value.GetBoolean());
-                    break;
-                case "dialect":
-                    builder.WithDialect(option.Value.GetString()!);
-                    break;
-                case "position":
-                    builder.WithPosition(
-                        option.Value.GetProperty("x").GetInt32(),
-                        option.Value.GetProperty("y").GetInt32());
-                    break;
                 case "label":
                     builder.WithLabelSize(
                         option.Value.GetProperty("width").GetSingle(),
@@ -447,12 +446,58 @@ public sealed class ConformanceTests
                             commands.EnumerateArray().Select(e => e.GetString()!).ToArray());
                     }
 
-                    if (option.Value.TryGetProperty("imageCompression", out var compression))
+                    break;
+                case "split":
+                    builder.WithSplit(s =>
                     {
-                        builder.WithZplImageCompression(
-                            ParseEnum<ZplImageCompression>(compression.GetString()!));
-                    }
+                        if (option.Value.TryGetProperty("rows", out var rows))
+                        {
+                            s.Rows(rows.GetInt32());
+                        }
 
+                        if (option.Value.TryGetProperty("columns", out var columns))
+                        {
+                            s.Columns(columns.GetInt32());
+                        }
+
+                        if (option.Value.TryGetProperty("width", out var width))
+                        {
+                            s.LabelSize(width.GetSingle(), option.Value.GetProperty("height").GetSingle());
+                        }
+
+                        if (option.Value.TryGetProperty("left", out var left))
+                        {
+                            s.Margins(left.GetSingle(), option.Value.GetProperty("top").GetSingle());
+                        }
+
+                        if (option.Value.TryGetProperty("columnGap", out var columnGap))
+                        {
+                            s.Gaps(columnGap.GetSingle(), option.Value.GetProperty("rowGap").GetSingle());
+                        }
+
+                        if (option.Value.TryGetProperty("skipBlank", out var skipBlank))
+                        {
+                            s.SkipBlank(skipBlank.GetBoolean());
+                        }
+                    });
+                    break;
+                case "labelIndex":
+                    builder.WithLabelIndex(option.Value.GetInt32());
+                    break;
+                // How an image or PDF is rasterized: a source option, set as one group.
+                case "scaling":
+                    builder.WithRaster(r => r.Scaling(option.Value.GetSingle()));
+                    break;
+                case "colorMode":
+                    builder.WithRaster(r => r.ColorMode(ParseEnum<ColorMode>(option.Value.GetString()!)));
+                    break;
+                case "darkness":
+                    builder.WithRaster(r => r.Darkness(option.Value.GetInt32()));
+                    break;
+                case "position":
+                    builder.WithRaster(r => r.Position(
+                        option.Value.GetProperty("x").GetInt32(),
+                        option.Value.GetProperty("y").GetInt32()));
                     break;
                 case "data":
                     // A bare object means one label, so it is wrapped rather than rejected.
@@ -461,13 +506,74 @@ public sealed class ConformanceTests
                         : new object?[] { option.Value.Clone() });
                     break;
                 default:
-                    throw new InvalidOperationException(
-                        $"Fixture sets option '{option.Name}', which the .NET runner does not map. " +
-                        "Add it to BuildRequest rather than skipping the case.");
+                    if (!TargetOptionNames.Contains(option.Name))
+                    {
+                        throw new InvalidOperationException(
+                            $"Fixture sets option '{option.Name}', which the .NET runner does not map. " +
+                            "Add it to ApplySourceOptions or ApplyTargetOptions rather than skipping the case.");
+                    }
+
+                    break;
             }
         }
+    }
 
-        return builder;
+    private static void ApplyTargetOptions(DynamicTargetBuilder builder, JsonElement options)
+    {
+        foreach (var option in options.EnumerateObject())
+        {
+            switch (option.Name)
+            {
+                case "dpi":
+                    builder.WithDpi(option.Value.GetInt32());
+                    break;
+                case "rotation":
+                    builder.WithRotation(option.Value.GetInt32());
+                    break;
+                case "watermark":
+                    builder.WithWatermark(option.Value.GetBoolean());
+                    break;
+                case "dialect":
+                    builder.WithDialect(option.Value.GetString()!);
+                    break;
+                case "zpl":
+                    if (option.Value.TryGetProperty("imageCompression", out var compression))
+                    {
+                        builder.WithZplImageCompression(
+                            ParseEnum<ZplImageCompression>(compression.GetString()!));
+                    }
+
+                    if (option.Value.TryGetProperty("collapseCopies", out var collapse))
+                    {
+                        builder.WithZplCollapseCopies(collapse.GetBoolean());
+                    }
+
+                    break;
+                case "layout":
+                    builder.WithLayout(l =>
+                    {
+                        if (option.Value.TryGetProperty("across", out var across))
+                        {
+                            l.Across(across.GetInt32());
+                        }
+
+                        if (option.Value.TryGetProperty("gap", out var gap))
+                        {
+                            l.Gap(gap.GetSingle());
+                        }
+
+                        if (option.Value.TryGetProperty("fill", out var fill))
+                        {
+                            l.Fill(ParseEnum<LayoutFill>(fill.GetString()!));
+                        }
+                    });
+                    break;
+                default:
+                    // A source option, already applied before To(). ApplySourceOptions rejects
+                    // a name that is neither.
+                    break;
+            }
+        }
     }
 
     private static void EnqueueScripted(StubHttpMessageHandler handler, JsonElement given)

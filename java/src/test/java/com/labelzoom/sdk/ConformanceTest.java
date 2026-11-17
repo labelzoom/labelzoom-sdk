@@ -374,7 +374,35 @@ class ConformanceTest {
                         builder.withZplImageCompression(
                                 ZplImageCompression.valueOf(v.get("imageCompression").asText()));
                     }
+                    if (v.has("collapseCopies")) {
+                        builder.withZplCollapseCopies(v.get("collapseCopies").asBoolean());
+                    }
                 }
+                case "layout" -> {
+                    builder.withLayout(v.get("across").asInt(), (float) v.get("gap").asDouble());
+                    if (v.has("fill")) {
+                        builder.withLayoutFill(LayoutFill.valueOf(v.get("fill").asText()));
+                    }
+                }
+                case "split" -> {
+                    builder.withSplit(v.get("rows").asInt(), v.get("columns").asInt());
+                    if (v.has("width")) {
+                        builder.withSplitLabelSize(
+                                (float) v.get("width").asDouble(), (float) v.get("height").asDouble());
+                    }
+                    if (v.has("left")) {
+                        builder.withSplitMargins(
+                                (float) v.get("left").asDouble(), (float) v.get("top").asDouble());
+                    }
+                    if (v.has("columnGap")) {
+                        builder.withSplitGaps(
+                                (float) v.get("columnGap").asDouble(), (float) v.get("rowGap").asDouble());
+                    }
+                    if (v.has("skipBlank")) {
+                        builder.withSplitSkipBlank(v.get("skipBlank").asBoolean());
+                    }
+                }
+                case "labelIndex" -> builder.withLabelIndex(v.asInt());
                 case "data" -> {
                     List<Map<String, Object>> records = new ArrayList<>();
                     // A bare object means one label, so it is wrapped rather than rejected.

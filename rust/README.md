@@ -112,6 +112,19 @@ Two units are routinely misread and are pinned by the shared fixtures:
 - `label_size` is in **inches**, not dots. Leave it unset to have the server detect the size.
 - `pdf_page` is **0-based**. Leave it unset to convert every page.
 
+For image or PDF to ZPL, these shape how many labels come back:
+
+| Method | Notes |
+|---|---|
+| `zpl_collapse_copies(true)` | each run of identical labels becomes one label with a `^PQ` count |
+| `layout(across, gap_inches)`, `layout_fill(LayoutFill::Repeat)` | labels side by side per row; the gap is in **inches** |
+| `split(rows, columns)` | cuts each page into a grid of labels, read left to right, then down |
+| `split_label_size(w, h)`, `split_margins(left, top)`, `split_gaps(column, row)` | **inches** on the page; leave the size unset to divide the page equally |
+| `split_skip_blank(true)` | leaves out labels with nothing printable |
+| `label_index(n)` | **0-based**; converts only this label, on every plan |
+
+`zpl_collapse_copies`, `layout` and `split` need a PDF in `IMAGE` mode, the default. With `NATIVE`, more than 1 across or a split grid returns `400`, and `zpl_collapse_copies` has no effect.
+
 `data` is one record per output label; `ConversionOptions::extra` carries anything the crate does
 not model yet, since unknown keys are ignored server-side.
 

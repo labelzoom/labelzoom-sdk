@@ -119,65 +119,92 @@ function stubFetch(script: ScriptedResponse[]): {
 
 // ------------------------------------------------------------------ translation
 
-/** Translates the fixture's wire-shaped options into fluent SDK calls. */
+/**
+ * Translates the fixture's wire-shaped options into fluent SDK calls.
+ *
+ * One fixture object can mix source and target options: the `zpl` group holds both
+ * `commandsToIgnore` (source) and `imageCompression` (target). Source options are applied before
+ * `to()` and target options after it, which is the order the staged builders require.
+ */
 function buildRequest(client: LabelZoomClient, given: any) {
   const source = given.source as SourceFormat;
   const target = given.target as TargetFormat;
   const body = given.bodyText as string;
 
-  const builder =
+  const sourceStage =
     given.sourceEncoding === 'base64text'
-      ? client.convert().fromBase64Text(source, body).to(target)
-      : client.convert().from(source, body).to(target);
+      ? client.convert().fromBase64Text(source, body)
+      : client.convert().from(source, body);
 
-  const options: ConversionOptions | undefined = given.options;
-  if (options === undefined) return builder;
+  const options: ConversionOptions = given.options ?? {};
+  const entries = Object.entries(options);
 
-  for (const [key, value] of Object.entries(options)) {
+  for (const [key, value] of entries) {
     switch (key) {
-      case 'dpi': builder.withDpi(value as number); break;
-      case 'rotation': builder.withRotation(value as number); break;
-      case 'scaling': builder.withScaling(value as number); break;
-      case 'colorMode': builder.withColorMode(value as any); break;
-      case 'darkness': builder.withDarkness(value as number); break;
-      case 'watermark': builder.withWatermark(value as boolean); break;
-      case 'dialect': builder.withDialect(value as string); break;
-      case 'position': {
-        const p = value as { x: number; y: number };
-        builder.withPosition(p.x, p.y);
-        break;
-      }
       case 'label': {
         const l = value as { width: number; height: number };
-        builder.withLabelSize(l.width, l.height);
+        sourceStage.withLabelSize(l.width, l.height);
         break;
       }
       case 'pdf': {
-        const p = value as { conversionMode?: any; pageNumber?: number };
-        if (p.conversionMode !== undefined) builder.withPdfConversionMode(p.conversionMode);
-        if (p.pageNumber !== undefined) builder.withPdfPage(p.pageNumber);
+        const p = value as NonNullable<ConversionOptions['pdf']>;
+        if (p.conversionMode !== undefined) sourceStage.withPdfConversionMode(p.conversionMode);
+        if (p.pageNumber !== undefined) sourceStage.withPdfPage(p.pageNumber);
         break;
       }
       case 'zpl': {
-        const z = value as { commandsToIgnore?: string[]; imageCompression?: any };
-        if (z.commandsToIgnore !== undefined) builder.withZplCommandsToIgnore(...z.commandsToIgnore);
-        if (z.imageCompression !== undefined) builder.withZplImageCompression(z.imageCompression);
+        const z = value as NonNullable<ConversionOptions['zpl']>;
+        if (z.commandsToIgnore !== undefined) sourceStage.withZplCommandsToIgnore(...z.commandsToIgnore);
         break;
       }
+      case 'split': sourceStage.withSplit(value as NonNullable<ConversionOptions['split']>); break;
+      case 'labelIndex': sourceStage.withLabelIndex(value as number); break;
+      // How an image or PDF is rasterized: a source option, set as one group.
+      case 'scaling': sourceStage.withRaster({ scaling: value as number }); break;
+      case 'colorMode': sourceStage.withRaster({ colorMode: value as any }); break;
+      case 'darkness': sourceStage.withRaster({ darkness: value as number }); break;
+      case 'position': sourceStage.withRaster({ position: value as { x: number; y: number } }); break;
       case 'data':
         // A bare object means one label, so it is wrapped rather than rejected.
-        builder.withData(...(Array.isArray(value) ? value : [value]));
+        sourceStage.withData(...(Array.isArray(value) ? value : [value]));
         break;
       default:
-        throw new Error(
-          `Fixture sets option '${key}', which the Node runner does not map. ` +
-            'Add it to buildRequest rather than skipping the case.',
-        );
+        if (!TARGET_OPTION_NAMES.has(key)) {
+          throw new Error(
+            `Fixture sets option '${key}', which the Node runner does not map. ` +
+              'Add it to buildRequest rather than skipping the case.',
+          );
+        }
+    }
+  }
+
+  const builder = sourceStage.to(target);
+
+  for (const [key, value] of entries) {
+    switch (key) {
+      case 'dpi': builder.withDpi(value as number); break;
+      case 'rotation': builder.withRotation(value as number); break;
+      case 'watermark': builder.withWatermark(value as boolean); break;
+      case 'dialect': builder.withDialect(value as string); break;
+      case 'zpl': {
+        const z = value as NonNullable<ConversionOptions['zpl']>;
+        if (z.imageCompression !== undefined) builder.withZplImageCompression(z.imageCompression);
+        if (z.collapseCopies !== undefined) builder.withZplCollapseCopies(z.collapseCopies);
+        break;
+      }
+      case 'layout': builder.withLayout(value as NonNullable<ConversionOptions['layout']>); break;
+      default:
+        // A source option, already applied before to().
+        break;
     }
   }
 
   return builder;
 }
+
+const TARGET_OPTION_NAMES = new Set([
+  'dpi', 'rotation', 'watermark', 'dialect', 'layout',
+]);
 
 function newClient(
   given: any,

@@ -37,6 +37,46 @@ type ZPLOptions struct {
 	CommandsToIgnore []string `json:"commandsToIgnore,omitempty"`
 	// ImageCompression selects the encoding of embedded images. Server default Z64.
 	ImageCompression *ZPLImageCompression `json:"imageCompression,omitempty"`
+	// CollapseCopies, for image or PDF to ZPL, sends each run of identical labels as one
+	// label with a ^PQ print quantity. Server default false.
+	CollapseCopies *bool `json:"collapseCopies,omitempty"`
+}
+
+// LayoutOptions puts labels side by side in each printed row, for multi-column roll stock.
+// Image or PDF to ZPL in IMAGE mode only.
+type LayoutOptions struct {
+	// Across is the number of labels across the roll, 1 to 10. Server default 1.
+	Across *int `json:"across,omitempty"`
+	// Gap is the space between two labels in a row, in INCHES. Server default 0.
+	Gap *float64 `json:"gap,omitempty"`
+	// Fill selects how pages fill the columns. Server default SEQUENTIAL.
+	Fill *LayoutFill `json:"fill,omitempty"`
+}
+
+// SplitOptions cuts each page into a grid of labels, read left to right and then down.
+// Image or PDF to ZPL in IMAGE mode only.
+//
+// Every length is in INCHES on the page as displayed, measured from its top-left corner.
+// Leave Width and Height nil to have the server divide the page equally.
+type SplitOptions struct {
+	// Rows is the number of rows of labels on each page, 1 to 20. Server default 1.
+	Rows *int `json:"rows,omitempty"`
+	// Columns is the number of columns of labels on each page, 1 to 20. Server default 1.
+	Columns *int `json:"columns,omitempty"`
+	// Width is one label's width on the page. Nil divides the page equally.
+	Width *float64 `json:"width,omitempty"`
+	// Height is one label's height on the page. Nil divides the page equally.
+	Height *float64 `json:"height,omitempty"`
+	// Left is the distance from the page's left edge to the first column. Server default 0.
+	Left *float64 `json:"left,omitempty"`
+	// Top is the distance from the page's top edge to the first row. Server default 0.
+	Top *float64 `json:"top,omitempty"`
+	// ColumnGap is the space between two columns. Server default 0.
+	ColumnGap *float64 `json:"columnGap,omitempty"`
+	// RowGap is the space between two rows. Server default 0.
+	RowGap *float64 `json:"rowGap,omitempty"`
+	// SkipBlank leaves out labels with nothing printable. Server default false.
+	SkipBlank *bool `json:"skipBlank,omitempty"`
 }
 
 // Options are the conversion parameters, in the shape the API expects.
@@ -73,6 +113,14 @@ type Options struct {
 	PDF *PDFOptions
 	// ZPL configures ZPL output.
 	ZPL *ZPLOptions
+	// Layout puts labels side by side in each printed row. Image or PDF to ZPL, IMAGE mode only.
+	Layout *LayoutOptions
+	// Split cuts each page into a grid of labels. Image or PDF to ZPL, IMAGE mode only.
+	Split *SplitOptions
+	// LabelIndex is the ZERO-BASED index of the one label to convert, on every plan. For
+	// image or PDF to ZPL it counts the labels after Split, page by page. Omit it to convert
+	// every label.
+	LabelIndex *int
 	// Extra carries anything this SDK does not model yet. Unknown keys are ignored
 	// server-side, so it is a safe forward-compatibility escape hatch. Keys here are
 	// merged at the top level of the params object and override the fields above.
@@ -150,6 +198,15 @@ func (o *Options) serialize() (string, error) {
 	}
 	if o.ZPL != nil {
 		params["zpl"] = *o.ZPL
+	}
+	if o.Layout != nil {
+		params["layout"] = *o.Layout
+	}
+	if o.Split != nil {
+		params["split"] = *o.Split
+	}
+	if o.LabelIndex != nil {
+		params["labelIndex"] = *o.LabelIndex
 	}
 	for key, value := range o.Extra {
 		params[key] = value
