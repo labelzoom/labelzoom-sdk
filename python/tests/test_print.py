@@ -135,7 +135,7 @@ def test_print_offers_exactly_the_source_options_of_convert() -> None:
     printing = set(inspect.signature(LabelZoomClient.print).parameters) - {"self"}
 
     assert printing - PRINT_ONLY == convert - CONVERT_ONLY
-    assert CONVERT_ONLY <= convert, "CONVERT_ONLY names a parameter convert no longer has"
+    assert convert >= CONVERT_ONLY, "CONVERT_ONLY names a parameter convert no longer has"
 
 
 def _assert_same_signature(sync: Callable[..., object], other: Callable[..., object]) -> None:
