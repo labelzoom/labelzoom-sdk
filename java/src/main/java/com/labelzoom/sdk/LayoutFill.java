@@ -2,7 +2,7 @@ package com.labelzoom.sdk;
 
 /**
  * How pages fill the columns of a multi-column row, when
- * {@link ConversionTargetBuilder#withLayout(int, float)} puts more than one label across.
+ * {@link ZplTargetBuilder#withLayout} puts more than one label across.
  */
 public enum LayoutFill {
 

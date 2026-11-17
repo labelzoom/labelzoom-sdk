@@ -323,8 +323,15 @@ class ConformanceTest {
         return builder.build();
     }
 
-    /** Translates the fixture's wire-shaped options into fluent SDK calls. */
-    private static ConversionTargetBuilder buildRequest(LabelZoomClient client, JsonNode given) {
+    /**
+     * Translates the fixture's wire-shaped options into fluent SDK calls.
+     *
+     * <p>One fixture object can mix source and target options: the {@code zpl} group holds both
+     * {@code commandsToIgnore} (source) and {@code imageCompression} (target). Source options are
+     * applied before {@code to()} and target options after it, which is the order the staged
+     * builders require.
+     */
+    private static DynamicTargetBuilder buildRequest(LabelZoomClient client, JsonNode given) {
         SourceFormat source = SourceFormat.fromToken(given.get("source").asText());
         TargetFormat target = TargetFormat.fromToken(given.get("target").asText());
         String body = given.get("bodyText").asText();
@@ -332,28 +339,27 @@ class ConformanceTest {
         boolean base64Text = given.has("sourceEncoding")
                 && "base64text".equals(given.get("sourceEncoding").asText());
 
-        ConversionTargetBuilder builder = base64Text
-                ? client.convert().fromBase64Text(source, body).to(target)
-                : client.convert().from(source, body).to(target);
+        DynamicSourceBuilder sourceStage = base64Text
+                ? client.convert().fromBase64Text(source, body)
+                : client.convert().from(source, body);
 
-        if (!given.has("options")) {
-            return builder;
-        }
+        JsonNode options = given.has("options") ? given.get("options") : MAPPER.createObjectNode();
+        applySourceOptions(sourceStage, options);
+        DynamicTargetBuilder targetStage = sourceStage.to(target);
+        applyTargetOptions(targetStage, options);
+        return targetStage;
+    }
 
-        Iterator<Map.Entry<String, JsonNode>> it = given.get("options").properties().iterator();
+    private static final Set<String> TARGET_OPTIONS =
+            Set.of("targetDpi", "rotation", "watermark", "dialect", "layout");
+
+    private static void applySourceOptions(DynamicSourceBuilder builder, JsonNode options) {
+        Iterator<Map.Entry<String, JsonNode>> it = options.properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> option = it.next();
             JsonNode v = option.getValue();
             switch (option.getKey()) {
-                case "sourceDpi" -> builder.withSourceDpi(v.asInt());
-                case "targetDpi" -> builder.withTargetDpi(v.asInt());
-                case "rotation" -> builder.withRotation(v.asInt());
-                case "scaling" -> builder.withScaling((float) v.asDouble());
-                case "colorMode" -> builder.withColorMode(ColorMode.valueOf(v.asText()));
-                case "darkness" -> builder.withDarkness(v.asInt());
-                case "watermark" -> builder.withWatermark(v.asBoolean());
-                case "dialect" -> builder.withDialect(v.asText());
-                case "position" -> builder.withPosition(v.get("x").asInt(), v.get("y").asInt());
+                case "sourceDpi" -> builder.withDpi(v.asInt());
                 case "label" -> builder.withLabelSize(
                         (float) v.get("width").asDouble(), (float) v.get("height").asDouble());
                 case "pdf" -> {
@@ -371,38 +377,32 @@ class ConformanceTest {
                         v.get("commandsToIgnore").forEach(n -> commands.add(n.asText()));
                         builder.withZplCommandsToIgnore(commands.toArray(new String[0]));
                     }
-                    if (v.has("imageCompression")) {
-                        builder.withZplImageCompression(
-                                ZplImageCompression.valueOf(v.get("imageCompression").asText()));
-                    }
-                    if (v.has("collapseCopies")) {
-                        builder.withZplCollapseCopies(v.get("collapseCopies").asBoolean());
-                    }
                 }
-                case "layout" -> {
-                    builder.withLayout(v.get("across").asInt(), (float) v.get("gap").asDouble());
-                    if (v.has("fill")) {
-                        builder.withLayoutFill(LayoutFill.valueOf(v.get("fill").asText()));
+                case "split" -> builder.withSplit(s -> {
+                    if (v.has("rows")) {
+                        s.rows(v.get("rows").asInt());
                     }
-                }
-                case "split" -> {
-                    builder.withSplit(v.get("rows").asInt(), v.get("columns").asInt());
+                    if (v.has("columns")) {
+                        s.columns(v.get("columns").asInt());
+                    }
                     if (v.has("width")) {
-                        builder.withSplitLabelSize(
-                                (float) v.get("width").asDouble(), (float) v.get("height").asDouble());
+                        s.labelSize((float) v.get("width").asDouble(), (float) v.get("height").asDouble());
                     }
                     if (v.has("left")) {
-                        builder.withSplitMargins(
-                                (float) v.get("left").asDouble(), (float) v.get("top").asDouble());
+                        s.margins((float) v.get("left").asDouble(), (float) v.get("top").asDouble());
                     }
                     if (v.has("columnGap")) {
-                        builder.withSplitGaps(
-                                (float) v.get("columnGap").asDouble(), (float) v.get("rowGap").asDouble());
+                        s.gaps((float) v.get("columnGap").asDouble(), (float) v.get("rowGap").asDouble());
                     }
                     if (v.has("skipBlank")) {
-                        builder.withSplitSkipBlank(v.get("skipBlank").asBoolean());
+                        s.skipBlank(v.get("skipBlank").asBoolean());
                     }
-                }
+                });
+                // How an image or PDF is rasterized: a source option, set as one group.
+                case "scaling" -> builder.withRaster(r -> r.scaling((float) v.asDouble()));
+                case "colorMode" -> builder.withRaster(r -> r.colorMode(ColorMode.valueOf(v.asText())));
+                case "darkness" -> builder.withRaster(r -> r.darkness(v.asInt()));
+                case "position" -> builder.withRaster(r -> r.position(v.get("x").asInt(), v.get("y").asInt()));
                 case "labelIndex" -> builder.withLabelIndex(v.asInt());
                 case "data" -> {
                     List<Map<String, Object>> records = new ArrayList<>();
@@ -414,12 +414,53 @@ class ConformanceTest {
                     }
                     builder.withData(records);
                 }
-                default -> throw new IllegalStateException(
-                        "Fixture sets option '" + option.getKey() + "', which the Java runner does "
-                                + "not map. Add it to buildRequest rather than skipping the case.");
+                default -> {
+                    if (!TARGET_OPTIONS.contains(option.getKey())) {
+                        throw new IllegalStateException(
+                                "Fixture sets option '" + option.getKey() + "', which the Java runner "
+                                        + "does not map. Add it to buildRequest rather than skipping the case.");
+                    }
+                }
             }
         }
-        return builder;
+    }
+
+    private static void applyTargetOptions(DynamicTargetBuilder builder, JsonNode options) {
+        Iterator<Map.Entry<String, JsonNode>> it = options.properties().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, JsonNode> option = it.next();
+            JsonNode v = option.getValue();
+            switch (option.getKey()) {
+                case "targetDpi" -> builder.withDpi(v.asInt());
+                case "rotation" -> builder.withRotation(v.asInt());
+                case "watermark" -> builder.withWatermark(v.asBoolean());
+                case "dialect" -> builder.withDialect(v.asText());
+                case "zpl" -> {
+                    if (v.has("imageCompression")) {
+                        builder.withZplImageCompression(
+                                ZplImageCompression.valueOf(v.get("imageCompression").asText()));
+                    }
+                    if (v.has("collapseCopies")) {
+                        builder.withZplCollapseCopies(v.get("collapseCopies").asBoolean());
+                    }
+                }
+                case "layout" -> builder.withLayout(l -> {
+                    if (v.has("across")) {
+                        l.across(v.get("across").asInt());
+                    }
+                    if (v.has("gap")) {
+                        l.gap((float) v.get("gap").asDouble());
+                    }
+                    if (v.has("fill")) {
+                        l.fill(LayoutFill.valueOf(v.get("fill").asText()));
+                    }
+                });
+                default -> {
+                    // A source option, already applied before to(). applySourceOptions rejects
+                    // a name that is neither.
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
