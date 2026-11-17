@@ -85,8 +85,13 @@ type SplitOptions struct {
 // client-side default, which is why the scalars are pointers -- see [Int], [Float64],
 // [Bool] and [String]. Setting nothing at all produces a bare URL with no query string.
 type Options struct {
-	// DPI is the output resolution. Server default 203.
-	DPI *int
+	// SourceDPI is the resolution the source was made for: how a printer-language job's dots or an
+	// image's pixels map to inches. Server default 203. Not for PDF, NiceLabel, BarTender or
+	// LabelZoom XML/JSON sources, which have no dots (contract C8).
+	SourceDPI *int
+	// TargetDPI is the resolution of the output. Server default: SourceDPI, else 203. Not for a
+	// PDF target.
+	TargetDPI *int
 	// Rotation is degrees clockwise and must be a multiple of 90. Server default 0.
 	Rotation *int
 	// Scaling is a percentage. Server default 100.
@@ -146,8 +151,22 @@ func (o *Options) serialize() (string, error) {
 
 	params := map[string]any{}
 
-	if o.DPI != nil {
-		params["dpi"] = *o.DPI
+	// Contract C8: only a positive resolution is checked locally; which formats take one is
+	// server policy.
+	for _, dpi := range []struct {
+		name  string
+		value *int
+	}{{"sourceDpi", o.SourceDPI}, {"targetDpi", o.TargetDPI}} {
+		if dpi.value == nil {
+			continue
+		}
+		if *dpi.value <= 0 {
+			return "", &ValidationError{
+				Parameter: dpi.name,
+				Message:   fmt.Sprintf("%s must be a positive whole number, but was %d.", dpi.name, *dpi.value),
+			}
+		}
+		params[dpi.name] = *dpi.value
 	}
 	if o.Rotation != nil {
 		if *o.Rotation%90 != 0 {

@@ -76,14 +76,19 @@ namespace LabelZoom.Sdk.Conversion
             configure(new SplitOptions(p));
         }
 
-        internal static void Dpi(ConversionParameters p, int dpi)
+        // Contract C8: sourceDpi from the source stage, targetDpi from the target stage, never the legacy dpi.
+        internal static void SourceDpi(ConversionParameters p, int dpi) => p.Set("sourceDpi", PositiveDpi(dpi));
+
+        internal static void TargetDpi(ConversionParameters p, int dpi) => p.Set("targetDpi", PositiveDpi(dpi));
+
+        private static int PositiveDpi(int dpi)
         {
             if (dpi <= 0)
             {
                 throw new LabelZoomValidationException(nameof(dpi), "DPI must be greater than zero.");
             }
 
-            p.Set("dpi", dpi);
+            return dpi;
         }
 
         internal static void Rotation(ConversionParameters p, int rotation)

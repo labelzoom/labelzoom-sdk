@@ -34,7 +34,7 @@ client.convert("zpl", source, body)  # type: ignore[arg-type]
 # would silently defeat every assertion above -- these would still pass while the ignores
 # above became unused, and mypy would say so.
 client.convert("zpl", "png", body)
-client.convert("jpg", "jpeg", body, dpi=300, label_width=4.0, pdf_page_number=0)
+client.convert("jpg", "jpeg", body, source_dpi=300, label_width=4.0, pdf_page_number=0)
 
 # The printer languages are targets as of the 1.1.0 contract, not just sources -- and ipl and
 # sbpl joined them in 1.2.0. These are positive controls too: were the Literal ever narrowed

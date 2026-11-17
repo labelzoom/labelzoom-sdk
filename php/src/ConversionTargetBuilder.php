@@ -31,15 +31,37 @@ final class ConversionTargetBuilder
     ) {
     }
 
-    /** Output resolution in dots per inch. The server default is 203. */
-    public function withDpi(int $dpi): self
+    /**
+     * The resolution the source was made for, in dots per inch: how a printer-language job's dots or an
+     * image's pixels map to inches. The server default is 203. Not for PDF, NiceLabel, BarTender or
+     * LabelZoom XML/JSON sources, which have no dots (contract C8).
+     */
+    public function withSourceDpi(int $dpi): self
+    {
+        $this->params['sourceDpi'] = self::positiveDpi($dpi);
+
+        return $this;
+    }
+
+    /**
+     * The resolution of the output, in dots per inch. The server default is the source's resolution,
+     * else 203. Not for the PDF target. To move a label to a printer of another density at the same
+     * physical size, set both.
+     */
+    public function withTargetDpi(int $dpi): self
+    {
+        $this->params['targetDpi'] = self::positiveDpi($dpi);
+
+        return $this;
+    }
+
+    private static function positiveDpi(int $dpi): int
     {
         if ($dpi <= 0) {
             throw new ValidationException('dpi', 'DPI must be greater than zero.');
         }
-        $this->params['dpi'] = $dpi;
 
-        return $this;
+        return $dpi;
     }
 
     /**

@@ -106,7 +106,7 @@ namespace LabelZoom.Sdk.Conversion
         public TargetBuilder ToJson() => new TargetBuilder(Draft, TargetFormat.Json);
 
         /// <summary>Converts to PDF, one page per label.</summary>
-        public TargetBuilder ToPdf() => new TargetBuilder(Draft, TargetFormat.Pdf);
+        public PdfTargetBuilder ToPdf() => new PdfTargetBuilder(Draft);
 
         /// <summary>Converts to a PNG image. Returns the first label only.</summary>
         public ImageTargetBuilder ToPng() => new ImageTargetBuilder(Draft, TargetFormat.Png);

@@ -73,6 +73,21 @@ var result = await client.Convert()
 Console.WriteLine(result.Text);
 ```
 
+To move a label made for a 300 dpi printer to a 203 dpi one at the same physical size, set the
+resolution on both stages:
+
+```csharp
+var result = await client.Convert()
+    .FromZpl(zplFor300Dpi)
+        .WithDpi(300)                               // what the job was made for
+    .ToZpl()
+        .WithDpi(203)                               // the printer it's going to
+    .ExecuteAsync();
+```
+
+Set only the source stage's to say what a job was made for without rescaling it: the output
+follows. A PDF has no dots, so `FromPdf` has no `WithDpi`, and neither does `ToPdf`.
+
 A Letter sheet of four labels, printed two across on a 2-up roll:
 
 ```csharp
@@ -122,6 +137,7 @@ Set after `From*`, before `To*`.
 
 | Method | On | Notes |
 |---|---|---|
+| `WithDpi(int)` | printer-language and image sources | the resolution the job or image was made for; server default 203 |
 | `WithLabelSize(float, float)` | every source | **inches**, not dots; replaces the size the source declares |
 | `WithLabelIndex(int)` | every source | **0-based**; converts only this label, on every plan |
 | `WithData(params object?[])` | every source | one label per record |
@@ -137,7 +153,7 @@ Set after `To*`, before `ExecuteAsync`.
 
 | Method | On | Notes |
 |---|---|---|
-| `WithDpi(int)` | every target | server default 203 |
+| `WithDpi(int)` | every target but `ToPdf` | the resolution of the output; server default is the source's, else 203 |
 | `WithRotation(int)` | every target | must be a multiple of 90; rejected locally otherwise |
 | `WithWatermark(bool)` | every target | forced on for the free tier regardless |
 | `WithDialect(string)` | every target | e.g. `moca`; **paid** |
@@ -179,6 +195,7 @@ In 1.x every option was set after `To*`. In 2.0, move the source options before 
 | `.WithZplCommandsToIgnore("^PQ")` | `.FromZpl(zpl).WithCommandsToIgnore("^PQ")` |
 | `.WithLabelSize(w, h)`, `.WithLabelIndex(i)`, `.WithData(...)` | same name, before `To*` |
 | `.WithZplImageCompression(c)` | `.ToZpl().WithImageCompression(c)` |
+| `.WithDpi(d)`, which set both resolutions | `.WithDpi(d)` on the target stage for the output; add it on the source stage too if the job was made for `d` |
 | `.WithScaling(p)`, `.WithPosition(x, y)` | `.FromPdf(pdf).WithRaster(r => r.Scaling(p).Position(x, y))`, or `FromPng` and the other images |
 | `.WithDarkness(d)`, `.WithColorMode(m)` | in `WithRaster` for an image or PDF source; on `ToPng` and the other image targets for black-and-white output |
 | `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage<T>` and `TargetStage<T>` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |

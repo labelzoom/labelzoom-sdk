@@ -52,7 +52,8 @@ module LabelZoom
     }.freeze
 
     SCALAR_KEYS = {
-      dpi: "dpi",
+      source_dpi: "sourceDpi",
+      target_dpi: "targetDpi",
       rotation: "rotation",
       scaling: "scaling",
       color_mode: "colorMode",
@@ -100,6 +101,13 @@ module LabelZoom
         unless value.is_a?(Numeric) && (value % 90).zero?
           raise ValidationError.new("rotation",
                                     "Rotation must be a multiple of 90 degrees, but was #{value}.")
+        end
+      when :source_dpi, :target_dpi
+        # Contract C8: only a positive resolution is checked locally.
+        unless value.is_a?(Integer) && value.positive?
+          raise ValidationError.new(key.to_s,
+                                    "#{key} must be a positive whole number, " \
+                                    "but was #{value.inspect}.")
         end
       when :darkness
         unless value.is_a?(Numeric) && value.between?(0, 100)

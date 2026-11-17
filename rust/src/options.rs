@@ -171,9 +171,14 @@ pub struct SplitOptions {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversionOptions {
-    /// Output resolution. Server default 203.
+    /// The resolution the source was made for: how a printer-language job's dots or an image's
+    /// pixels map to inches. Server default 203. Not for a source with no dots, such as a PDF or
+    /// a designer file (contract C8).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dpi: Option<i64>,
+    pub source_dpi: Option<i64>,
+    /// The resolution of the output. Server default: `source_dpi`, else 203. Not for a PDF target.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_dpi: Option<i64>,
     /// Degrees clockwise. Must be a multiple of 90. Server default 0.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rotation: Option<i64>,
@@ -238,10 +243,17 @@ impl ConversionOptions {
         Self::default()
     }
 
-    /// Sets the output resolution.
+    /// Sets the resolution the source was made for.
     #[must_use]
-    pub fn dpi(mut self, dpi: i64) -> Self {
-        self.dpi = Some(dpi);
+    pub fn source_dpi(mut self, dpi: i64) -> Self {
+        self.source_dpi = Some(dpi);
+        self
+    }
+
+    /// Sets the resolution of the output.
+    #[must_use]
+    pub fn target_dpi(mut self, dpi: i64) -> Self {
+        self.target_dpi = Some(dpi);
         self
     }
 
@@ -453,6 +465,21 @@ impl ConversionOptions {
     ///
     /// Returns `None` when nothing was set, in which case no query parameter is emitted.
     pub(crate) fn serialize(&self) -> Result<Option<String>, Error> {
+        // Contract C8: only a positive resolution is checked locally; which formats take one
+        // is server policy.
+        for (name, dpi) in [
+            ("sourceDpi", self.source_dpi),
+            ("targetDpi", self.target_dpi),
+        ] {
+            if let Some(dpi) = dpi {
+                if dpi <= 0 {
+                    return Err(Error::validation(
+                        name,
+                        format!("{name} must be a positive whole number, but was {dpi}."),
+                    ));
+                }
+            }
+        }
         if let Some(rotation) = self.rotation {
             if rotation % 90 != 0 {
                 // Rejected locally: the server would 400, and this is unambiguously a

@@ -33,7 +33,7 @@ with LabelZoomClient() as client:                # anonymous; this works
     result = client.convert(
         "zpl", "png",
         "^XA^FO20,20^A0N,28^FDHello^FS^XZ",
-        dpi=300, label_width=4, label_height=6,
+        target_dpi=300, label_width=4, label_height=6,
     )
 
 Path("label.png").write_bytes(result.content)
@@ -75,7 +75,7 @@ from labelzoom import AsyncLabelZoomClient
 
 async def main() -> None:
     async with AsyncLabelZoomClient() as client:
-        result = await client.convert("zpl", "png", zpl, dpi=300)
+        result = await client.convert("zpl", "png", zpl, target_dpi=300)
         print(result.status, result.content_type, len(result.content))
 
 asyncio.run(main())
@@ -119,7 +119,8 @@ becomes `label_width`, `pdf.pageNumber` becomes `pdf_page_number`.
 
 | Keyword | Notes |
 |---|---|
-| `dpi` | server default 203 |
+| `source_dpi` | the resolution the job or image was made for; server default 203 |
+| `target_dpi` | the resolution of the output; server default is the source's, else 203. Not for a PDF target |
 | `rotation` | must be a multiple of 90; rejected locally otherwise |
 | `scaling` | percent, server default 100 |
 | `color_mode` | `"BW"`, `"GRAYSCALE"` (default), `"COLOR"` |
@@ -152,7 +153,7 @@ dataclass:
 ```python
 from labelzoom import ConversionOptions
 
-preset = ConversionOptions(dpi=300, label_width=4, label_height=6)
+preset = ConversionOptions(target_dpi=300, label_width=4, label_height=6)
 result = client.convert("zpl", "png", zpl, options=preset, rotation=90)
 ```
 

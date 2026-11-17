@@ -3,8 +3,8 @@ using System;
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// The source stage for a format with no options of its own: EPL, IPL, TSPL, DPL, SBPL,
-    /// LabelZoom XML and LabelZoom JSON.
+    /// The source stage for LabelZoom XML and LabelZoom JSON. They record their own resolution, so there is
+    /// no <c>WithDpi</c>.
     /// </summary>
     public sealed class SourceBuilder : SourceStage<SourceBuilder>
     {
@@ -14,12 +14,41 @@ namespace LabelZoom.Sdk.Conversion
         }
     }
 
+    /// <summary>The source stage for EPL, IPL, TSPL, DPL and SBPL.</summary>
+    public sealed class PrinterLanguageSourceBuilder : SourceStage<PrinterLanguageSourceBuilder>
+    {
+        internal PrinterLanguageSourceBuilder(ConversionDraft draft)
+            : base(draft)
+        {
+        }
+
+        /// <summary>
+        /// The resolution the source was made for, in dots per inch: how its dots or pixels map to inches.
+        /// The server default is 203. The output follows it unless the target stage sets its own.
+        /// </summary>
+        public PrinterLanguageSourceBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.SourceDpi(Parameters, dpi);
+            return this;
+        }
+    }
+
     /// <summary>The source stage for a ZPL document.</summary>
     public sealed class ZplSourceBuilder : SourceStage<ZplSourceBuilder>
     {
         internal ZplSourceBuilder(ConversionDraft draft)
             : base(draft)
         {
+        }
+
+        /// <summary>
+        /// The resolution the source was made for, in dots per inch: how its dots or pixels map to inches.
+        /// The server default is 203. The output follows it unless the target stage sets its own.
+        /// </summary>
+        public ZplSourceBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.SourceDpi(Parameters, dpi);
+            return this;
         }
 
         /// <summary>ZPL commands the parser should skip, for example <c>^PQ</c>.</summary>
@@ -36,6 +65,16 @@ namespace LabelZoom.Sdk.Conversion
         internal ImageSourceBuilder(ConversionDraft draft)
             : base(draft)
         {
+        }
+
+        /// <summary>
+        /// The resolution the source was made for, in dots per inch: how its dots or pixels map to inches.
+        /// The server default is 203. The output follows it unless the target stage sets its own.
+        /// </summary>
+        public ImageSourceBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.SourceDpi(Parameters, dpi);
+            return this;
         }
 
         /// <summary>
@@ -126,6 +165,16 @@ namespace LabelZoom.Sdk.Conversion
         internal DynamicSourceBuilder(ConversionDraft draft)
             : base(draft)
         {
+        }
+
+        /// <summary>
+        /// The resolution the source was made for, in dots per inch: how its dots or pixels map to inches.
+        /// The server default is 203. The output follows it unless the target stage sets its own.
+        /// </summary>
+        public DynamicSourceBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.SourceDpi(Parameters, dpi);
+            return this;
         }
 
         /// <inheritdoc cref="PdfSourceBuilder.WithPage"/>

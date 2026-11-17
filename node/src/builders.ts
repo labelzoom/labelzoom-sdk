@@ -72,11 +72,11 @@ export class ConversionRequestBuilder {
   }
 
   fromZpl(zpl: ConversionBody): ZplSourceBuilder { return new ZplSourceBuilder(this.#draft('zpl', zpl)); }
-  fromEpl(epl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('epl', epl)); }
-  fromIpl(ipl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('ipl', ipl)); }
-  fromTspl(tspl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('tspl', tspl)); }
-  fromDpl(dpl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('dpl', dpl)); }
-  fromSbpl(sbpl: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('sbpl', sbpl)); }
+  fromEpl(epl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('epl', epl)); }
+  fromIpl(ipl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('ipl', ipl)); }
+  fromTspl(tspl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('tspl', tspl)); }
+  fromDpl(dpl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('dpl', dpl)); }
+  fromSbpl(sbpl: ConversionBody): PrinterLanguageSourceBuilder { return new PrinterLanguageSourceBuilder(this.#draft('sbpl', sbpl)); }
   fromXml(xml: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('xml', xml)); }
   fromJson(json: ConversionBody): SourceBuilder { return new SourceBuilder(this.#draft('json', json)); }
   fromPdf(pdf: ConversionBody): PdfSourceBuilder { return new PdfSourceBuilder(this.#draft('pdf', pdf)); }
@@ -146,23 +146,35 @@ export abstract class SourceStage {
   toSbpl(): TargetBuilder { return new TargetBuilder(this.draft, 'sbpl'); }
   toXml(): TargetBuilder { return new TargetBuilder(this.draft, 'xml'); }
   toJson(): TargetBuilder { return new TargetBuilder(this.draft, 'json'); }
-  toPdf(): TargetBuilder { return new TargetBuilder(this.draft, 'pdf'); }
+  toPdf(): PdfTargetBuilder { return new PdfTargetBuilder(this.draft); }
   toPng(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'png'); }
   toBmp(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'bmp'); }
   toGif(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'gif'); }
   toJpeg(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'jpeg'); }
 }
 
-/** The source stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON. */
+/** The source stage for LabelZoom XML and JSON. They record their own resolution, so there is no `withDpi`. */
 export class SourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
+}
+
+/** The source stage for EPL, IPL, TSPL, DPL and SBPL. */
+export class PrinterLanguageSourceBuilder extends SourceStage {
+  /** @internal */
+  constructor(draft: Draft) { super(draft); }
+
+  /** The resolution the source was made for, in dpi: how its dots or pixels map to inches. Server default 203. */
+  withDpi(dpi: number): this { this.draft.options.sourceDpi = dpi; return this; }
 }
 
 /** The source stage for a ZPL document. */
 export class ZplSourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
+
+  /** The resolution the source was made for, in dpi: how its dots or pixels map to inches. Server default 203. */
+  withDpi(dpi: number): this { this.draft.options.sourceDpi = dpi; return this; }
 
   /** ZPL commands the parser should skip, for example `'^PQ'`. */
   withCommandsToIgnore(...commands: string[]): this {
@@ -175,6 +187,9 @@ export class ZplSourceBuilder extends SourceStage {
 export class ImageSourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
+
+  /** The resolution the source was made for, in dpi: how its dots or pixels map to inches. Server default 203. */
+  withDpi(dpi: number): this { this.draft.options.sourceDpi = dpi; return this; }
 
   /**
    * Cuts the image into a grid of labels, read left to right and then down. ZPL target only.
@@ -246,6 +261,9 @@ export class DynamicSourceBuilder extends SourceStage {
   /** @internal */
   constructor(draft: Draft) { super(draft); }
 
+  /** The resolution the source was made for, in dpi: how its dots or pixels map to inches. Server default 203. */
+  withDpi(dpi: number): this { this.draft.options.sourceDpi = dpi; return this; }
+
   /** **0-based**. Omit to convert every page. */
   withPdfPage(zeroBasedPageNumber: number): this {
     setPdf(this.draft, { pageNumber: zeroBasedPageNumber });
@@ -291,7 +309,6 @@ export abstract class TargetStage {
     this.#target = target;
   }
 
-  withDpi(dpi: number): this { this.draft.options.dpi = dpi; return this; }
   /** Must be a multiple of 90; rejected locally otherwise. */
   withRotation(rotation: number): this { this.draft.options.rotation = rotation; return this; }
   withWatermark(watermark = true): this { this.draft.options.watermark = watermark; return this; }
@@ -320,16 +337,28 @@ export abstract class TargetStage {
   }
 }
 
-/** The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and JSON, and PDF. */
+/** The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and JSON. */
 export class TargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft, target: TargetFormat) { super(draft, target); }
+
+  /** The resolution of the output, in dpi. Server default: the source's resolution, else 203. */
+  withDpi(dpi: number): this { this.draft.options.targetDpi = dpi; return this; }
+}
+
+/** The target stage for PDF. A PDF has no resolution of its own, so there is no `withDpi`. */
+export class PdfTargetBuilder extends TargetStage {
+  /** @internal */
+  constructor(draft: Draft) { super(draft, 'pdf'); }
 }
 
 /** The target stage for a PNG, BMP, GIF or JPEG image. */
 export class ImageTargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft, target: TargetFormat) { super(draft, target); }
+
+  /** The resolution of the output, in dpi. Server default: the source's resolution, else 203. */
+  withDpi(dpi: number): this { this.draft.options.targetDpi = dpi; return this; }
 
   /** `BW` renders a black-and-white image at the `withDarkness` threshold. Anything else renders in color, the default. */
   withColorMode(mode: ColorMode): this { this.draft.options.colorMode = mode; return this; }
@@ -341,6 +370,9 @@ export class ImageTargetBuilder extends TargetStage {
 export class ZplTargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft) { super(draft, 'zpl'); }
+
+  /** The resolution of the output, in dpi. Server default: the source's resolution, else 203. */
+  withDpi(dpi: number): this { this.draft.options.targetDpi = dpi; return this; }
 
   /** Server default `Z64`. */
   withImageCompression(compression: ZplImageCompression): this {
@@ -376,6 +408,9 @@ export class ZplTargetBuilder extends TargetStage {
 export class DynamicTargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft, target: TargetFormat) { super(draft, target); }
+
+  /** The resolution of the output, in dpi. Server default: the source's resolution, else 203. */
+  withDpi(dpi: number): this { this.draft.options.targetDpi = dpi; return this; }
 
   withZplImageCompression(compression: ZplImageCompression): this {
     setZpl(this.draft, { imageCompression: compression });

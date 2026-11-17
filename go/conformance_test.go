@@ -293,8 +293,10 @@ func buildOptions(t *testing.T, wire map[string]any) *labelzoom.Options {
 	options := &labelzoom.Options{}
 	for key, value := range wire {
 		switch key {
-		case "dpi":
-			options.DPI = labelzoom.Ptr(int(value.(float64)))
+		case "sourceDpi":
+			options.SourceDPI = labelzoom.Ptr(int(value.(float64)))
+		case "targetDpi":
+			options.TargetDPI = labelzoom.Ptr(int(value.(float64)))
 		case "rotation":
 			options.Rotation = labelzoom.Ptr(int(value.(float64)))
 		case "scaling":

@@ -128,7 +128,7 @@ final class CurlHttpClientTest extends TestCase
         $result = $client->convert()
             ->from(SourceFormat::Zpl, '^XA^FO20,20^FDhi^FS^XZ')
             ->to(TargetFormat::Png)
-            ->withDpi(300)
+            ->withTargetDpi(300)
             ->execute();
 
         /** @var array{method: string, uri: string, headers: array<string, string>, body: string} $echo */

@@ -21,6 +21,7 @@ client = LabelZoomClient(apiKey?, baseUrl?, timeout?, maxRetries?, userAgent?)
 
 result = client.convert()
              .from(<SourceFormat>, <body>)                      ── source stage
+                 .withDpi(int)                         (sourceDpi; printer languages and images)
                  .withLabelSize(widthInches, heightInches)
                  .withLabelIndex(zeroBasedIndex)
                  .withData([{...}, ...])
@@ -31,7 +32,8 @@ result = client.convert()
                  .withRaster(scaling, position(x, y), darkness,
                              colorMode BW|GRAYSCALE|COLOR)      (a group: see 1.2)
              .to(<TargetFormat>)                                ── target stage
-                 .withDpi(int) .withRotation(int)
+                 .withDpi(int)                         (targetDpi; every target but PDF)
+                 .withRotation(int)
                  .withWatermark(bool) .withDialect(string)
                  .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)   (image targets)
                  .withZplImageCompression(Z64|COMPRESSED_HEX)
@@ -94,17 +96,20 @@ return a subclass that adds only the options for that format:
 | Method | Returns | Adds |
 |---|---|---|
 | `fromPdf` | PDF source stage | `withPage`, `withConversionMode`, `withSplit`, `withRaster` |
-| `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withSplit`, `withRaster` |
-| `fromZpl` | ZPL source stage | `withCommandsToIgnore` |
-| other `from*` | plain source stage | nothing |
+| `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withDpi`, `withSplit`, `withRaster` |
+| `fromZpl` | ZPL source stage | `withDpi`, `withCommandsToIgnore` |
+| `fromEpl`, `fromIpl`, `fromTspl`, `fromDpl`, `fromSbpl` | printer-language source stage | `withDpi` |
+| `fromXml`, `fromJson` | plain source stage | nothing |
 | `from(SourceFormat, body)`, `fromUrl`, base64 text | dynamic source stage | every source option, format-prefixed |
-| `toZpl` | ZPL target stage | `withImageCompression`, `withCollapseCopies`, `withLayout` |
-| `toPng`, `toBmp`, `toGif`, `toJpeg` | image target stage | `withColorMode`, `withDarkness` |
-| other `to*` | plain target stage | nothing |
+| `toZpl` | ZPL target stage | `withDpi`, `withImageCompression`, `withCollapseCopies`, `withLayout` |
+| `toPng`, `toBmp`, `toGif`, `toJpeg` | image target stage | `withDpi`, `withColorMode`, `withDarkness` |
+| `toPdf` | PDF target stage | nothing |
+| other `to*` | plain target stage | `withDpi` |
 | `to(TargetFormat)` | dynamic target stage | every target option, format-prefixed |
 
-So `fromZpl(zpl).withPage(0)` and `toPdf().withLayout(...)` don't compile, in the languages that
-chain (C#, Java, TypeScript, PHP). The dynamic builders exist because a format chosen at run time
+So `fromZpl(zpl).withPage(0)`, `fromPdf(pdf).withDpi(300)` and `toPdf().withLayout(...)` don't
+compile, in the languages that chain (C#, Java, TypeScript, PHP). The dynamic builders exist
+because a format chosen at run time
 can't be checked at compile time; they keep the format prefix (`withPdfPage`) so the name still
 says where the option acts.
 
@@ -214,11 +219,11 @@ Defined **once** per language. Never inlined at a call site.
 ### C — Parameter serialization
 
 - **C1** Only options the caller **explicitly set** are serialized. Never emit a client-side
-  default. `dpi=203` appearing in a request the caller never configured is a bug: it defeats any
+  default. `targetDpi=203` appearing in a request the caller never configured is a bug: it defeats any
   future server-side default change. Implementations need a way to distinguish "unset" from
   "set to the zero value" (pointer fields in Go, a sentinel in Python, nullables elsewhere).
 - **C2** All options travel in exactly **one** `?params=<url-encoded JSON>` query parameter. Do
-  **not** emit dot-notation (`?dpi=300&label.width=4`).
+  **not** emit dot-notation (`?targetDpi=300&label.width=4`).
 
   > This is now a **style rule, not a capability limit**. It used to be both: `?data=[{},{}]`
   > returned **400** because the server had no String conversion registered for the `data` field's
@@ -242,9 +247,10 @@ Defined **once** per language. Never inlined at a call site.
 
   The same two facts extend to the multi-label parameters. `layout.gap` and every `split.*`
   length are **inches**, because they describe the media and the source sheet. The media, and a
-  PDF page, do not change size when `dpi` or `scaling` does, so neither does a gap or a PDF's
-  grid. An image has no physical size: the server measures its page as pixels ÷ `dpi`, so on an
-  image source the same `split` inches cover different pixels at a different `dpi`. (`position`
+  PDF page, do not change size when `targetDpi` or `scaling` does, so neither does a gap or a
+  PDF's grid. An image has no physical size: the server measures its page as pixels ÷ `sourceDpi`,
+  so on an image source the same `split` inches cover different pixels at a different `sourceDpi`.
+  (`position`
   is the one length still in dots, and it predates this rule.) `labelIndex` is **0-based**, and
   `0` must serialize. Leaving `split.width` / `split.height` unset must emit neither key: that
   absence is what asks the API to divide the page equally.
@@ -253,6 +259,21 @@ Defined **once** per language. Never inlined at a call site.
 - **C6** `rotation` must be a multiple of 90, validated **locally**. This raises a validation error
   type that is **distinct from every API error type** and is never retried.
 - **C7** When no options are set, emit no query string at all — a bare URL.
+- **C8** A resolution travels as `sourceDpi` from the source stage and `targetDpi` from the
+  target stage. **Never emit the legacy `dpi` key.** The server still accepts it, and fills both
+  sides from it wherever a conversion uses one, but a 2.0 SDK has no way to set it, because one
+  number for two resolutions is the ambiguity the split exists to remove.
+
+  `sourceDpi` is the resolution a printer-language job or an image was made for: how its dots or
+  pixels map to inches. It also beats the resolution an ESC/Label or CPCL job declares, as a
+  caller's label size beats the job's own. `targetDpi` is the resolution of the output. The server
+  follows a `sourceDpi` sent alone, so naming the job's resolution doesn't also rescale it; send
+  both to move a label to a printer of another density at the same physical size.
+
+  The server answers **400** for `sourceDpi` from a source with no dots (PDF, NiceLabel,
+  BarTender, LabelZoom XML and JSON), for `targetDpi` with the PDF target, and for a value that
+  isn't positive. The SDKs check only the last one locally; which formats take which is server
+  policy, and the typed stages already leave the method off where it can't apply.
 
 ### D — Response
 
@@ -357,7 +378,8 @@ opaque string and must not attempt to parse or validate it:
 
 | Fluent method | Stage | JSON path | Type | Server default | Notes |
 |---|---|---|---|---|---|
-| `withDpi` | target | `dpi` | int | `203` | |
+| `withDpi` | source | `sourceDpi` | int | `203` | the resolution the job or image was made for (**C8**); printer-language and image sources |
+| `withDpi` | target | `targetDpi` | int | `sourceDpi`, else `203` | the resolution of the output (**C8**); every target but PDF |
 | `withRotation` | target | `rotation` | int | `0` | must be a multiple of 90 (**C6**) |
 | `withRaster` { scaling } | source | `scaling` | float | `100` | percent; image and PDF sources |
 | `withRaster` { colorMode } | source; image targets | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR`; on an image target only `BW` changes the output |

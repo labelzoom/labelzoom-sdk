@@ -41,7 +41,7 @@ $client = new LabelZoomClient();            // anonymous; this works
 $result = $client->convert()
     ->fromZpl('^XA^FO20,20^A0N,28^FDHello^FS^XZ')
     ->toPng()
-    ->withDpi(300)
+    ->withTargetDpi(300)
     ->withLabelSize(widthInches: 4, heightInches: 6)
     ->execute();
 
@@ -102,7 +102,8 @@ Every `with*` call maps to one field of the API's `?params=` object.
 
 | Method | Notes |
 |---|---|
-| `withDpi(int)` | server default 203 |
+| `withSourceDpi(int)` | the resolution the job or image was made for; server default 203 |
+| `withTargetDpi(int)` | the resolution of the output; server default is the source's, else 203. Not for a PDF target |
 | `withRotation(int)` | must be a multiple of 90; rejected locally otherwise |
 | `withScaling(float)` | percent, server default 100 |
 | `withColorMode(ColorMode)` | `Bw`, `Grayscale` (default), `Color` |
