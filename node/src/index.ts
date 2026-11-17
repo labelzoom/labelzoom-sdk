@@ -19,9 +19,11 @@ export {
   TargetStage,
   TargetBuilder,
   ZplTargetBuilder,
+  ImageTargetBuilder,
   DynamicTargetBuilder,
   type SplitOptions,
   type LayoutOptions,
+  type RasterOptions,
 } from './builders.js';
 
 export {

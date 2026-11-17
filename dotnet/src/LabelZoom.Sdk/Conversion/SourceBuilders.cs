@@ -47,6 +47,17 @@ namespace LabelZoom.Sdk.Conversion
             ParameterWriters.Split(Parameters, configure);
             return this;
         }
+
+        /// <summary>
+        /// How the image is rasterized: scaling, its position on the label (which, with a label size, crops
+        /// it), the black-and-white threshold and the color reduction.
+        /// </summary>
+        /// <example><c>.WithRaster(r =&gt; r.Scaling(150).Position(-20, 0).Darkness(60))</c></example>
+        public ImageSourceBuilder WithRaster(Action<RasterOptions> configure)
+        {
+            ParameterWriters.Raster(Parameters, configure);
+            return this;
+        }
     }
 
     /// <summary>The source stage for a PDF document.</summary>
@@ -86,6 +97,18 @@ namespace LabelZoom.Sdk.Conversion
         public PdfSourceBuilder WithSplit(Action<SplitOptions> configure)
         {
             ParameterWriters.Split(Parameters, configure);
+            return this;
+        }
+
+        /// <summary>
+        /// How each page is rasterized: scaling, its position on the label (which, with a label size, crops
+        /// it), the black-and-white threshold and the color reduction. In
+        /// <see cref="PdfConversionMode.Native"/> mode the page isn't rasterized, and only scaling applies.
+        /// </summary>
+        /// <example><c>.WithRaster(r =&gt; r.Scaling(150).Darkness(60).ColorMode(ColorMode.Grayscale))</c></example>
+        public PdfSourceBuilder WithRaster(Action<RasterOptions> configure)
+        {
+            ParameterWriters.Raster(Parameters, configure);
             return this;
         }
     }
@@ -130,6 +153,13 @@ namespace LabelZoom.Sdk.Conversion
         public DynamicSourceBuilder WithSplit(Action<SplitOptions> configure)
         {
             ParameterWriters.Split(Parameters, configure);
+            return this;
+        }
+
+        /// <inheritdoc cref="PdfSourceBuilder.WithRaster"/>
+        public DynamicSourceBuilder WithRaster(Action<RasterOptions> configure)
+        {
+            ParameterWriters.Raster(Parameters, configure);
             return this;
         }
     }

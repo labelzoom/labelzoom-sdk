@@ -109,15 +109,15 @@ namespace LabelZoom.Sdk.Conversion
         public TargetBuilder ToPdf() => new TargetBuilder(Draft, TargetFormat.Pdf);
 
         /// <summary>Converts to a PNG image. Returns the first label only.</summary>
-        public TargetBuilder ToPng() => new TargetBuilder(Draft, TargetFormat.Png);
+        public ImageTargetBuilder ToPng() => new ImageTargetBuilder(Draft, TargetFormat.Png);
 
         /// <summary>Converts to a BMP image. Returns the first label only.</summary>
-        public TargetBuilder ToBmp() => new TargetBuilder(Draft, TargetFormat.Bmp);
+        public ImageTargetBuilder ToBmp() => new ImageTargetBuilder(Draft, TargetFormat.Bmp);
 
         /// <summary>Converts to a GIF image. Returns the first label only.</summary>
-        public TargetBuilder ToGif() => new TargetBuilder(Draft, TargetFormat.Gif);
+        public ImageTargetBuilder ToGif() => new ImageTargetBuilder(Draft, TargetFormat.Gif);
 
         /// <summary>Converts to a JPEG image. Returns the first label only.</summary>
-        public TargetBuilder ToJpeg() => new TargetBuilder(Draft, TargetFormat.Jpeg);
+        public ImageTargetBuilder ToJpeg() => new ImageTargetBuilder(Draft, TargetFormat.Jpeg);
     }
 }

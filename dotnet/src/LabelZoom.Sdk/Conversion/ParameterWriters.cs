@@ -119,6 +119,19 @@ namespace LabelZoom.Sdk.Conversion
             p.Set("darkness", darkness);
         }
 
+        internal static void ColorMode(ConversionParameters p, ColorMode mode) =>
+            p.Set("colorMode", mode.ToWireToken());
+
+        internal static void Raster(ConversionParameters p, Action<RasterOptions> configure)
+        {
+            if (configure is null)
+            {
+                throw new LabelZoomValidationException(nameof(configure), "Raster configuration cannot be null.");
+            }
+
+            configure(new RasterOptions(p));
+        }
+
         internal static void Position(ConversionParameters p, int x, int y)
         {
             p.SetNested("position", "x", x);

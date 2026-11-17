@@ -128,6 +128,7 @@ Set after `From*`, before `To*`.
 | `WithPage(int)` | `FromPdf` | **0-based**; omit to convert every page |
 | `WithConversionMode(PdfConversionMode)` | `FromPdf` | `Image` (default) or `Native` |
 | `WithSplit(s => …)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | ZPL target, `Image` mode: cut each page into a grid of labels. `Rows`, `Columns`, `LabelSize`, `Margins`, `Gaps` (all **inches**), `SkipBlank` |
+| `WithRaster(r => …)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | how the picture is rasterized. `Scaling` (percent), `Position` (output dots from the label's top-left; negative crops), `Darkness` (0–100, default 70), `ColorMode` (`Grayscale` dithers, the default) |
 | `WithCommandsToIgnore(params string[])` | `FromZpl` | e.g. `"^PQ"` |
 
 ### Target stage
@@ -138,16 +139,25 @@ Set after `To*`, before `ExecuteAsync`.
 |---|---|---|
 | `WithDpi(int)` | every target | server default 203 |
 | `WithRotation(int)` | every target | must be a multiple of 90; rejected locally otherwise |
-| `WithScaling(float)` | every target | percent, server default 100 |
-| `WithColorMode(ColorMode)` | every target | `Bw`, `Grayscale` (default), `Color` |
-| `WithDarkness(int)` | every target | 0–100, server default 70 |
-| `WithPosition(int, int)` | every target | pixel offset of the extracted region |
 | `WithWatermark(bool)` | every target | forced on for the free tier regardless |
 | `WithDialect(string)` | every target | e.g. `moca`; **paid** |
 | `WithParameter(string, object?)` | every target | escape hatch for anything not modeled yet |
 | `WithImageCompression(ZplImageCompression)` | `ToZpl` | `Z64` (default) or `CompressedHex` |
 | `WithCollapseCopies(bool)` | `ToZpl` | image or PDF source: each run of identical labels becomes one label with a `^PQ` count |
 | `WithLayout(l => …)` | `ToZpl` | image or PDF source, `Image` mode: labels side by side per row. `Across`, `Gap` (**inches**), `Fill` (`Sequential` or `Repeat`) |
+| `WithColorMode(ColorMode)`, `WithDarkness(int)` | `ToPng`, `ToBmp`, `ToGif`, `ToJpeg` | `Bw` renders black and white at the darkness threshold; anything else renders in color |
+
+To crop an image or PDF page, set its position with a negative offset and the size of the label it's
+cut to:
+
+```csharp
+var result = await client.Convert()
+    .FromPng(photo)
+        .WithLabelSize(4f, 6f)
+        .WithRaster(r => r.Position(-120, -80))     // trims 120 dots off the left, 80 off the top
+    .ToZpl()
+    .ExecuteAsync();
+```
 
 ### Formats chosen at run time
 
@@ -155,7 +165,8 @@ Set after `To*`, before `ExecuteAsync`.
 `DynamicSourceBuilder`, and `To(TargetFormat)` returns a `DynamicTargetBuilder`. The compiler can't
 know the format there, so they offer every option, named with the format it applies to:
 `WithPdfPage`, `WithPdfConversionMode`, `WithZplCommandsToIgnore`, `WithZplImageCompression` and
-`WithZplCollapseCopies`. The server ignores an option that doesn't apply to the format.
+`WithZplCollapseCopies`, plus `WithRaster`, `WithColorMode` and `WithDarkness`. The server ignores
+an option that doesn't apply to the format.
 
 ### Migrating from 1.x
 
@@ -168,6 +179,8 @@ In 1.x every option was set after `To*`. In 2.0, move the source options before 
 | `.WithZplCommandsToIgnore("^PQ")` | `.FromZpl(zpl).WithCommandsToIgnore("^PQ")` |
 | `.WithLabelSize(w, h)`, `.WithLabelIndex(i)`, `.WithData(...)` | same name, before `To*` |
 | `.WithZplImageCompression(c)` | `.ToZpl().WithImageCompression(c)` |
+| `.WithScaling(p)`, `.WithPosition(x, y)` | `.FromPdf(pdf).WithRaster(r => r.Scaling(p).Position(x, y))`, or `FromPng` and the other images |
+| `.WithDarkness(d)`, `.WithColorMode(m)` | in `WithRaster` for an image or PDF source; on `ToPng` and the other image targets for black-and-white output |
 | `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage<T>` and `TargetStage<T>` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
 `FromFile(SourceFormat.Pdf, path)` still works, and returns a `DynamicSourceBuilder` that keeps the

@@ -413,8 +413,7 @@ public sealed class ConformanceTests
 
     private static readonly HashSet<string> TargetOptionNames = new HashSet<string>
     {
-        "dpi", "rotation", "scaling", "colorMode", "darkness", "watermark", "dialect", "position",
-        "layout",
+        "dpi", "rotation", "watermark", "dialect", "layout",
     };
 
     private static void ApplySourceOptions(DynamicSourceBuilder builder, JsonElement options)
@@ -485,6 +484,21 @@ public sealed class ConformanceTests
                 case "labelIndex":
                     builder.WithLabelIndex(option.Value.GetInt32());
                     break;
+                // How an image or PDF is rasterized: a source option, set as one group.
+                case "scaling":
+                    builder.WithRaster(r => r.Scaling(option.Value.GetSingle()));
+                    break;
+                case "colorMode":
+                    builder.WithRaster(r => r.ColorMode(ParseEnum<ColorMode>(option.Value.GetString()!)));
+                    break;
+                case "darkness":
+                    builder.WithRaster(r => r.Darkness(option.Value.GetInt32()));
+                    break;
+                case "position":
+                    builder.WithRaster(r => r.Position(
+                        option.Value.GetProperty("x").GetInt32(),
+                        option.Value.GetProperty("y").GetInt32()));
+                    break;
                 case "data":
                     // A bare object means one label, so it is wrapped rather than rejected.
                     builder.WithData(option.Value.ValueKind == JsonValueKind.Array
@@ -516,25 +530,11 @@ public sealed class ConformanceTests
                 case "rotation":
                     builder.WithRotation(option.Value.GetInt32());
                     break;
-                case "scaling":
-                    builder.WithScaling(option.Value.GetSingle());
-                    break;
-                case "colorMode":
-                    builder.WithColorMode(ParseEnum<ColorMode>(option.Value.GetString()!));
-                    break;
-                case "darkness":
-                    builder.WithDarkness(option.Value.GetInt32());
-                    break;
                 case "watermark":
                     builder.WithWatermark(option.Value.GetBoolean());
                     break;
                 case "dialect":
                     builder.WithDialect(option.Value.GetString()!);
-                    break;
-                case "position":
-                    builder.WithPosition(
-                        option.Value.GetProperty("x").GetInt32(),
-                        option.Value.GetProperty("y").GetInt32());
                     break;
                 case "zpl":
                     if (option.Value.TryGetProperty("imageCompression", out var compression))

@@ -3,13 +3,42 @@ using System;
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// The target stage for a format with no options of its own: every target except ZPL.
+    /// The target stage for a format with no options of its own: EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML
+    /// and JSON, and PDF.
     /// </summary>
     public sealed class TargetBuilder : TargetStage<TargetBuilder>
     {
         internal TargetBuilder(ConversionDraft draft, TargetFormat target)
             : base(draft, target)
         {
+        }
+    }
+
+    /// <summary>The target stage for a PNG, BMP, GIF or JPEG image.</summary>
+    public sealed class ImageTargetBuilder : TargetStage<ImageTargetBuilder>
+    {
+        internal ImageTargetBuilder(ConversionDraft draft, TargetFormat target)
+            : base(draft, target)
+        {
+        }
+
+        /// <summary>
+        /// <see cref="ColorMode.Bw"/> renders a black-and-white image at the <see cref="WithDarkness"/>
+        /// threshold. Any other mode renders in color, which is the default.
+        /// </summary>
+        public ImageTargetBuilder WithColorMode(ColorMode mode)
+        {
+            ParameterWriters.ColorMode(Parameters, mode);
+            return this;
+        }
+
+        /// <summary>
+        /// Luminance threshold from 0 to 100 for a black-and-white image. The server default is 70.
+        /// </summary>
+        public ImageTargetBuilder WithDarkness(int darkness)
+        {
+            ParameterWriters.Darkness(Parameters, darkness);
+            return this;
         }
     }
 
@@ -87,6 +116,25 @@ namespace LabelZoom.Sdk.Conversion
         public DynamicTargetBuilder WithLayout(Action<LayoutOptions> configure)
         {
             ParameterWriters.Layout(Parameters, configure);
+            return this;
+        }
+
+        /// <inheritdoc cref="ImageTargetBuilder.WithColorMode"/>
+        /// <remarks>
+        /// This writes the same <c>colorMode</c> as <see cref="RasterOptions.ColorMode"/> on the source
+        /// stage, so set it once: the last call wins.
+        /// </remarks>
+        public DynamicTargetBuilder WithColorMode(ColorMode mode)
+        {
+            ParameterWriters.ColorMode(Parameters, mode);
+            return this;
+        }
+
+        /// <inheritdoc cref="ImageTargetBuilder.WithDarkness"/>
+        /// <remarks>As with <see cref="WithColorMode"/>, the source stage writes the same <c>darkness</c>.</remarks>
+        public DynamicTargetBuilder WithDarkness(int darkness)
+        {
+            ParameterWriters.Darkness(Parameters, darkness);
             return this;
         }
     }

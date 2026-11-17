@@ -30,7 +30,7 @@ public class StageShapeTests
 
     private static readonly Type[] TargetStages =
     {
-        typeof(TargetBuilder), typeof(ZplTargetBuilder), typeof(DynamicTargetBuilder),
+        typeof(TargetBuilder), typeof(ZplTargetBuilder), typeof(ImageTargetBuilder), typeof(DynamicTargetBuilder),
     };
 
     [Theory]
@@ -44,6 +44,12 @@ public class StageShapeTests
     [InlineData(typeof(TargetBuilder), "WithLayout")]
     [InlineData(typeof(TargetBuilder), "WithCollapseCopies")]
     [InlineData(typeof(TargetBuilder), "WithImageCompression")]
+    [InlineData(typeof(SourceBuilder), "WithRaster")]
+    [InlineData(typeof(ZplSourceBuilder), "WithRaster")]
+    [InlineData(typeof(TargetBuilder), "WithColorMode")]
+    [InlineData(typeof(TargetBuilder), "WithDarkness")]
+    [InlineData(typeof(ZplTargetBuilder), "WithColorMode")]
+    [InlineData(typeof(ImageTargetBuilder), "WithLayout")]
     public void FormatSpecificOptionIsAbsentFromOtherFormats(Type builder, string method) =>
         Assert.False(HasMethod(builder, method), $"{builder.Name} must not offer {method}.");
 
@@ -56,6 +62,12 @@ public class StageShapeTests
     [InlineData(typeof(ZplTargetBuilder), "WithLayout")]
     [InlineData(typeof(ZplTargetBuilder), "WithCollapseCopies")]
     [InlineData(typeof(ZplTargetBuilder), "WithImageCompression")]
+    [InlineData(typeof(ImageSourceBuilder), "WithRaster")]
+    [InlineData(typeof(PdfSourceBuilder), "WithRaster")]
+    [InlineData(typeof(DynamicSourceBuilder), "WithRaster")]
+    [InlineData(typeof(ImageTargetBuilder), "WithColorMode")]
+    [InlineData(typeof(ImageTargetBuilder), "WithDarkness")]
+    [InlineData(typeof(DynamicTargetBuilder), "WithColorMode")]
     public void FormatSpecificOptionIsOnItsFormat(Type builder, string method) =>
         Assert.True(HasMethod(builder, method), $"{builder.Name} must offer {method}.");
 
@@ -81,6 +93,9 @@ public class StageShapeTests
     [InlineData("WithPdfPage")]
     [InlineData("WithSplit")]
     [InlineData("WithZplCommandsToIgnore")]
+    [InlineData("WithRaster")]
+    [InlineData("WithScaling")]
+    [InlineData("WithPosition")]
     public void TargetStagesOfferNoSourceOptions(string method)
     {
         foreach (var stage in TargetStages)
@@ -98,6 +113,8 @@ public class StageShapeTests
         Assert.IsType<ImageSourceBuilder>(client.Convert().FromPng(new byte[] { 1 }));
         Assert.IsType<SourceBuilder>(client.Convert().FromEpl("N"));
         Assert.IsType<DynamicSourceBuilder>(client.Convert().From(SourceFormat.Zpl, "^XA^XZ"));
+        Assert.IsType<ImageTargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToPng());
+        Assert.IsType<TargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToPdf());
     }
 
     [Fact]
@@ -115,8 +132,10 @@ public class StageShapeTests
             .FromPdf(new byte[] { 0x25, 0x50, 0x44, 0x46 })
                 .WithPage(0)
                 .WithSplit(s => s.Rows(2).Columns(2).SkipBlank())
+                .WithRaster(r => r.Scaling(150).Position(-20, 5).Darkness(60).ColorMode(ColorMode.Bw))
             .ToZpl()
                 .WithDpi(203)
+                .WithRotation(90)
                 .WithCollapseCopies()
                 .WithLayout(l => l.Across(2).Gap(0.125f))
             .ExecuteAsync();
@@ -133,6 +152,21 @@ public class StageShapeTests
         Assert.True(json.GetProperty("zpl").GetProperty("collapseCopies").GetBoolean());
         Assert.Equal(2, json.GetProperty("layout").GetProperty("across").GetInt32());
         Assert.Equal(0.125f, json.GetProperty("layout").GetProperty("gap").GetSingle());
+        Assert.Equal(150f, json.GetProperty("scaling").GetSingle());
+        Assert.Equal(-20, json.GetProperty("position").GetProperty("x").GetInt32());
+        Assert.Equal(5, json.GetProperty("position").GetProperty("y").GetInt32());
+        Assert.Equal(60, json.GetProperty("darkness").GetInt32());
+        Assert.Equal("BW", json.GetProperty("colorMode").GetString());
+        Assert.Equal(90, json.GetProperty("rotation").GetInt32());
+    }
+
+    [Fact]
+    public void RasterValidationStillNamesTheParameter()
+    {
+        using var client = new LabelZoomClient(string.Empty);
+        var ex = Assert.Throws<LabelZoomValidationException>(() =>
+            client.Convert().FromPng(new byte[] { 1 }).WithRaster(r => r.Darkness(101)));
+        Assert.Equal("darkness", ex.ParamName);
     }
 
     private static bool HasMethod(Type type, string name) =>

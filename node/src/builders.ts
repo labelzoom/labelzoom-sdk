@@ -15,6 +15,26 @@ export type SplitOptions = NonNullable<ConversionOptions['split']>;
 export type LayoutOptions = NonNullable<ConversionOptions['layout']>;
 
 /**
+ * How an image or PDF source is rasterized before it becomes labels. These act on the source picture, so they sit
+ * with `withSplit` and the label size, which cut and frame the same picture. Rotation turns the finished label for
+ * every format, so it is a target option.
+ */
+export interface RasterOptions {
+  /** Percent. Server default 100. A PDF is rendered larger or smaller; an image is resampled. */
+  scaling?: number;
+  /**
+   * Where the picture sits on its label, in output dots from the label's top-left corner. A negative offset crops
+   * that much off the picture's left or top, so with a label size this is how a picture is cropped. Printer-language
+   * targets only.
+   */
+  position?: { x: number; y: number };
+  /** Luminance threshold 0–100 for black and white. Server default 70. Also decides what `split.skipBlank` drops. */
+  darkness?: number;
+  /** Server default `GRAYSCALE`, which dithers the picture. */
+  colorMode?: ColorMode;
+}
+
+/**
  * The request under construction, handed from the source stage to the target stage. Both stages
  * write into the same options object, because the wire has one `?params=` object, not one per
  * stage. The stages only decide which options a caller can reach at each point in the chain.
@@ -127,10 +147,10 @@ export abstract class SourceStage {
   toXml(): TargetBuilder { return new TargetBuilder(this.draft, 'xml'); }
   toJson(): TargetBuilder { return new TargetBuilder(this.draft, 'json'); }
   toPdf(): TargetBuilder { return new TargetBuilder(this.draft, 'pdf'); }
-  toPng(): TargetBuilder { return new TargetBuilder(this.draft, 'png'); }
-  toBmp(): TargetBuilder { return new TargetBuilder(this.draft, 'bmp'); }
-  toGif(): TargetBuilder { return new TargetBuilder(this.draft, 'gif'); }
-  toJpeg(): TargetBuilder { return new TargetBuilder(this.draft, 'jpeg'); }
+  toPng(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'png'); }
+  toBmp(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'bmp'); }
+  toGif(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'gif'); }
+  toJpeg(): ImageTargetBuilder { return new ImageTargetBuilder(this.draft, 'jpeg'); }
 }
 
 /** The source stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON. */
@@ -165,6 +185,17 @@ export class ImageSourceBuilder extends SourceStage {
     setSplit(this.draft, split);
     return this;
   }
+
+  /**
+   * How the image is rasterized: scaling, its position on the label (which, with a label size, crops it), the
+   * black-and-white threshold and the color reduction.
+   *
+   * @example `.withRaster({ scaling: 150, position: { x: -20, y: 0 }, darkness: 60 })`
+   */
+  withRaster(raster: RasterOptions): this {
+    setRaster(this.draft, raster);
+    return this;
+  }
 }
 
 /** The source stage for a PDF document. */
@@ -192,6 +223,16 @@ export class PdfSourceBuilder extends SourceStage {
    */
   withSplit(split: SplitOptions): this {
     setSplit(this.draft, split);
+    return this;
+  }
+
+  /**
+   * How each page is rasterized: scaling, its position on the label (which, with a label size, crops it), the
+   * black-and-white threshold and the color reduction. In `NATIVE` mode the page isn't rasterized, and only scaling
+   * applies.
+   */
+  withRaster(raster: RasterOptions): this {
+    setRaster(this.draft, raster);
     return this;
   }
 }
@@ -226,13 +267,20 @@ export class DynamicSourceBuilder extends SourceStage {
     setSplit(this.draft, split);
     return this;
   }
+
+  /** Image or PDF source: how it is rasterized. See {@link PdfSourceBuilder.withRaster}. */
+  withRaster(raster: RasterOptions): this {
+    setRaster(this.draft, raster);
+    return this;
+  }
 }
 
 /**
  * The target stage: options that change the **output**, followed by `execute`.
  *
- * The options here apply to every target. ZPL-specific ones live on {@link ZplTargetBuilder}. An
- * option the server doesn't apply to the chosen format pair is ignored rather than rejected.
+ * The options here apply to every target. Format-specific ones live on {@link ZplTargetBuilder} and
+ * {@link ImageTargetBuilder}; how an image or PDF source is rasterized is a source option ({@link RasterOptions}).
+ * An option the server doesn't apply to the chosen format pair is ignored rather than rejected.
  */
 export abstract class TargetStage {
   protected readonly draft: Draft;
@@ -246,10 +294,6 @@ export abstract class TargetStage {
   withDpi(dpi: number): this { this.draft.options.dpi = dpi; return this; }
   /** Must be a multiple of 90; rejected locally otherwise. */
   withRotation(rotation: number): this { this.draft.options.rotation = rotation; return this; }
-  withScaling(percent: number): this { this.draft.options.scaling = percent; return this; }
-  withColorMode(mode: ColorMode): this { this.draft.options.colorMode = mode; return this; }
-  withDarkness(darkness: number): this { this.draft.options.darkness = darkness; return this; }
-  withPosition(x: number, y: number): this { this.draft.options.position = { x, y }; return this; }
   withWatermark(watermark = true): this { this.draft.options.watermark = watermark; return this; }
   /** e.g. `moca`. Requires a paid license. */
   withDialect(dialect: string): this { this.draft.options.dialect = dialect; return this; }
@@ -276,10 +320,21 @@ export abstract class TargetStage {
   }
 }
 
-/** The target stage for every format except ZPL. */
+/** The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and JSON, and PDF. */
 export class TargetBuilder extends TargetStage {
   /** @internal */
   constructor(draft: Draft, target: TargetFormat) { super(draft, target); }
+}
+
+/** The target stage for a PNG, BMP, GIF or JPEG image. */
+export class ImageTargetBuilder extends TargetStage {
+  /** @internal */
+  constructor(draft: Draft, target: TargetFormat) { super(draft, target); }
+
+  /** `BW` renders a black-and-white image at the `withDarkness` threshold. Anything else renders in color, the default. */
+  withColorMode(mode: ColorMode): this { this.draft.options.colorMode = mode; return this; }
+  /** Luminance threshold 0–100 for a black-and-white image. Server default 70. */
+  withDarkness(darkness: number): this { this.draft.options.darkness = darkness; return this; }
 }
 
 /** The target stage for ZPL output. */
@@ -337,6 +392,14 @@ export class DynamicTargetBuilder extends TargetStage {
     setLayout(this.draft, layout);
     return this;
   }
+
+  /**
+   * See {@link ImageTargetBuilder.withColorMode}. This writes the same `colorMode` as `withRaster` on the source
+   * stage, so set it once: the last call wins.
+   */
+  withColorMode(mode: ColorMode): this { this.draft.options.colorMode = mode; return this; }
+  /** See {@link ImageTargetBuilder.withDarkness}. As with `withColorMode`, the source stage writes the same key. */
+  withDarkness(darkness: number): this { this.draft.options.darkness = darkness; return this; }
 }
 
 // Nested groups are merged, never replaced (contract §4.1): `zpl` holds both a source option
@@ -352,6 +415,14 @@ function setZpl(draft: Draft, zpl: NonNullable<ConversionOptions['zpl']>): void 
 
 function setSplit(draft: Draft, split: SplitOptions): void {
   draft.options.split = { ...draft.options.split, ...split };
+}
+
+/** Raster options are top-level keys on the wire; only the ones given are written. */
+function setRaster(draft: Draft, raster: RasterOptions): void {
+  if (raster.scaling !== undefined) draft.options.scaling = raster.scaling;
+  if (raster.position !== undefined) draft.options.position = raster.position;
+  if (raster.darkness !== undefined) draft.options.darkness = raster.darkness;
+  if (raster.colorMode !== undefined) draft.options.colorMode = raster.colorMode;
 }
 
 function setLayout(draft: Draft, layout: LayoutOptions): void {

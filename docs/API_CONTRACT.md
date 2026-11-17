@@ -28,10 +28,12 @@ result = client.convert()
                  .withZplCommandsToIgnore([...])
                  .withSplit(rows, columns, width, height, left, top,
                             columnGap, rowGap, skipBlank)      (a group: see 1.2)
+                 .withRaster(scaling, position(x, y), darkness,
+                             colorMode BW|GRAYSCALE|COLOR)      (a group: see 1.2)
              .to(<TargetFormat>)                                ── target stage
-                 .withDpi(int) .withRotation(int) .withScaling(float)
-                 .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)
-                 .withPosition(x, y) .withWatermark(bool) .withDialect(string)
+                 .withDpi(int) .withRotation(int)
+                 .withWatermark(bool) .withDialect(string)
+                 .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)   (image targets)
                  .withZplImageCompression(Z64|COMPRESSED_HEX)
                  .withZplCollapseCopies(bool)
                  .withLayout(across, gapInches, fill)           (a group: see 1.2)
@@ -42,7 +44,19 @@ result = client.convert()
 The chain has two stages. **Source options**, which change how the source document is read, are
 set after `from` and before `to`. **Target options**, which change the output, are set after `to`.
 `label.*` is a source option because the caller's size goes *into* the reader (see the size
-precedence in §4.1); `split` is a source option because it cuts the input page. The stages are
+precedence in §4.1); `split` is a source option because it cuts the input page.
+
+`raster` is a source option for the same reason as `split`: `scaling`, `position`, `darkness` and
+`colorMode` act on the picture an image or PDF source is rasterized to. `scaling` sets the size the
+picture is rendered or resampled at; `position` places it on the label, and a negative offset crops
+it, so `position` with `label.*` is how a picture is cropped; `darkness` and `colorMode` reduce it to
+black and white. The server ignores all four for any other source. `rotation` is the exception: it
+turns the finished label for every format pair, so it is a target option.
+
+`colorMode` and `darkness` also have an output meaning, for image targets only: `BW` renders a
+black-and-white image at the `darkness` threshold. They are one wire key each, so the image target
+stage offers them again rather than leaving a ZPL-to-PNG caller no way to ask for black and white.
+A request that sets them on both stages sends the last value set. The stages are
 ergonomics only: both write into the one `?params=` object (**C1**), so a request built through
 the stages is byte-for-byte the request 1.x built through one flat builder.
 
@@ -79,12 +93,13 @@ return a subclass that adds only the options for that format:
 
 | Method | Returns | Adds |
 |---|---|---|
-| `fromPdf` | PDF source stage | `withPage`, `withConversionMode`, `withSplit` |
-| `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withSplit` |
+| `fromPdf` | PDF source stage | `withPage`, `withConversionMode`, `withSplit`, `withRaster` |
+| `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withSplit`, `withRaster` |
 | `fromZpl` | ZPL source stage | `withCommandsToIgnore` |
 | other `from*` | plain source stage | nothing |
 | `from(SourceFormat, body)`, `fromUrl`, base64 text | dynamic source stage | every source option, format-prefixed |
 | `toZpl` | ZPL target stage | `withImageCompression`, `withCollapseCopies`, `withLayout` |
+| `toPng`, `toBmp`, `toGif`, `toJpeg` | image target stage | `withColorMode`, `withDarkness` |
 | other `to*` | plain target stage | nothing |
 | `to(TargetFormat)` | dynamic target stage | every target option, format-prefixed |
 
@@ -93,7 +108,7 @@ chain (C#, Java, TypeScript, PHP). The dynamic builders exist because a format c
 can't be checked at compile time; they keep the format prefix (`withPdfPage`) so the name still
 says where the option acts.
 
-**Groups.** `split` and `layout` have several fields and are set as one group, in the language's
+**Groups.** `split`, `layout` and `raster` have several fields and are set as one group, in the language's
 idiom for a group: a lambda over an options object in C# and Java (`withSplit(s -> s.rows(2)
 .columns(2))`), an object literal in TypeScript (`withSplit({ rows: 2, columns: 2 })`), and the
 nested structure the language already uses for options elsewhere (§9). Don't model a group as
@@ -344,10 +359,10 @@ opaque string and must not attempt to parse or validate it:
 |---|---|---|---|---|---|
 | `withDpi` | target | `dpi` | int | `203` | |
 | `withRotation` | target | `rotation` | int | `0` | must be a multiple of 90 (**C6**) |
-| `withScaling` | target | `scaling` | float | `100` | percent |
-| `withColorMode` | target | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR` |
-| `withDarkness` | target | `darkness` | int | `70` | luminance threshold, 0–100 |
-| `withPosition` | target | `position.x` / `position.y` | int | `0,0` | pixel offset of extraction corner |
+| `withRaster` { scaling } | source | `scaling` | float | `100` | percent; image and PDF sources |
+| `withRaster` { colorMode } | source; image targets | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR`; on an image target only `BW` changes the output |
+| `withRaster` { darkness } | source; image targets | `darkness` | int | `70` | luminance threshold, 0–100 |
+| `withRaster` { position } | source | `position.x` / `position.y` | int | `0,0` | output dots from the label's top-left; negative crops; image or PDF to a printer language |
 | `withWatermark` | target | `watermark` | bool | `false` | forced true for unpaid non-PDF→ZPL |
 | `withDialect` | target | `dialect` | string | none | e.g. `moca`; **paid** |
 | `withData` | source | `data` | array | none | one label per entry (**C3**) |

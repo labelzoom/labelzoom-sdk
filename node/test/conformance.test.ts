@@ -159,6 +159,11 @@ function buildRequest(client: LabelZoomClient, given: any) {
       }
       case 'split': sourceStage.withSplit(value as NonNullable<ConversionOptions['split']>); break;
       case 'labelIndex': sourceStage.withLabelIndex(value as number); break;
+      // How an image or PDF is rasterized: a source option, set as one group.
+      case 'scaling': sourceStage.withRaster({ scaling: value as number }); break;
+      case 'colorMode': sourceStage.withRaster({ colorMode: value as any }); break;
+      case 'darkness': sourceStage.withRaster({ darkness: value as number }); break;
+      case 'position': sourceStage.withRaster({ position: value as { x: number; y: number } }); break;
       case 'data':
         // A bare object means one label, so it is wrapped rather than rejected.
         sourceStage.withData(...(Array.isArray(value) ? value : [value]));
@@ -179,16 +184,8 @@ function buildRequest(client: LabelZoomClient, given: any) {
     switch (key) {
       case 'dpi': builder.withDpi(value as number); break;
       case 'rotation': builder.withRotation(value as number); break;
-      case 'scaling': builder.withScaling(value as number); break;
-      case 'colorMode': builder.withColorMode(value as any); break;
-      case 'darkness': builder.withDarkness(value as number); break;
       case 'watermark': builder.withWatermark(value as boolean); break;
       case 'dialect': builder.withDialect(value as string); break;
-      case 'position': {
-        const p = value as { x: number; y: number };
-        builder.withPosition(p.x, p.y);
-        break;
-      }
       case 'zpl': {
         const z = value as NonNullable<ConversionOptions['zpl']>;
         if (z.imageCompression !== undefined) builder.withZplImageCompression(z.imageCompression);
@@ -206,7 +203,7 @@ function buildRequest(client: LabelZoomClient, given: any) {
 }
 
 const TARGET_OPTION_NAMES = new Set([
-  'dpi', 'rotation', 'scaling', 'colorMode', 'darkness', 'watermark', 'dialect', 'position', 'layout',
+  'dpi', 'rotation', 'watermark', 'dialect', 'layout',
 ]);
 
 function newClient(

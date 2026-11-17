@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DynamicSourceBuilder,
+  ImageTargetBuilder,
   ImageSourceBuilder,
   LabelZoomClient,
   PdfSourceBuilder,
@@ -59,6 +60,22 @@ describe('stage shape', () => {
     expect(() => source.execute()).toThrow(TypeError);
   });
 
+  it('keeps raster options on image and PDF sources', () => {
+    // @ts-expect-error withRaster is an image or PDF option.
+    expect(() => client.convert().fromZpl('^XA^XZ').withRaster({ scaling: 150 })).toThrow(TypeError);
+    // @ts-expect-error scaling is a raster option, set on the source stage.
+    expect(() => client.convert().fromPng(new Uint8Array([1])).toZpl().withScaling(150)).toThrow(TypeError);
+    // @ts-expect-error position is a raster option, set on the source stage.
+    expect(() => client.convert().fromPdf(new Uint8Array([1])).toZpl().withPosition(0, 0)).toThrow(TypeError);
+    // @ts-expect-error colorMode on a printer-language target does nothing, so it isn't offered.
+    expect(() => client.convert().fromZpl('^XA^XZ').toZpl().withColorMode('BW')).toThrow(TypeError);
+  });
+
+  it('offers black and white on image targets', () => {
+    expect(client.convert().fromZpl('^XA^XZ').toPng()).toBeInstanceOf(ImageTargetBuilder);
+    expect(() => client.convert().fromZpl('^XA^XZ').toPng().withColorMode('BW').withDarkness(60)).not.toThrow();
+  });
+
   it('offers no source options at the target stage', () => {
     const target = client.convert().fromPdf(new Uint8Array([1])).toZpl();
     // @ts-expect-error withPage changes how the source is read, so it is set before toZpl().
@@ -81,8 +98,10 @@ describe('stage shape', () => {
       .fromPdf(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
         .withPage(0)
         .withSplit({ rows: 2, columns: 2, skipBlank: true })
+        .withRaster({ scaling: 150, position: { x: -20, y: 5 }, darkness: 60, colorMode: 'BW' })
       .toZpl()
         .withDpi(203)
+        .withRotation(90)
         .withCollapseCopies()
         .withLayout({ across: 2, gap: 0.125 })
       .execute();
@@ -92,6 +111,11 @@ describe('stage shape', () => {
       pdf: { pageNumber: 0 },
       split: { rows: 2, columns: 2, skipBlank: true },
       dpi: 203,
+      rotation: 90,
+      scaling: 150,
+      position: { x: -20, y: 5 },
+      darkness: 60,
+      colorMode: 'BW',
       zpl: { collapseCopies: true },
       layout: { across: 2, gap: 0.125 },
     });

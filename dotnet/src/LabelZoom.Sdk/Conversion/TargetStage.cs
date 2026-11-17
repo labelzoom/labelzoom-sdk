@@ -8,9 +8,10 @@ namespace LabelZoom.Sdk.Conversion
     /// <see cref="ExecuteAsync"/>.
     /// </summary>
     /// <remarks>
-    /// The options here apply to every target. ZPL-specific ones live on
-    /// <see cref="ZplTargetBuilder"/>. An option the server doesn't apply to the chosen format pair
-    /// is ignored rather than rejected.
+    /// The options here apply to every target. Format-specific ones live on
+    /// <see cref="ZplTargetBuilder"/> and <see cref="ImageTargetBuilder"/>. How an image or PDF source is
+    /// rasterized is a source option: see <see cref="RasterOptions"/>. An option the server doesn't apply
+    /// to the chosen format pair is ignored rather than rejected.
     /// </remarks>
     /// <typeparam name="TSelf">The concrete builder, so each method returns it unchanged.</typeparam>
     public abstract class TargetStage<TSelf>
@@ -41,36 +42,6 @@ namespace LabelZoom.Sdk.Conversion
         public TSelf WithRotation(int rotation)
         {
             ParameterWriters.Rotation(Parameters, rotation);
-            return Self;
-        }
-
-        /// <summary>Scaling as a percentage. The server default is 100.</summary>
-        public TSelf WithScaling(float percent)
-        {
-            ParameterWriters.Scaling(Parameters, percent);
-            return Self;
-        }
-
-        /// <summary>Color handling. The server default is <see cref="ColorMode.Grayscale"/>.</summary>
-        public TSelf WithColorMode(ColorMode mode)
-        {
-            Parameters.Set("colorMode", mode.ToWireToken());
-            return Self;
-        }
-
-        /// <summary>
-        /// Luminance threshold from 0 to 100 used when reducing color depth. The server default is 70.
-        /// </summary>
-        public TSelf WithDarkness(int darkness)
-        {
-            ParameterWriters.Darkness(Parameters, darkness);
-            return Self;
-        }
-
-        /// <summary>Pixel offset of the top-left corner of the extracted region.</summary>
-        public TSelf WithPosition(int x, int y)
-        {
-            ParameterWriters.Position(Parameters, x, y);
             return Self;
         }
 

@@ -163,14 +163,34 @@ the index signature on `ConversionOptions` is a safe forward-compatibility escap
 | Source | `withLabelSize`, `withLabelIndex`, `withData` | every source |
 | Source | `withPage`, `withConversionMode` | `fromPdf` |
 | Source | `withSplit({ … })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
+| Source | `withRaster({ scaling, position, darkness, colorMode })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
 | Source | `withCommandsToIgnore` | `fromZpl` |
-| Target | `withDpi`, `withRotation`, `withScaling`, `withColorMode`, `withDarkness`, `withPosition`, `withWatermark`, `withDialect`, `withParameter` | every target |
+| Target | `withDpi`, `withRotation`, `withWatermark`, `withDialect`, `withParameter` | every target |
 | Target | `withImageCompression`, `withCollapseCopies`, `withLayout({ … })` | `toZpl` |
+| Target | `withColorMode`, `withDarkness` | `toPng`, `toBmp`, `toGif`, `toJpeg` |
+
+`withRaster` sets how an image or PDF source is rasterized: `scaling` in percent, `position` in output
+dots from the label's top-left corner, `darkness` from 0 to 100, and `colorMode`. A negative
+`position` crops the picture, so to crop it, set a negative position and the size of the label it's
+cut to:
+
+```ts
+await client.convert()
+  .fromPng(photo)
+    .withLabelSize(4, 6)
+    .withRaster({ position: { x: -120, y: -80 } })   // trims 120 dots off the left, 80 off the top
+  .toZpl()
+  .execute();
+```
+
+On an image target, `withColorMode('BW')` renders black and white at the `withDarkness` threshold;
+anything else renders in color.
 
 `from(format, body)`, `fromBase64Text` and `fromUrl` return a `DynamicSourceBuilder`, and
 `to(target)` returns a `DynamicTargetBuilder`. The compiler can't know the format there, so they
 offer every option, named with the format it applies to: `withPdfPage`, `withPdfConversionMode`,
-`withZplCommandsToIgnore`, `withZplImageCompression` and `withZplCollapseCopies`.
+`withZplCommandsToIgnore`, `withZplImageCompression` and `withZplCollapseCopies`, plus `withRaster`,
+`withColorMode` and `withDarkness`.
 
 ### Migrating from 1.x
 
@@ -184,6 +204,8 @@ option used to be set after `to*`. In 2.0, move the source options before it:
 | `.withZplCommandsToIgnore('^PQ')` | `.fromZpl(zpl).withCommandsToIgnore('^PQ')` |
 | `.withLabelSize(w, h)`, `.withLabelIndex(i)`, `.withData(...)` | same name, before `to*` |
 | `.withZplImageCompression(c)` | `.toZpl().withImageCompression(c)` |
+| `.withScaling(p)`, `.withPosition(x, y)` | `.fromPdf(pdf).withRaster({ scaling: p, position: { x, y } })`, or `fromPng` and the other images |
+| `.withDarkness(d)`, `.withColorMode(m)` | in `withRaster` for an image or PDF source; on `toPng` and the other image targets for black-and-white output |
 | `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
 ## Errors
