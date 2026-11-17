@@ -53,17 +53,35 @@ using var client = new LabelZoomClient("lz_live_...");
 using var fromEnvironment = new LabelZoomClient();  // reads LABELZOOM_API_KEY
 ```
 
+A conversion is built in two stages. `From*` picks the source and returns the **source stage**,
+where you set options that change how the source is read. `To*` picks the target and returns the
+**target stage**, where you set options that change the output and then call `ExecuteAsync`.
+Each stage offers only the options that act on its side, and a named `From*` or `To*` offers only
+the options for that format.
+
 PDF to ZPL, one page, at a fixed label size:
 
 ```csharp
 var result = await client.Convert()
-    .FromFile(SourceFormat.Pdf, "shipping-label.pdf")
+    .FromPdf(File.ReadAllBytes("shipping-label.pdf"))
+        .WithPage(0)                                // 0-based; omit for every page
+        .WithLabelSize(widthInches: 4f, heightInches: 6f)
     .ToZpl()
-    .WithLabelSize(widthInches: 4f, heightInches: 6f)
-    .WithPdfPage(0)                                 // 0-based; omit for every page
+        .WithDpi(203)
     .ExecuteAsync();
 
 Console.WriteLine(result.Text);
+```
+
+A Letter sheet of four labels, printed two across on a 2-up roll:
+
+```csharp
+var result = await client.Convert()
+    .FromPdf(sheet)
+        .WithSplit(s => s.Rows(2).Columns(2).SkipBlank())
+    .ToZpl()
+        .WithLayout(l => l.Across(2).Gap(0.125f))   // inches
+    .ExecuteAsync();
 ```
 
 Filling variable fields — **each record produces one label**:
@@ -71,10 +89,10 @@ Filling variable fields — **each record produces one label**:
 ```csharp
 var result = await client.Convert()
     .FromZpl(template)
+        .WithData(
+            new { name = "ACME Corp", sku = "12345" },
+            new { name = "Globex",    sku = "67890" })
     .ToPdf()
-    .WithData(
-        new { name = "ACME Corp", sku = "12345" },
-        new { name = "Globex",    sku = "67890" })
     .ExecuteAsync();                                // a 2-page PDF
 ```
 
@@ -98,31 +116,62 @@ the URL first if it came from untrusted input.
 
 ## Options
 
-| Method | Notes |
+### Source stage
+
+Set after `From*`, before `To*`.
+
+| Method | On | Notes |
+|---|---|---|
+| `WithLabelSize(float, float)` | every source | **inches**, not dots; replaces the size the source declares |
+| `WithLabelIndex(int)` | every source | **0-based**; converts only this label, on every plan |
+| `WithData(params object?[])` | every source | one label per record |
+| `WithPage(int)` | `FromPdf` | **0-based**; omit to convert every page |
+| `WithConversionMode(PdfConversionMode)` | `FromPdf` | `Image` (default) or `Native` |
+| `WithSplit(s => …)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | ZPL target, `Image` mode: cut each page into a grid of labels. `Rows`, `Columns`, `LabelSize`, `Margins`, `Gaps` (all **inches**), `SkipBlank` |
+| `WithCommandsToIgnore(params string[])` | `FromZpl` | e.g. `"^PQ"` |
+
+### Target stage
+
+Set after `To*`, before `ExecuteAsync`.
+
+| Method | On | Notes |
+|---|---|---|
+| `WithDpi(int)` | every target | server default 203 |
+| `WithRotation(int)` | every target | must be a multiple of 90; rejected locally otherwise |
+| `WithScaling(float)` | every target | percent, server default 100 |
+| `WithColorMode(ColorMode)` | every target | `Bw`, `Grayscale` (default), `Color` |
+| `WithDarkness(int)` | every target | 0–100, server default 70 |
+| `WithPosition(int, int)` | every target | pixel offset of the extracted region |
+| `WithWatermark(bool)` | every target | forced on for the free tier regardless |
+| `WithDialect(string)` | every target | e.g. `moca`; **paid** |
+| `WithParameter(string, object?)` | every target | escape hatch for anything not modeled yet |
+| `WithImageCompression(ZplImageCompression)` | `ToZpl` | `Z64` (default) or `CompressedHex` |
+| `WithCollapseCopies(bool)` | `ToZpl` | image or PDF source: each run of identical labels becomes one label with a `^PQ` count |
+| `WithLayout(l => …)` | `ToZpl` | image or PDF source, `Image` mode: labels side by side per row. `Across`, `Gap` (**inches**), `Fill` (`Sequential` or `Repeat`) |
+
+### Formats chosen at run time
+
+`From(SourceFormat, …)`, `FromFile`, `FromBase64Text` and `FromUrl` return a
+`DynamicSourceBuilder`, and `To(TargetFormat)` returns a `DynamicTargetBuilder`. The compiler can't
+know the format there, so they offer every option, named with the format it applies to:
+`WithPdfPage`, `WithPdfConversionMode`, `WithZplCommandsToIgnore`, `WithZplImageCompression` and
+`WithZplCollapseCopies`. The server ignores an option that doesn't apply to the format.
+
+### Migrating from 1.x
+
+In 1.x every option was set after `To*`. In 2.0, move the source options before it.
+
+| 1.x | 2.0 |
 |---|---|
-| `WithDpi(int)` | server default 203 |
-| `WithRotation(int)` | must be a multiple of 90; rejected locally otherwise |
-| `WithScaling(float)` | percent, server default 100 |
-| `WithColorMode(ColorMode)` | `Bw`, `Grayscale` (default), `Color` |
-| `WithDarkness(int)` | 0–100, server default 70 |
-| `WithPosition(int, int)` | pixel offset of the extracted region |
-| `WithWatermark(bool)` | forced on for the free tier regardless |
-| `WithDialect(string)` | e.g. `moca`; **paid** |
-| `WithLabelSize(float, float)` | **inches**, not dots |
-| `WithPdfConversionMode(PdfConversionMode)` | `Image` (default) or `Native` |
-| `WithPdfPage(int)` | **0-based**; omit to convert every page |
-| `WithZplCommandsToIgnore(params string[])` | e.g. `"^PQ"` |
-| `WithZplImageCompression(ZplImageCompression)` | `Z64` (default) or `CompressedHex` |
-| `WithZplCollapseCopies(bool)` | image or PDF to ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count |
-| `WithLayout(int, float)` | image or PDF to ZPL, `IMAGE` mode: labels across each row, and the gap between them in **inches** |
-| `WithLayoutFill(LayoutFill)` | `Sequential` (default) or `Repeat` |
-| `WithSplit(int, int)` | image or PDF to ZPL, `IMAGE` mode: cut each page into rows × columns of labels |
-| `WithSplitLabelSize(float, float)` | one label on the page, in **inches**; omit to divide the page equally |
-| `WithSplitMargins(float, float)`, `WithSplitGaps(float, float)` | left/top margin and column/row gaps on the page, in **inches** |
-| `WithSplitSkipBlank(bool)` | leave out labels with nothing printable |
-| `WithLabelIndex(int)` | **0-based**; converts only this label, on every plan |
-| `WithData(params object?[])` | one label per record |
-| `WithParameter(string, object?)` | escape hatch for anything not modeled yet |
+| `.ToZpl().WithPdfPage(0)` | `.FromPdf(pdf).WithPage(0).ToZpl()` |
+| `.WithPdfConversionMode(m)` | `.FromPdf(pdf).WithConversionMode(m)` |
+| `.WithZplCommandsToIgnore("^PQ")` | `.FromZpl(zpl).WithCommandsToIgnore("^PQ")` |
+| `.WithLabelSize(w, h)`, `.WithLabelIndex(i)`, `.WithData(...)` | same name, before `To*` |
+| `.WithZplImageCompression(c)` | `.ToZpl().WithImageCompression(c)` |
+| `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage<T>` and `TargetStage<T>` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
+
+`FromFile(SourceFormat.Pdf, path)` still works, and returns a `DynamicSourceBuilder` that keeps the
+format-prefixed names.
 
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
 to a server default reaches you without an SDK upgrade.

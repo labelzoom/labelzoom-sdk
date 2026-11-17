@@ -82,7 +82,7 @@ enum SourceFormat: string
     /**
      * The `Content-Type` a request carrying this format must send.
      *
-     * The format metadata table lives here and only here (contract §1.2) — never inlined at a
+     * The format metadata table lives here and only here (contract §1.3) — never inlined at a
      * call site, where the fifteen copies would drift.
      */
     public function mediaType(): string

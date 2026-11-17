@@ -20,26 +20,33 @@ executed by every language's test suite. See [CONFORMANCE.md](CONFORMANCE.md).
 client = LabelZoomClient(apiKey?, baseUrl?, timeout?, maxRetries?, userAgent?)
 
 result = client.convert()
-             .from(<SourceFormat>, <body>)
-             .to(<TargetFormat>)
-             .withDpi(int) .withRotation(int) .withScaling(float)
-             .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)
-             .withPosition(x, y) .withWatermark(bool) .withDialect(string)
-             .withData([{...}, ...])
-             .withLabelSize(widthInches, heightInches)
-             .withPdfConversionMode(IMAGE|NATIVE) .withPdfPage(zeroBasedIndex)
-             .withZplCommandsToIgnore([...]) .withZplImageCompression(Z64|COMPRESSED_HEX)
-             .withZplCollapseCopies(bool)
-             .withLayout(across, gapInches) .withLayoutFill(SEQUENTIAL|REPEAT)
-             .withSplit(rows, columns) .withSplitLabelSize(widthInches, heightInches)
-             .withSplitMargins(leftInches, topInches) .withSplitGaps(columnGapInches, rowGapInches)
-             .withSplitSkipBlank(bool)
-             .withLabelIndex(zeroBasedIndex)
+             .from(<SourceFormat>, <body>)                      ── source stage
+                 .withLabelSize(widthInches, heightInches)
+                 .withLabelIndex(zeroBasedIndex)
+                 .withData([{...}, ...])
+                 .withPdfConversionMode(IMAGE|NATIVE) .withPdfPage(zeroBasedIndex)
+                 .withZplCommandsToIgnore([...])
+                 .withSplit(rows, columns, width, height, left, top,
+                            columnGap, rowGap, skipBlank)      (a group: see 1.2)
+             .to(<TargetFormat>)                                ── target stage
+                 .withDpi(int) .withRotation(int) .withScaling(float)
+                 .withColorMode(BW|GRAYSCALE|COLOR) .withDarkness(int)
+                 .withPosition(x, y) .withWatermark(bool) .withDialect(string)
+                 .withZplImageCompression(Z64|COMPRESSED_HEX)
+                 .withZplCollapseCopies(bool)
+                 .withLayout(across, gapInches, fill)           (a group: see 1.2)
              .execute()
       -> ConversionResult { bytes, text, contentType, status, requestId }
 ```
 
-### 1.1 Two format types, one builder pair
+The chain has two stages. **Source options**, which change how the source document is read, are
+set after `from` and before `to`. **Target options**, which change the output, are set after `to`.
+`label.*` is a source option because the caller's size goes *into* the reader (see the size
+precedence in §4.1); `split` is a source option because it cuts the input page. The stages are
+ergonomics only: both write into the one `?params=` object (**C1**), so a request built through
+the stages is byte-for-byte the request 1.x built through one flat builder.
+
+### 1.1 Two format types
 
 ```
 SourceFormat  (15)  ZPL EPL IPL TSPL DPL SBPL XML JSON PDF PNG BMP GIF JPEG JPG URL
@@ -64,17 +71,57 @@ Do not contort a language to get compile-time enforcement it does not natively o
 > formats so that adding one is additive, which is what `#[non_exhaustive]` buys in Rust and what a
 > derived token map buys everywhere else.
 
-There is **one** source builder and **one** target builder. Named convenience methods
-(`fromPdf`, `toZpl`) are one-line delegations to `from(SourceFormat.PDF, body)` / `to(TargetFormat.ZPL)`.
+### 1.2 Stage builders
 
-> **Why this matters.** The superseded fluent API (PR #6) used a class per format —
-> `PdfSourceBuilder`, `ZplSourceBuilder`, `RasterSourceBuilder`, `ZplTargetBuilder`,
-> `PdfTargetBuilder`, `RasterTargetBuilder`. Each independently knew the format matrix, and they
-> drifted: four `With*` options were silently dropped, `GetSourceFormat()` handled only 2 of 12
-> sources, and `RasterTargetBuilder` emitted the *source* type as the target. At 15 x 13 that
-> architecture needs ~28 classes and 195 paths nobody can keep consistent. **Do not reintroduce it.**
+Each stage has **one base builder** that owns everything format-independent: the shared options,
+the `to*` transitions (source stage) and `execute` (target stage). Named convenience methods
+return a subclass that adds only the options for that format:
 
-### 1.2 Format metadata table
+| Method | Returns | Adds |
+|---|---|---|
+| `fromPdf` | PDF source stage | `withPage`, `withConversionMode`, `withSplit` |
+| `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withSplit` |
+| `fromZpl` | ZPL source stage | `withCommandsToIgnore` |
+| other `from*` | plain source stage | nothing |
+| `from(SourceFormat, body)`, `fromUrl`, base64 text | dynamic source stage | every source option, format-prefixed |
+| `toZpl` | ZPL target stage | `withImageCompression`, `withCollapseCopies`, `withLayout` |
+| other `to*` | plain target stage | nothing |
+| `to(TargetFormat)` | dynamic target stage | every target option, format-prefixed |
+
+So `fromZpl(zpl).withPage(0)` and `toPdf().withLayout(...)` don't compile, in the languages that
+chain (C#, Java, TypeScript, PHP). The dynamic builders exist because a format chosen at run time
+can't be checked at compile time; they keep the format prefix (`withPdfPage`) so the name still
+says where the option acts.
+
+**Groups.** `split` and `layout` have several fields and are set as one group, in the language's
+idiom for a group: a lambda over an options object in C# and Java (`withSplit(s -> s.rows(2)
+.columns(2))`), an object literal in TypeScript (`withSplit({ rows: 2, columns: 2 })`), and the
+nested structure the language already uses for options elsewhere (§9). Don't model a group as
+nested chain scopes, where `.split().rows(2)` returns a scope that must also offer `to*` and every
+outer method: the exit methods multiply with every level.
+
+> **Why these subclasses aren't the PR #6 mistake.** The superseded fluent API (PR #6) used a
+> class per format — `PdfSourceBuilder`, `ZplSourceBuilder`, `RasterSourceBuilder`,
+> `ZplTargetBuilder`, `PdfTargetBuilder`, `RasterTargetBuilder`. Each independently knew the format
+> matrix, and they drifted: four `With*` options were silently dropped, `GetSourceFormat()`
+> handled only 2 of 12 sources, and `RasterTargetBuilder` emitted the *source* type as the target.
+> At 15 x 13 that architecture needed ~28 classes and 195 paths nobody could keep consistent.
+>
+> The stage subclasses keep the property that design lacked: **no subclass knows a format**. These
+> rules hold it, and a change that breaks one reintroduces the old failure:
+>
+> - The format is fixed once, by the `from*`/`to*` call, and travels with the request. A subclass
+>   never maps a format to a token, a media type or a URL segment.
+> - Every option is written by **one** shared function per option. A subclass method is a
+>   one-line call into it, so `withPage` and `withPdfPage` cannot disagree on validation or on
+>   the JSON path.
+> - Subclasses exist only where a format has options of its own. A new source or target format
+>   with no options of its own gets the plain stage, not a new class.
+> - The conformance suite runs through the dynamic builders, so every shared writer is exercised
+>   by every fixture. Each SDK also has a test that sends one request through the typed
+>   builders and checks its `params`.
+
+### 1.3 Format metadata table
 
 Defined **once** per language. Never inlined at a call site.
 
@@ -109,7 +156,7 @@ Defined **once** per language. Never inlined at a call site.
 
 ### B — Headers
 
-- **B1** `Content-Type` is the exact media type from [§1.2](#12-format-metadata-table). When the
+- **B1** `Content-Type` is the exact media type from [§1.3](#13-format-metadata-table). When the
   caller opts into base64/text mode, send `text/plain`.
 
   > This is SDK style, not a server limit. The source format comes from the URL path, and the
@@ -119,10 +166,10 @@ Defined **once** per language. Never inlined at a call site.
   > subtype, and no `Content-Type` header at all.
   >
   > SDKs still send the exact type, because it is the one choice that is right for every payload
-  > and it keeps §1.2 as the single place a format's metadata lives. But a caller that holds raw
+  > and it keeps §1.3 as the single place a format's metadata lives. But a caller that holds raw
   > bytes and no reliable media type — a file picker, a queue payload — can send
   > `application/octet-stream` rather than inventing one. Note that for `PDF` and the image
-  > formats, `text/plain` still means base64 (the third column of §1.2), so raw binary must go as
+  > formats, `text/plain` still means base64 (the third column of §1.3), so raw binary must go as
   > `application/octet-stream` or the exact type, never as `text/plain`.
   >
   > A body sent as `application/octet-stream`, or with no `Content-Type`, is decoded as
@@ -254,7 +301,6 @@ Defined **once** per language. Never inlined at a call site.
 
 - **H1** `/api/v2.5` streaming is **not** in the fluent surface. It returns 403 for anonymous
   callers ("Streaming APIs are only available to paid users") and is hidden from the OpenAPI spec.
-  .NET's pre-existing `PdfToZplAsync` remains as a deprecated shim; that is the sole exception.
 - **H2** `/api/v2/labels` (template CRUD), `/api/v3/printers` (cloud print), and `/api/v3/keys`
   (key management) are out of scope for v1. Shape the client so `client.labels` / `client.printers`
   can be added later **without a breaking change**.
@@ -277,31 +323,36 @@ opaque string and must not attempt to parse or validate it:
 
 ## 4. Parameter reference
 
-| Fluent method | JSON path | Type | Server default | Notes |
-|---|---|---|---|---|
-| `withDpi` | `dpi` | int | `203` | |
-| `withRotation` | `rotation` | int | `0` | must be a multiple of 90 (**C6**) |
-| `withScaling` | `scaling` | float | `100` | percent |
-| `withColorMode` | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR` |
-| `withDarkness` | `darkness` | int | `70` | luminance threshold, 0–100 |
-| `withPosition` | `position.x` / `position.y` | int | `0,0` | pixel offset of extraction corner |
-| `withWatermark` | `watermark` | bool | `false` | forced true for unpaid non-PDF→ZPL |
-| `withDialect` | `dialect` | string | none | e.g. `moca`; **paid** |
-| `withData` | `data` | array | none | one label per entry (**C3**) |
-| `withLabelSize` | `label.width` / `label.height` | float | none — server detects | **inches** (**C4**) |
-| `withPdfConversionMode` | `pdf.conversionMode` | enum | `IMAGE` | `IMAGE\|NATIVE`; PDF source only |
-| `withPdfPage` | `pdf.pageNumber` | int | all pages | **0-based** (**C4**) |
-| `withZplCommandsToIgnore` | `zpl.commandsToIgnore` | string[] | `[]` | e.g. `["^PQ"]` |
-| `withZplImageCompression` | `zpl.imageCompression` | enum | `Z64` | `Z64\|COMPRESSED_HEX`; ZPL target only |
-| `withZplCollapseCopies` | `zpl.collapseCopies` | bool | `false` | image or PDF → ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count; see [§4.1](#41-multi-label-parameters) |
-| `withLayout` | `layout.across` / `layout.gap` | int / float | `1` / `0` | image or PDF → ZPL, `IMAGE` mode: labels side by side per printed row; gap in **inches** (**C4**) |
-| `withLayoutFill` | `layout.fill` | enum | `SEQUENTIAL` | `SEQUENTIAL\|REPEAT` |
-| `withSplit` | `split.rows` / `split.columns` | int | `1` / `1` | image or PDF → ZPL, `IMAGE` mode: cut each page into a grid of labels |
-| `withSplitLabelSize` | `split.width` / `split.height` | float | none — page divided equally | **inches** on the source page (**C4**) |
-| `withSplitMargins` | `split.left` / `split.top` | float | `0` / `0` | **inches** from the page's top-left corner to the first label |
-| `withSplitGaps` | `split.columnGap` / `split.rowGap` | float | `0` / `0` | **inches** |
-| `withSplitSkipBlank` | `split.skipBlank` | bool | `false` | leave out labels with nothing printable at the request's `darkness` |
-| `withLabelIndex` | `labelIndex` | int | all labels | **0-based** (**C4**); converts only this label, on every plan |
+| Fluent method | Stage | JSON path | Type | Server default | Notes |
+|---|---|---|---|---|---|
+| `withDpi` | target | `dpi` | int | `203` | |
+| `withRotation` | target | `rotation` | int | `0` | must be a multiple of 90 (**C6**) |
+| `withScaling` | target | `scaling` | float | `100` | percent |
+| `withColorMode` | target | `colorMode` | enum | `GRAYSCALE` | `BW\|GRAYSCALE\|COLOR` |
+| `withDarkness` | target | `darkness` | int | `70` | luminance threshold, 0–100 |
+| `withPosition` | target | `position.x` / `position.y` | int | `0,0` | pixel offset of extraction corner |
+| `withWatermark` | target | `watermark` | bool | `false` | forced true for unpaid non-PDF→ZPL |
+| `withDialect` | target | `dialect` | string | none | e.g. `moca`; **paid** |
+| `withData` | source | `data` | array | none | one label per entry (**C3**) |
+| `withLabelSize` | source | `label.width` / `label.height` | float | none — server detects | **inches** (**C4**) |
+| `withPdfConversionMode` | source | `pdf.conversionMode` | enum | `IMAGE` | `IMAGE\|NATIVE`; PDF source only |
+| `withPdfPage` | source | `pdf.pageNumber` | int | all pages | **0-based** (**C4**) |
+| `withZplCommandsToIgnore` | source | `zpl.commandsToIgnore` | string[] | `[]` | e.g. `["^PQ"]` |
+| `withZplImageCompression` | target | `zpl.imageCompression` | enum | `Z64` | `Z64\|COMPRESSED_HEX`; ZPL target only |
+| `withZplCollapseCopies` | target | `zpl.collapseCopies` | bool | `false` | image or PDF → ZPL, `IMAGE` mode: each run of identical labels becomes one label with a `^PQ` count; see [§4.1](#41-multi-label-parameters) |
+| `withLayout` { across, gap } | target | `layout.across` / `layout.gap` | int / float | `1` / `0` | image or PDF → ZPL, `IMAGE` mode: labels side by side per printed row; gap in **inches** (**C4**) |
+| `withLayout` { fill } | target | `layout.fill` | enum | `SEQUENTIAL` | `SEQUENTIAL\|REPEAT` |
+| `withSplit` { rows, columns } | source | `split.rows` / `split.columns` | int | `1` / `1` | image or PDF → ZPL, `IMAGE` mode: cut each page into a grid of labels |
+| `withSplit` { width, height } | source | `split.width` / `split.height` | float | none — page divided equally | **inches** on the source page (**C4**) |
+| `withSplit` { left, top } | source | `split.left` / `split.top` | float | `0` / `0` | **inches** from the page's top-left corner to the first label |
+| `withSplit` { columnGap, rowGap } | source | `split.columnGap` / `split.rowGap` | float | `0` / `0` | **inches** |
+| `withSplit` { skipBlank } | source | `split.skipBlank` | bool | `false` | leave out labels with nothing printable at the request's `darkness` |
+| `withLabelIndex` | source | `labelIndex` | int | all labels | **0-based** (**C4**); converts only this label, on every plan |
+
+**Stage** is where the option is set in a chaining SDK (§1). Named methods drop the format prefix
+on a format-specific stage: `withPdfPage` is `withPage` after `fromPdf`, and
+`withZplImageCompression` is `withImageCompression` after `toZpl`. `withSplit` and `withLayout`
+are groups (§1.2), shown here with the fields of each row.
 
 Unknown keys are ignored server-side, so a forward-compatible escape hatch costs nothing.
 

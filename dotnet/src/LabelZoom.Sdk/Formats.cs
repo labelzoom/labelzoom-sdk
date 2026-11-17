@@ -180,7 +180,7 @@ namespace LabelZoom.Sdk
 
     /// <summary>
     /// How pages fill the columns of a multi-column row, when
-    /// <see cref="Conversion.ConversionTargetBuilder.WithLayout"/> puts more than one label across.
+    /// <see cref="Conversion.ZplTargetBuilder.WithLayout"/> puts more than one label across.
     /// </summary>
     /// <remarks>
     /// The values are explicit because C# compiles enum members into callers as numbers: a new
