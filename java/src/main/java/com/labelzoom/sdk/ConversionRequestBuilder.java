@@ -8,12 +8,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * Chooses the source document.
+ * Chooses the source document. Returned by {@link LabelZoomClient#convert()}.
  *
- * <p>There is one source builder and one target builder for all 12 x 8 format combinations, not a
- * class per format. The named {@code from*} methods are one-line delegations to
- * {@link #from(SourceFormat, byte[])}: they exist for discoverability and, holding no logic of
- * their own, cannot drift away from the format table.
+ * <p>A named {@code from*} method returns a source stage typed for that format, so only the options
+ * that apply to it are offered: {@link #fromPdf(byte[])} returns a {@link PdfSourceBuilder} with
+ * {@link PdfSourceBuilder#withPage(int)}, which {@link #fromZpl(String)} doesn't have. The methods
+ * that take a {@link SourceFormat} pick the format at run time and return a
+ * {@link DynamicSourceBuilder}, which offers every source option. No subclass knows a format: the
+ * format is fixed here, once, and every option is written by one shared function (contract 1.2).
  */
 public final class ConversionRequestBuilder {
 
@@ -24,7 +26,11 @@ public final class ConversionRequestBuilder {
     }
 
     /** Uses raw bytes as the source document. */
-    public ConversionSourceBuilder from(SourceFormat format, byte[] body) {
+    public DynamicSourceBuilder from(SourceFormat format, byte[] body) {
+        return new DynamicSourceBuilder(validated(format, body));
+    }
+
+    private ConversionDraft validated(SourceFormat format, byte[] body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source body cannot be null.");
         }
@@ -34,15 +40,19 @@ public final class ConversionRequestBuilder {
             throw new LabelZoomValidationException(
                     "body", "Source body cannot be empty; the API rejects zero-length requests.");
         }
-        return new ConversionSourceBuilder(client, format, body, format.mediaType());
+        return new ConversionDraft(client, format, body, format.mediaType());
     }
 
     /** Uses text as the source document, encoded as UTF-8. */
-    public ConversionSourceBuilder from(SourceFormat format, String body) {
+    public DynamicSourceBuilder from(SourceFormat format, String body) {
+        return from(format, utf8(body));
+    }
+
+    private static byte[] utf8(String body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source body cannot be null.");
         }
-        return from(format, body.getBytes(StandardCharsets.UTF_8));
+        return body.getBytes(StandardCharsets.UTF_8);
     }
 
     /**
@@ -51,19 +61,23 @@ public final class ConversionRequestBuilder {
      * <p>Buffered rather than streamed, because a retried request needs to send the same body again
      * and a consumed stream cannot be replayed.
      */
-    public ConversionSourceBuilder from(SourceFormat format, InputStream body) {
+    public DynamicSourceBuilder from(SourceFormat format, InputStream body) {
+        return from(format, readAll(body));
+    }
+
+    private static byte[] readAll(InputStream body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source stream cannot be null.");
         }
         try {
-            return from(format, Compat.readAllBytes(body));
+            return Compat.readAllBytes(body);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read the source stream", e);
         }
     }
 
     /** Reads a file from disk and uses it as the source document. */
-    public ConversionSourceBuilder fromFile(SourceFormat format, Path path) {
+    public DynamicSourceBuilder fromFile(SourceFormat format, Path path) {
         if (path == null) {
             throw new LabelZoomValidationException("path", "Path cannot be null.");
         }
@@ -81,82 +95,82 @@ public final class ConversionRequestBuilder {
      * base64 text. Prefer {@link #from(SourceFormat, byte[])}; this exists for callers whose
      * transport has already base64-encoded the payload.
      */
-    public ConversionSourceBuilder fromBase64Text(SourceFormat format, String base64) {
+    public DynamicSourceBuilder fromBase64Text(SourceFormat format, String base64) {
         if (base64 == null || base64.isEmpty()) {
             throw new LabelZoomValidationException("body", "Base64 body cannot be null or empty.");
         }
-        return new ConversionSourceBuilder(
-                client, format, base64.getBytes(StandardCharsets.UTF_8), "text/plain");
+        return new DynamicSourceBuilder(new ConversionDraft(
+                client, format, base64.getBytes(StandardCharsets.UTF_8), "text/plain"));
     }
 
     /** Converts from ZPL. */
-    public ConversionSourceBuilder fromZpl(String zpl) {
-        return from(SourceFormat.ZPL, zpl);
+    public ZplSourceBuilder fromZpl(String zpl) {
+        return new ZplSourceBuilder(validated(SourceFormat.ZPL, utf8(zpl)));
     }
 
     /** Converts from EPL/EPL2. */
-    public ConversionSourceBuilder fromEpl(String epl) {
-        return from(SourceFormat.EPL, epl);
+    public PrinterLanguageSourceBuilder fromEpl(String epl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.EPL, utf8(epl)));
     }
 
     /** Converts from Intermec IPL. */
-    public ConversionSourceBuilder fromIpl(String ipl) {
-        return from(SourceFormat.IPL, ipl);
+    public PrinterLanguageSourceBuilder fromIpl(String ipl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.IPL, utf8(ipl)));
     }
 
     /** Converts from TSPL/TSPL2. */
-    public ConversionSourceBuilder fromTspl(String tspl) {
-        return from(SourceFormat.TSPL, tspl);
+    public PrinterLanguageSourceBuilder fromTspl(String tspl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.TSPL, utf8(tspl)));
     }
 
     /** Converts from DPL. */
-    public ConversionSourceBuilder fromDpl(String dpl) {
-        return from(SourceFormat.DPL, dpl);
+    public PrinterLanguageSourceBuilder fromDpl(String dpl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.DPL, utf8(dpl)));
     }
 
     /** Converts from SATO SBPL. */
-    public ConversionSourceBuilder fromSbpl(String sbpl) {
-        return from(SourceFormat.SBPL, sbpl);
+    public PrinterLanguageSourceBuilder fromSbpl(String sbpl) {
+        return new PrinterLanguageSourceBuilder(validated(SourceFormat.SBPL, utf8(sbpl)));
     }
 
     /** Converts from LabelZoom XML. */
-    public ConversionSourceBuilder fromXml(String xml) {
-        return from(SourceFormat.XML, xml);
+    public SourceBuilder fromXml(String xml) {
+        return new SourceBuilder(validated(SourceFormat.XML, utf8(xml)));
     }
 
     /** Converts from LabelZoom JSON. */
-    public ConversionSourceBuilder fromJson(String json) {
-        return from(SourceFormat.JSON, json);
+    public SourceBuilder fromJson(String json) {
+        return new SourceBuilder(validated(SourceFormat.JSON, utf8(json)));
     }
 
     /** Converts from a PDF document. */
-    public ConversionSourceBuilder fromPdf(byte[] pdf) {
-        return from(SourceFormat.PDF, pdf);
+    public PdfSourceBuilder fromPdf(byte[] pdf) {
+        return new PdfSourceBuilder(validated(SourceFormat.PDF, pdf));
     }
 
     /** Converts from a PDF document. */
-    public ConversionSourceBuilder fromPdf(InputStream pdf) {
-        return from(SourceFormat.PDF, pdf);
+    public PdfSourceBuilder fromPdf(InputStream pdf) {
+        return fromPdf(readAll(pdf));
     }
 
     /** Converts from a PNG image. */
-    public ConversionSourceBuilder fromPng(byte[] png) {
-        return from(SourceFormat.PNG, png);
+    public ImageSourceBuilder fromPng(byte[] png) {
+        return new ImageSourceBuilder(validated(SourceFormat.PNG, png));
     }
 
     /** Converts from a BMP image. */
-    public ConversionSourceBuilder fromBmp(byte[] bmp) {
-        return from(SourceFormat.BMP, bmp);
+    public ImageSourceBuilder fromBmp(byte[] bmp) {
+        return new ImageSourceBuilder(validated(SourceFormat.BMP, bmp));
     }
 
     /** Converts from a GIF image. */
-    public ConversionSourceBuilder fromGif(byte[] gif) {
-        return from(SourceFormat.GIF, gif);
+    public ImageSourceBuilder fromGif(byte[] gif) {
+        return new ImageSourceBuilder(validated(SourceFormat.GIF, gif));
     }
 
     /** Converts from a JPEG image. */
-    public ConversionSourceBuilder fromJpeg(byte[] jpeg) {
-        return from(SourceFormat.JPEG, jpeg);
+    public ImageSourceBuilder fromJpeg(byte[] jpeg) {
+        return new ImageSourceBuilder(validated(SourceFormat.JPEG, jpeg));
     }
 
     /**
@@ -164,7 +178,7 @@ public final class ConversionRequestBuilder {
      *
      * <p>Validate the URL before passing it if it came from untrusted input.
      */
-    public ConversionSourceBuilder fromUrl(String url) {
+    public DynamicSourceBuilder fromUrl(String url) {
         if (url == null || Compat.isBlank(url)) {
             throw new LabelZoomValidationException("body", "URL cannot be null or blank.");
         }

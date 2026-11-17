@@ -73,7 +73,7 @@ class AndroidCompatibilityTest {
         transport.enqueue(RecordingTransport.response(200, "^XA^XZ", Map.of()));
         try (LabelZoomClient client = LabelZoomClient.builder()
                 .apiKey(null).maxRetries(0).transport(transport).build()) {
-            client.convert().fromZpl("^XA^XZ").toZpl().withTargetDpi(203).execute();
+            client.convert().fromZpl("^XA^XZ").toZpl().withDpi(203).execute();
         }
         assertEquals(1, transport.requests.size());
         // The percent-encoding moved off URLEncoder's Charset overload; the wire form must not.
