@@ -127,6 +127,16 @@ class StageShapeTest {
             assertInstanceOf(ImageTargetBuilder.class, client.convert().fromZpl("^XA^XZ").toPng());
             assertInstanceOf(PdfTargetBuilder.class, client.convert().fromZpl("^XA^XZ").toPdf());
             assertInstanceOf(TargetBuilder.class, client.convert().fromZpl("^XA^XZ").toEpl());
+            assertInstanceOf(ZplSourceBuilder.class, client.convert().fromEscLabel("^XA^XZ"));
+            assertInstanceOf(PrinterLanguageSourceBuilder.class, client.convert().fromFingerprint("PF"));
+            assertInstanceOf(PrinterLanguageSourceBuilder.class, client.convert().fromEzpl("^L"));
+            assertInstanceOf(PrinterLanguageSourceBuilder.class, client.convert().fromCpcl("! 0 200 200 1 1"));
+            assertInstanceOf(PrinterLanguageSourceBuilder.class, client.convert().fromTpcl("{C|}"));
+            assertInstanceOf(SourceBuilder.class, client.convert().fromNlbl(new byte[] {1}));
+            assertInstanceOf(SourceBuilder.class, client.convert().fromLbl(new byte[] {1}));
+            assertInstanceOf(SourceBuilder.class, client.convert().fromBtw(new byte[] {1}));
+            assertInstanceOf(SourceBuilder.class, client.convert().fromDymo("<DieCutLabel/>"));
+            assertInstanceOf(TargetBuilder.class, client.convert().fromZpl("^XA^XZ").toCpcl());
         }
     }
 

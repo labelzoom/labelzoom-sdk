@@ -26,6 +26,24 @@ pub enum SourceFormat {
     Dpl,
     /// SATO Barcode Printer Language.
     Sbpl,
+    /// Epson `ColorWorks` ESC/Label, a dialect of ZPL.
+    EscLabel,
+    /// Honeywell/Intermec Fingerprint and Direct Protocol.
+    Fingerprint,
+    /// `GoDEX` EZPL. Not an EPL dialect.
+    Ezpl,
+    /// Zebra CPCL, for Zebra's mobile printers.
+    Cpcl,
+    /// Toshiba TEC TPCL.
+    Tpcl,
+    /// A `NiceLabel` or `ZebraDesigner` 3 `.nlbl` design file. Send its bytes.
+    Nlbl,
+    /// A `NiceLabel` `.lbl` design file. Send its bytes.
+    Lbl,
+    /// A `BarTender` `.btw` design file. Send its bytes.
+    Btw,
+    /// A DYMO Label `.label` or `.dymo` design file (XML).
+    Dymo,
     /// The LabelZoom label model, as XML.
     Xml,
     /// The LabelZoom label model, as JSON.
@@ -54,12 +72,12 @@ pub enum SourceFormat {
 /// There is no `TargetFormat::Url`: a URL is a fetch instruction, not an output format.
 /// There is no `Jpg` either -- that spelling is source-side only.
 ///
-/// The printer languages round-trip: `Epl`, `Ipl`, `Tspl`, `Dpl` and `Sbpl` are targets as
-/// well as sources, as of contract 1.2.0.
+/// Most printer languages round-trip: `Epl`, `Ipl`, `Tspl`, `Dpl`, `Sbpl` and `Cpcl` are
+/// targets as well as sources.
 ///
-/// Marked `#[non_exhaustive]` on purpose. This set has already grown twice -- three printer
-/// languages became targets when the printer-language writers shipped, then `Ipl` and `Sbpl`
-/// arrived with their adapters -- and without it every such addition is a breaking change
+/// Marked `#[non_exhaustive]` on purpose. This set has already grown three times -- three
+/// printer languages became targets when the printer-language writers shipped, then `Ipl` and
+/// `Sbpl` arrived with their adapters, then `Cpcl` -- and without it every such addition is a breaking change
 /// for any downstream `match`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -82,6 +100,8 @@ pub enum TargetFormat {
     /// inline graphics; prefer [`ConversionResult::bytes`](crate::ConversionResult::bytes)
     /// over `text()`.
     Sbpl,
+    /// Zebra CPCL. Graphics are written as hex, so the output is plain text.
+    Cpcl,
     /// The LabelZoom label model, as XML.
     Xml,
     /// The LabelZoom label model, as JSON.
@@ -107,6 +127,15 @@ impl SourceFormat {
         Self::Tspl,
         Self::Dpl,
         Self::Sbpl,
+        Self::EscLabel,
+        Self::Fingerprint,
+        Self::Ezpl,
+        Self::Cpcl,
+        Self::Tpcl,
+        Self::Nlbl,
+        Self::Lbl,
+        Self::Btw,
+        Self::Dymo,
         Self::Xml,
         Self::Json,
         Self::Pdf,
@@ -134,10 +163,20 @@ impl SourceFormat {
     pub fn media_type(self) -> &'static str {
         match self {
             // The body for Url is the URL itself.
-            Self::Zpl | Self::Epl | Self::Ipl | Self::Tspl | Self::Dpl | Self::Sbpl | Self::Url => {
-                "text/plain"
-            }
-            Self::Xml => "application/xml",
+            Self::Zpl
+            | Self::Epl
+            | Self::Ipl
+            | Self::Tspl
+            | Self::Dpl
+            | Self::Sbpl
+            | Self::EscLabel
+            | Self::Fingerprint
+            | Self::Ezpl
+            | Self::Cpcl
+            | Self::Tpcl
+            | Self::Url => "text/plain",
+            Self::Nlbl | Self::Lbl | Self::Btw => "application/octet-stream",
+            Self::Xml | Self::Dymo => "application/xml",
             Self::Json => "application/json",
             Self::Pdf => "application/pdf",
             Self::Png => "image/png",
@@ -156,6 +195,15 @@ impl SourceFormat {
             Self::Tspl => "tspl",
             Self::Dpl => "dpl",
             Self::Sbpl => "sbpl",
+            Self::EscLabel => "esclabel",
+            Self::Fingerprint => "fingerprint",
+            Self::Ezpl => "ezpl",
+            Self::Cpcl => "cpcl",
+            Self::Tpcl => "tpcl",
+            Self::Nlbl => "nlbl",
+            Self::Lbl => "lbl",
+            Self::Btw => "btw",
+            Self::Dymo => "dymo",
             Self::Xml => "xml",
             Self::Json => "json",
             Self::Pdf => "pdf",
@@ -186,6 +234,7 @@ impl TargetFormat {
         Self::Tspl,
         Self::Dpl,
         Self::Sbpl,
+        Self::Cpcl,
         Self::Xml,
         Self::Json,
         Self::Pdf,
@@ -204,6 +253,7 @@ impl TargetFormat {
             Self::Tspl => "tspl",
             Self::Dpl => "dpl",
             Self::Sbpl => "sbpl",
+            Self::Cpcl => "cpcl",
             Self::Xml => "xml",
             Self::Json => "json",
             Self::Pdf => "pdf",

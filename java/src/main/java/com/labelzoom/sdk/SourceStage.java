@@ -127,6 +127,14 @@ public abstract class SourceStage<S extends SourceStage<S>> {
         return new TargetBuilder(draft, TargetFormat.SBPL);
     }
 
+    /**
+     * Converts to Zebra CPCL, for Zebra's mobile printers. All labels are concatenated into one
+     * document. Graphics are written as hex, so the output is plain text.
+     */
+    public TargetBuilder toCpcl() {
+        return new TargetBuilder(draft, TargetFormat.CPCL);
+    }
+
     /** Converts to LabelZoom XML. Returns the first label only. */
     public TargetBuilder toXml() {
         return new TargetBuilder(draft, TargetFormat.XML);

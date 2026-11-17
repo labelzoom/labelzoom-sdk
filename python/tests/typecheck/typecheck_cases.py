@@ -45,3 +45,8 @@ client.convert("epl", "dpl", body)
 client.convert("zpl", "ipl", body)
 client.convert("ipl", "sbpl", body)
 client.convert("sbpl", "zpl", body)
+
+# The 2.1.0 contract added nine sources and the cpcl target.
+client.convert("esclabel", "zpl", body, source_dpi=600)
+client.convert("btw", "pdf", body)
+client.convert("zpl", "cpcl", body)

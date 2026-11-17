@@ -8,7 +8,7 @@ use LabelZoom\Sdk\Internal\ConversionDraft;
 use LabelZoom\Sdk\Internal\ParameterWriters;
 
 /**
- * The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON.
+ * The target stage for EPL, IPL, TSPL, DPL, SBPL, CPCL, LabelZoom XML and LabelZoom JSON.
  */
 final class TargetBuilder extends TargetStage
 {

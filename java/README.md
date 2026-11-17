@@ -3,7 +3,8 @@
 # LabelZoom Java SDK
 
 Official Java client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 **Java 17+, or Android 8.0 (API 26)+. Zero runtime dependencies.**
 
@@ -114,9 +115,13 @@ ConversionResult result = client.convert()
 
 ## Formats
 
-**Sources:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG` `URL`
+**Sources:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `ESCLABEL` `FINGERPRINT` `EZPL` `CPCL` `TPCL` `NLBL` `LBL` `BTW` `DYMO` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG` `JPG` `URL`
 
-**Targets:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
+**Targets:** `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` `CPCL` `XML` `JSON` `PDF` `PNG` `BMP` `GIF` `JPEG`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `SourceFormat` and `TargetFormat` are distinct enums, so `toUrl()` does not exist and
 `to(SourceFormat.PDF)` does not compile. `JPG` and `URL` are source-only — `JPG` normalizes to

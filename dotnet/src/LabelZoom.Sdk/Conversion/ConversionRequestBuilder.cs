@@ -76,6 +76,52 @@ namespace LabelZoom.Sdk.Conversion
         /// <summary>Converts from DPL.</summary>
         public PrinterLanguageSourceBuilder FromDpl(string dpl) => PrinterLanguage(SourceFormat.Dpl, dpl);
 
+        /// <summary>Converts from Epson ColorWorks ESC/Label, a dialect of ZPL with color.</summary>
+        /// <remarks>
+        /// The job's <c>^S(CLR,R</c> or <c>^MU</c> declares its own resolution; <c>WithDpi</c> overrides
+        /// it. A <c>~DY</c> carries raw PNG bytes, so pass bytes rather than text if it has any.
+        /// </remarks>
+        public ZplSourceBuilder FromEscLabel(string escLabel) =>
+            new ZplSourceBuilder(Draft(SourceFormat.EscLabel, Utf8(escLabel)));
+
+        /// <inheritdoc cref="FromEscLabel(string)"/>
+        public ZplSourceBuilder FromEscLabel(byte[] escLabel) =>
+            new ZplSourceBuilder(Draft(SourceFormat.EscLabel, escLabel));
+
+        /// <summary>Converts from Honeywell and Intermec Fingerprint and Direct Protocol.</summary>
+        public PrinterLanguageSourceBuilder FromFingerprint(string fingerprint) =>
+            PrinterLanguage(SourceFormat.Fingerprint, fingerprint);
+
+        /// <summary>Converts from GoDEX EZPL.</summary>
+        public PrinterLanguageSourceBuilder FromEzpl(string ezpl) => PrinterLanguage(SourceFormat.Ezpl, ezpl);
+
+        /// <summary>Converts from Zebra CPCL. The job's header declares its resolution; <c>WithDpi</c> overrides it.</summary>
+        public PrinterLanguageSourceBuilder FromCpcl(string cpcl) => PrinterLanguage(SourceFormat.Cpcl, cpcl);
+
+        /// <summary>Converts from Toshiba TEC TPCL.</summary>
+        public PrinterLanguageSourceBuilder FromTpcl(string tpcl) => PrinterLanguage(SourceFormat.Tpcl, tpcl);
+
+        /// <summary>Converts from a NiceLabel or ZebraDesigner 3 <c>.nlbl</c> file.</summary>
+        public SourceBuilder FromNlbl(byte[] nlbl) => new SourceBuilder(Draft(SourceFormat.Nlbl, nlbl));
+
+        /// <summary>Converts from a NiceLabel or ZebraDesigner 3 <c>.nlbl</c> file.</summary>
+        public SourceBuilder FromNlbl(Stream nlbl) => new SourceBuilder(Draft(SourceFormat.Nlbl, ReadAll(nlbl)));
+
+        /// <summary>Converts from a NiceLabel Pro 4 or 5 <c>.lbl</c> file.</summary>
+        public SourceBuilder FromLbl(byte[] lbl) => new SourceBuilder(Draft(SourceFormat.Lbl, lbl));
+
+        /// <summary>Converts from a NiceLabel Pro 4 or 5 <c>.lbl</c> file.</summary>
+        public SourceBuilder FromLbl(Stream lbl) => new SourceBuilder(Draft(SourceFormat.Lbl, ReadAll(lbl)));
+
+        /// <summary>Converts from a BarTender <c>.btw</c> or <c>.btc</c> file.</summary>
+        public SourceBuilder FromBtw(byte[] btw) => new SourceBuilder(Draft(SourceFormat.Btw, btw));
+
+        /// <summary>Converts from a BarTender <c>.btw</c> or <c>.btc</c> file.</summary>
+        public SourceBuilder FromBtw(Stream btw) => new SourceBuilder(Draft(SourceFormat.Btw, ReadAll(btw)));
+
+        /// <summary>Converts from a DYMO Connect <c>.dymo</c> or DYMO Label <c>.label</c> file.</summary>
+        public SourceBuilder FromDymo(string dymo) => Text(SourceFormat.Dymo, dymo);
+
         /// <summary>Converts from SATO SBPL.</summary>
         public PrinterLanguageSourceBuilder FromSbpl(string sbpl) => PrinterLanguage(SourceFormat.Sbpl, sbpl);
 

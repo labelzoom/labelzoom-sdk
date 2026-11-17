@@ -7,7 +7,7 @@ namespace LabelZoom\Sdk;
 use LabelZoom\Sdk\Internal\ParameterWriters;
 
 /**
- * The source stage for EPL, IPL, TSPL, DPL and SBPL.
+ * The source stage for EPL, IPL, TSPL, DPL, SBPL, Fingerprint, EZPL, CPCL and TPCL.
  */
 final class PrinterLanguageSourceBuilder extends SourceStage
 {

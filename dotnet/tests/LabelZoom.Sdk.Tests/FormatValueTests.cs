@@ -37,6 +37,15 @@ public sealed class FormatValueTests
         { SourceFormat.Url, 12 },
         { SourceFormat.Ipl, 13 },
         { SourceFormat.Sbpl, 14 },
+        { SourceFormat.EscLabel, 15 },
+        { SourceFormat.Fingerprint, 16 },
+        { SourceFormat.Ezpl, 17 },
+        { SourceFormat.Cpcl, 18 },
+        { SourceFormat.Tpcl, 19 },
+        { SourceFormat.Nlbl, 20 },
+        { SourceFormat.Lbl, 21 },
+        { SourceFormat.Btw, 22 },
+        { SourceFormat.Dymo, 23 },
     };
 
     public static TheoryData<TargetFormat, int> TargetValues => new()
@@ -54,6 +63,7 @@ public sealed class FormatValueTests
         { TargetFormat.Jpeg, 10 },
         { TargetFormat.Ipl, 11 },
         { TargetFormat.Sbpl, 12 },
+        { TargetFormat.Cpcl, 13 },
     };
 
     [Theory]

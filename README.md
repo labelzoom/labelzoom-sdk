@@ -3,7 +3,8 @@
 # LabelZoom SDK
 
 Official client libraries for the [LabelZoom API](https://api.labelzoom.com) — convert barcode
-labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 ## Status
 
@@ -46,11 +47,15 @@ One endpoint covers almost everything:
 POST https://api.labelzoom.com/api/v2/convert/{sourceFormat}/to/{targetFormat}
 ```
 
-**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
-`jpg` `jpeg` `url`
+**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `esclabel` `fingerprint` `ezpl` `cpcl` `tpcl`
+`nlbl` `lbl` `btw` `dymo` `xml` `json` `pdf` `png` `bmp` `gif` `jpg` `jpeg` `url`
 
-**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif`
+**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `cpcl` `xml` `json` `pdf` `png` `bmp` `gif`
 `jpeg`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `jpg` and `url` are **source-only** — `jpg` is an input spelling that normalizes to `jpeg`, and
 `url` tells the server to go fetch a document rather than naming a format. Every SDK enforces that

@@ -19,6 +19,22 @@ SourceFormat = Literal[
     "tspl",
     "dpl",
     "sbpl",
+    # Epson ColorWorks ESC/Label, a dialect of ZPL.
+    "esclabel",
+    # Honeywell/Intermec Fingerprint and Direct Protocol.
+    "fingerprint",
+    # GoDEX EZPL. Not an EPL dialect.
+    "ezpl",
+    # Zebra CPCL, for Zebra's mobile printers.
+    "cpcl",
+    # Toshiba TEC TPCL.
+    "tpcl",
+    # NiceLabel (``.nlbl``, ``.lbl``) and BarTender (``.btw``) design files. Send the bytes.
+    "nlbl",
+    "lbl",
+    "btw",
+    # A DYMO Label ``.label`` or ``.dymo`` design file (XML).
+    "dymo",
     "xml",
     "json",
     "pdf",
@@ -49,6 +65,7 @@ TargetFormat = Literal[
     "tspl",
     "dpl",
     "sbpl",
+    "cpcl",
     "xml",
     "json",
     "pdf",
@@ -77,8 +94,8 @@ LayoutFill = Literal["SEQUENTIAL", "REPEAT"]
 # The one place in the SDK that knows the format matrix.
 #
 # The superseded .NET builder hierarchy spread this across seven classes and they drifted:
-# one handled 2 of 15 sources, another returned the source content type as the target format.
-# Keep it here.
+# one handled 2 of the 15 sources there were then, another returned the source content type as
+# the target format. Keep it here.
 _SOURCE_MEDIA_TYPES: dict[str, str] = {
     "zpl": "text/plain",
     "epl": "text/plain",
@@ -86,6 +103,15 @@ _SOURCE_MEDIA_TYPES: dict[str, str] = {
     "tspl": "text/plain",
     "dpl": "text/plain",
     "sbpl": "text/plain",
+    "esclabel": "text/plain",
+    "fingerprint": "text/plain",
+    "ezpl": "text/plain",
+    "cpcl": "text/plain",
+    "tpcl": "text/plain",
+    "nlbl": "application/octet-stream",
+    "lbl": "application/octet-stream",
+    "btw": "application/octet-stream",
+    "dymo": "application/xml",
     "xml": "application/xml",
     "json": "application/json",
     "pdf": "application/pdf",

@@ -45,6 +45,12 @@ public enum TargetFormat {
      */
     SBPL("sbpl"),
 
+    /**
+     * Zebra CPCL, for Zebra's mobile printers. All labels are concatenated. Graphics are written as
+     * hex, so the output is plain text.
+     */
+    CPCL("cpcl"),
+
     /** LabelZoom XML. First label only. */
     XML("xml"),
 

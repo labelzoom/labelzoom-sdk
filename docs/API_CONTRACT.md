@@ -65,13 +65,16 @@ the stages is byte-for-byte the request 1.x built through one flat builder.
 ### 1.1 Two format types
 
 ```
-SourceFormat  (15)  ZPL EPL IPL TSPL DPL SBPL XML JSON PDF PNG BMP GIF JPEG JPG URL
-TargetFormat  (13)  ZPL EPL IPL TSPL DPL SBPL XML JSON PDF PNG BMP GIF JPEG
+SourceFormat  (24)  ZPL EPL IPL TSPL DPL SBPL ESCLABEL FINGERPRINT EZPL CPCL TPCL
+                    NLBL LBL BTW DYMO XML JSON PDF PNG BMP GIF JPEG JPG URL
+TargetFormat  (14)  ZPL EPL IPL TSPL DPL SBPL CPCL XML JSON PDF PNG BMP GIF JPEG
 ```
 
 `SourceFormat` and `TargetFormat` are **distinct types**, and the sets are not the same. `JPG` and
 `URL` are source-only: `JPG` is an input spelling that normalizes to `JPEG` on the wire (**A2**),
 and `URL` is a fetch instruction rather than a format — there is no `TargetFormat.URL` to name.
+The formats the API reads but doesn't write are source-only too: ESC/Label, Fingerprint, EZPL,
+TPCL, NiceLabel (`NLBL`, `LBL`), BarTender (`BTW`) and DYMO.
 Enforce that at compile time wherever the language allows (C#, TypeScript, Java, PHP 8.1, Go,
 Rust);
 `Literal[...]` + mypy in Python and a runtime `ArgumentError` in Ruby are acceptable substitutes.
@@ -83,7 +86,9 @@ Do not contort a language to get compile-time enforcement it does not natively o
 > assertions are gone; do not reintroduce them.
 >
 > `IPL` (Intermec) and `SBPL` (SATO) arrived later still, as sources *and* targets from the start —
-> IPL on 2026-09-02, SBPL on 2026-09-04. This set has now grown twice. Treat it as open: model the
+> IPL on 2026-09-02, SBPL on 2026-09-04. Contract 2.1.0 added nine more sources and the `CPCL`
+> target, all of which the API already accepted. This set has now grown three times. Treat it as
+> open: model the
 > formats so that adding one is additive, which is what `#[non_exhaustive]` buys in Rust and what a
 > derived token map buys everywhere else.
 
@@ -97,9 +102,9 @@ return a subclass that adds only the options for that format:
 |---|---|---|
 | `fromPdf` | PDF source stage | `withPage`, `withConversionMode`, `withSplit`, `withRaster` |
 | `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | image source stage | `withDpi`, `withSplit`, `withRaster` |
-| `fromZpl` | ZPL source stage | `withDpi`, `withCommandsToIgnore` |
-| `fromEpl`, `fromIpl`, `fromTspl`, `fromDpl`, `fromSbpl` | printer-language source stage | `withDpi` |
-| `fromXml`, `fromJson` | plain source stage | nothing |
+| `fromZpl`, `fromEscLabel` | ZPL source stage | `withDpi`, `withCommandsToIgnore` |
+| `fromEpl`, `fromIpl`, `fromTspl`, `fromDpl`, `fromSbpl`, `fromFingerprint`, `fromEzpl`, `fromCpcl`, `fromTpcl` | printer-language source stage | `withDpi` |
+| `fromXml`, `fromJson`, `fromNlbl`, `fromLbl`, `fromBtw`, `fromDymo` | plain source stage | nothing |
 | `from(SourceFormat, body)`, `fromUrl`, base64 text | dynamic source stage | every source option, format-prefixed |
 | `toZpl` | ZPL target stage | `withDpi`, `withImageCompression`, `withCollapseCopies`, `withLayout` |
 | `toPng`, `toBmp`, `toGif`, `toJpeg` | image target stage | `withDpi`, `withColorMode`, `withDarkness` |
@@ -148,6 +153,9 @@ Defined **once** per language. Never inlined at a call site.
 | SourceFormat | request `Content-Type` | base64/text alternative |
 |---|---|---|
 | `ZPL` `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | — |
+| `ESCLABEL` `FINGERPRINT` `EZPL` `CPCL` `TPCL` | `text/plain` | — |
+| `NLBL` `LBL` `BTW` | `application/octet-stream` | `text/plain` |
+| `DYMO` | `application/xml` | — |
 | `XML` | `application/xml` | — |
 | `JSON` | `application/json` | — |
 | `PDF` | `application/pdf` | `text/plain` |
@@ -156,6 +164,11 @@ Defined **once** per language. Never inlined at a call site.
 | `GIF` | `image/gif` | `text/plain` |
 | `JPEG` / `JPG` | `image/jpeg` | `text/plain` |
 | `URL` | `text/plain` (body is the URL) | — |
+
+ESC/Label is a dialect of ZPL, so it gets the ZPL source stage. NiceLabel, BarTender and DYMO files
+measure in physical units rather than dots, so the API rejects `sourceDpi` for them with a 400, and
+they get the plain source stage. NiceLabel and BarTender files are binary: send the bytes, never a
+decoded string.
 
 ---
 
@@ -207,7 +220,7 @@ Defined **once** per language. Never inlined at a call site.
   > wildcard subtype (`image/*`) and a `charset`/`q` parameter are all accepted.
   >
   > `*/*` therefore stays for a plain reason rather than a defensive one: it is the one value
-  > valid for all thirteen targets, so the request builder needs no branch. A `strictAccept`
+  > valid for all fourteen targets, so the request builder needs no branch. A `strictAccept`
   > escape hatch may be offered, but it is **off by default**.
 
 - **B3** `Authorization: Bearer <credential>` is sent **only** when a credential is present. When
@@ -491,7 +504,7 @@ not special-case either shape (`response/error-429-problem-json`, `response/erro
 | Target | Media type | Multi-label behavior |
 |---|---|---|
 | `ZPL` | `text/plain` | all labels concatenated |
-| `EPL` `IPL` `TSPL` `DPL` `SBPL` | `text/plain` | all labels concatenated |
+| `EPL` `IPL` `TSPL` `DPL` `SBPL` `CPCL` | `text/plain` | all labels concatenated |
 | `PDF` | `application/pdf` | all labels, one per page |
 | `XML` | `application/xml` | **first label only**, or the one `labelIndex` selects |
 | `JSON` | `application/json` | **first label only**, or the one `labelIndex` selects; paid |
@@ -500,7 +513,8 @@ not special-case either shape (`response/error-429-problem-json`, `response/erro
 **Printer-language output can carry raw binary inline** — EPL's `GW` and TSPL's `BITMAP` commands
 embed a 1-bpp payload directly in the command stream, IPL frames its commands in `STX`/`ETX` and
 carries downloaded graphics as packed bitmap columns, and SBPL frames every command with `ESC` and
-embeds graphics inline. `bytes` is authoritative for these targets; `text` decodes with the response
+embeds graphics inline. CPCL is the exception: it writes graphics as hex, so its output is plain
+text. `bytes` is authoritative for these targets; `text` decodes with the response
 charset and is only safe when you know the label has no graphics. This is the same hazard **D1**
 already calls out for image targets, reaching a `text/plain` one.
 

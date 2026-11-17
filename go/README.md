@@ -3,7 +3,8 @@
 # LabelZoom Go SDK
 
 Official Go client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 Go 1.23+. **No dependencies** — standard library only, including the response-charset decoding.
 
@@ -67,11 +68,16 @@ call. The wire behavior is identical — that is what the shared conformance sui
 ## Formats
 
 **Sources:** `SourceZPL` `SourceEPL` `SourceIPL` `SourceTSPL` `SourceDPL` `SourceSBPL`
-`SourceXML` `SourceJSON` `SourcePDF` `SourcePNG` `SourceBMP` `SourceGIF` `SourceJPEG`
-`SourceJPG` `SourceURL`
+`SourceESCLabel` `SourceFingerprint` `SourceEZPL` `SourceCPCL` `SourceTPCL` `SourceNLBL`
+`SourceLBL` `SourceBTW` `SourceDYMO` `SourceXML` `SourceJSON` `SourcePDF` `SourcePNG` `SourceBMP`
+`SourceGIF` `SourceJPEG` `SourceJPG` `SourceURL`
 
 **Targets:** `TargetZPL` `TargetEPL` `TargetIPL` `TargetTSPL` `TargetDPL` `TargetSBPL`
-`TargetXML` `TargetJSON` `TargetPDF` `TargetPNG` `TargetBMP` `TargetGIF` `TargetJPEG`
+`TargetCPCL` `TargetXML` `TargetJSON` `TargetPDF` `TargetPNG` `TargetBMP` `TargetGIF` `TargetJPEG`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `SourceFormat` and `TargetFormat` are distinct types. `SourceJPG` is an input spelling that
 normalizes to `jpeg` on the wire, and `SourceURL` tells the server to go fetch a document rather

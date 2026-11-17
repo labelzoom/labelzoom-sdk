@@ -116,6 +116,15 @@ abstract class SourceStage
         return new TargetBuilder($this->draft, TargetFormat::Sbpl);
     }
 
+    /**
+     * Converts to Zebra CPCL, for Zebra's mobile printers. All labels are concatenated into one
+     * document. Graphics are written as hex, so the output is plain text.
+     */
+    public function toCpcl(): TargetBuilder
+    {
+        return new TargetBuilder($this->draft, TargetFormat::Cpcl);
+    }
+
     /** Converts to LabelZoom XML. Returns the first label only. */
     public function toXml(): TargetBuilder
     {

@@ -3,7 +3,8 @@
 # LabelZoom PHP SDK
 
 Official PHP client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 PHP 8.1+. PSR-18 / PSR-17 throughout, so it drops into Guzzle, Symfony HttpClient, or the bundled
 cURL client with no adapter.
@@ -95,10 +96,15 @@ $result = $client->convert()
 
 ## Formats
 
-**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpg`
-`jpeg` `url`
+**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `esclabel` `fingerprint` `ezpl` `cpcl` `tpcl`
+`nlbl` `lbl` `btw` `dymo` `xml` `json` `pdf` `png` `bmp` `gif` `jpg` `jpeg` `url`
 
-**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `xml` `json` `pdf` `png` `bmp` `gif` `jpeg`
+**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `cpcl` `xml` `json` `pdf` `png` `bmp` `gif`
+`jpeg`
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
 rather than a format. `SourceFormat` and `TargetFormat` are separate enums, so there is no

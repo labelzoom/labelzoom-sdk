@@ -3,7 +3,8 @@
 # LabelZoom Node.js / TypeScript SDK
 
 Official Node client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON, and raster images.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
 
 Node 20+. Ships dual ESM/CJS builds and TypeScript declarations. No runtime dependencies — it
 uses the platform `fetch`.
@@ -104,13 +105,19 @@ const result = await client.convert()
 
 ```ts
 type SourceFormat = 'zpl' | 'epl' | 'ipl' | 'tspl' | 'dpl' | 'sbpl'
+                  | 'esclabel' | 'fingerprint' | 'ezpl' | 'cpcl' | 'tpcl'
+                  | 'nlbl' | 'lbl' | 'btw' | 'dymo'
                   | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif'
                   | 'jpeg' | 'jpg' | 'url';
 
-type TargetFormat = 'zpl' | 'epl' | 'ipl' | 'tspl' | 'dpl' | 'sbpl'
+type TargetFormat = 'zpl' | 'epl' | 'ipl' | 'tspl' | 'dpl' | 'sbpl' | 'cpcl'
                   | 'xml' | 'json' | 'pdf' | 'png' | 'bmp' | 'gif'
                   | 'jpeg';
 ```
+
+The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
+(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
+a target too, and writes graphics as hex, so its output is plain text.
 
 `jpg` and `url` are **source-only** — `jpg` normalizes to `jpeg`, and `url` is a fetch instruction
 rather than a format — and the type system says so:

@@ -149,6 +149,16 @@ final class StageShapeTest extends TestCase
         self::assertInstanceOf(ImageTargetBuilder::class, $convert->fromZpl('^XA^XZ')->toPng());
         self::assertInstanceOf(PdfTargetBuilder::class, $convert->fromZpl('^XA^XZ')->toPdf());
         self::assertInstanceOf(TargetBuilder::class, $convert->fromZpl('^XA^XZ')->toEpl());
+        self::assertInstanceOf(ZplSourceBuilder::class, $convert->fromEscLabel('^XA^XZ'));
+        self::assertInstanceOf(PrinterLanguageSourceBuilder::class, $convert->fromFingerprint('PF'));
+        self::assertInstanceOf(PrinterLanguageSourceBuilder::class, $convert->fromEzpl('^L'));
+        self::assertInstanceOf(PrinterLanguageSourceBuilder::class, $convert->fromCpcl('! 0 200 200 1 1'));
+        self::assertInstanceOf(PrinterLanguageSourceBuilder::class, $convert->fromTpcl('{C|}'));
+        self::assertInstanceOf(SourceBuilder::class, $convert->fromNlbl("PK\x03\x04"));
+        self::assertInstanceOf(SourceBuilder::class, $convert->fromLbl("\x01"));
+        self::assertInstanceOf(SourceBuilder::class, $convert->fromBtw("\x01"));
+        self::assertInstanceOf(SourceBuilder::class, $convert->fromDymo('<DieCutLabel/>'));
+        self::assertInstanceOf(TargetBuilder::class, $convert->fromZpl('^XA^XZ')->toCpcl());
     }
 
     public function testTypedChainSendsTheSameParamsAsTheWire(): void
