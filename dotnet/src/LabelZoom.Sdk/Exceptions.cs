@@ -31,6 +31,12 @@ namespace LabelZoom.Sdk
         /// and capped at 512 characters; this is not.
         /// </summary>
         public string? RawBody { get; }
+
+        /// <summary>
+        /// The error body's <c>code</c>, such as <c>agent_update_required</c>, or <c>null</c> when it
+        /// has none. Codes are stable, so branch on this rather than on <see cref="Exception.Message"/>.
+        /// </summary>
+        public string? Code { get; internal set; }
     }
 
     /// <summary>HTTP 400. The request was malformed or the conversion path is invalid.</summary>
@@ -82,7 +88,8 @@ namespace LabelZoom.Sdk
     }
 
     /// <summary>HTTP 429. Too many requests.</summary>
-    public sealed class LabelZoomRateLimitedException : LabelZoomException
+    /// <remarks>Retried automatically before surfacing, except <see cref="LabelZoomPrintQuotaExceededException"/>.</remarks>
+    public class LabelZoomRateLimitedException : LabelZoomException
     {
         internal LabelZoomRateLimitedException(
             string message, string? requestId, string? rawBody, int? retryAfterSeconds)
@@ -96,6 +103,36 @@ namespace LabelZoom.Sdk
         /// honors this during its own retries; this exposes it for callers doing their own.
         /// </summary>
         public int? RetryAfterSeconds { get; }
+    }
+
+    /// <summary>
+    /// HTTP 429 with code <c>daily_job_limit_reached</c>: the account's daily print job limit is used
+    /// up. It resets at 00:00 UTC, which <see cref="LabelZoomRateLimitedException.RetryAfterSeconds"/>
+    /// points at.
+    /// </summary>
+    /// <remarks>
+    /// Never retried automatically: the wait is hours, not seconds. Call
+    /// <see cref="LabelZoomClient.GetPrintQuotaAsync"/> to check the remaining count before printing.
+    /// </remarks>
+    public sealed class LabelZoomPrintQuotaExceededException : LabelZoomRateLimitedException
+    {
+        internal const string DailyJobLimitCode = "daily_job_limit_reached";
+
+        internal LabelZoomPrintQuotaExceededException(
+            string message, string? requestId, string? rawBody, int? retryAfterSeconds)
+            : base(message, requestId, rawBody, retryAfterSeconds) { }
+    }
+
+    /// <summary>
+    /// HTTP 422. The request was well formed but can't be carried out. Print returns it with a
+    /// <see cref="LabelZoomException.Code"/>: <c>agent_update_required</c> (an agent is too old to
+    /// print copies) or <c>idempotency_key_reused</c> (the key was used for a different request), or
+    /// for a template print with missing merge fields.
+    /// </summary>
+    public sealed class LabelZoomUnprocessableException : LabelZoomException
+    {
+        internal LabelZoomUnprocessableException(string message, string? requestId, string? rawBody)
+            : base((HttpStatusCode)422, message, requestId, rawBody) { }
     }
 
     /// <summary>HTTP 5xx. Retried automatically before surfacing.</summary>

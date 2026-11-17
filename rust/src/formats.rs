@@ -186,6 +186,35 @@ impl SourceFormat {
         }
     }
 
+    /// Whether [`LabelZoomClient::print`](crate::LabelZoomClient::print) accepts this source.
+    ///
+    /// Print converts only the printer languages it can read and rewrite (ZPL, EPL, IPL,
+    /// TSPL, DPL, SBPL, Fingerprint, CPCL), the LabelZoom model, PDF and images. Any other
+    /// format would reach the printer unconverted, so the client rejects it locally: convert
+    /// it to the printer's language first, then print the result. `Url` is not printable
+    /// either, because print doesn't fetch.
+    pub fn is_printable(self) -> bool {
+        matches!(
+            self,
+            Self::Zpl
+                | Self::Epl
+                | Self::Ipl
+                | Self::Tspl
+                | Self::Dpl
+                | Self::Sbpl
+                | Self::Fingerprint
+                | Self::Cpcl
+                | Self::Xml
+                | Self::Json
+                | Self::Pdf
+                | Self::Png
+                | Self::Bmp
+                | Self::Gif
+                | Self::Jpeg
+                | Self::Jpg
+        )
+    }
+
     /// The lowercase name of this format, before `jpg` normalization.
     pub fn name(self) -> &'static str {
         match self {

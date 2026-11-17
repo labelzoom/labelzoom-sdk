@@ -41,7 +41,28 @@ result = client.convert()
                  .withLayout(across, gapInches, fill)           (a group: see 1.2)
              .execute()
       -> ConversionResult { bytes, text, contentType, status, requestId }
+
+job = client.print(printerId)
+             .from(<printable SourceFormat>, <body>)            ── print source stage
+                 (the source options above, unchanged)
+                 .withCopies(1..9999) .withIdempotencyKey(string)
+             .send()
+      -> PrintJob { jobId, status, copies, idempotent }
+
+batch = client.print(printerId)
+             .fromTemplate(templateId)
+                 .withData([{...}, ...]) .withValidate(bool)
+                 .withCopies(1..9999) .withIdempotencyKey(string)
+             .send()
+      -> PrintBatch { jobs: [PrintJob], remaining, message }
+
+details = client.jobs.get(jobId)      -> PrintJobDetails
+quota   = client.getPrintQuota()      -> PrintQuota
 ```
+
+Print is the same pipeline with a different last step. It has **no target stage**: the printer's
+own configuration picks the output language, so `print(...).from(...)` offers the source options
+and then the print options. See **P** in §2.
 
 The chain has two stages. **Source options**, which change how the source document is read, are
 set after `from` and before `to`. **Target options**, which change the output, are set after `to`.
@@ -145,6 +166,13 @@ outer method: the exit methods multiply with every level.
 > - The conformance suite runs through the dynamic builders, so every shared writer is exercised
 >   by every fixture. Each SDK also has a test that sends one request through the typed
 >   builders and checks its `params`.
+>
+> **The print source stage mirrors the convert source stage.** In the languages that chain, the
+> convert source-stage classes carry the `to*` transitions, so print can't reuse them without
+> offering a target stage it doesn't have. Each convert source stage has a print twin
+> (`PdfSourceBuilder` and `PdfPrintBuilder`) whose format options are the same one-line calls into
+> the same shared writers. A stage-shape test asserts that each twin offers exactly its convert
+> counterpart's source options, so a source option added to one and not the other fails the build.
 
 ### 1.3 Format metadata table
 
@@ -325,8 +353,10 @@ decoded string.
   > Older servers send `{"message": "..."}` or `{"timestamp","status","error","message","path"}`,
   > and step 1 covers both. Keep handling them, because a deployment can lag behind the newest
   > shape. The `response/error-*` fixtures pin every shape.
-- **E3** Errors carry `status`, `message`, `requestId`, and `rawBody`. A 429 additionally carries
-  `retryAfterSeconds`, parsed from `Retry-After`.
+- **E3** Errors carry `status`, `message`, `requestId`, `rawBody`, and `code`. A 429 additionally
+  carries `retryAfterSeconds`, parsed from `Retry-After`. `code` is the error body's top-level
+  `code` string, such as `agent_update_required`, and null when the body has none. It is stable,
+  so callers branch on it rather than on `message`.
 - **E4** Status maps to type:
 
   | Status | Type |
@@ -336,10 +366,14 @@ decoded string.
   | 403 | `Forbidden` |
   | 404 | `NotFound` |
   | 413 | `PayloadTooLarge` |
+  | 422 | `Unprocessable` |
   | 429 | `RateLimited` |
+  | 429 with `code` `daily_job_limit_reached` | `PrintQuotaExceeded`, a kind of `RateLimited` |
   | 5xx | `ServerError` |
 
-  All share a single base type so a caller can catch everything with one handler.
+  All share a single base type so a caller can catch everything with one handler. Any other
+  status, such as 409, is the base type. `PrintQuotaExceeded` is a subtype of `RateLimited` where
+  the language has subtypes, so a handler for `RateLimited` still catches it.
 - **E5** A 403 whose message matches `/paid feature/i` sets an `isPaidFeature` flag. This is the
   most common anonymous-tier failure (`JSON export is a paid feature`, `MOCA export is a paid
   feature`, `Conversion between image and document formats is a paid feature`) and deserves a
@@ -354,6 +388,9 @@ decoded string.
 - **F3** `maxRetries = 0` disables retry entirely.
 - **F4** The sleep function is an **injectable internal seam**. This is a hard design requirement,
   not a suggestion: without it, retry tests either take wall-clock seconds or go untested.
+- **F5** A `PrintQuotaExceeded` is **never** retried, whatever `Retry-After` says. The daily job
+  limit resets at 00:00 UTC, so its `Retry-After` is hours away, and honoring it under **F2** would
+  hang the call. Every other print 429 (`print_rate_limited`) is retried under F1 and F2.
 
 ### G — Anonymous mode
 
@@ -363,13 +400,80 @@ decoded string.
 - **G2** `LABELZOOM_API_KEY` is the default credential source when none is passed. Explicitly
   passing null or empty **forces** anonymous mode and must not fall back to the environment.
 
+### P — Print
+
+The Cloud Print endpoints, as documented at docs.labelzoom.com under the Cloud Print API. They need
+an API key with the `print` scope; an anonymous client still constructs (**G1**), and the server
+answers its print calls with 401.
+
+- **P1** Paths, relative to the base URL. Percent-encode each id as a path segment.
+
+  | Call | Request |
+  |---|---|
+  | Print a document | `POST /api/v3/printers/{printerId}/print` |
+  | Print a template | `POST /api/v3/printers/{printerId}/templates/{templateId}/print` |
+  | Get a job | `GET /api/v3/jobs/{jobId}` |
+  | Get the print quota | `GET /api/v3/print/quota` |
+
+  Every print call sends `Accept: application/json`, because every success response is JSON. The
+  convert rule **B2** (`*/*`) doesn't apply. The two GETs send no body and no `Content-Type`.
+- **P2** A document print sends the document as the raw body, with its §1.3 `Content-Type`, and
+  these query parameters:
+  - `sourceFormat`, the source's wire token (**A2**), on every request. The server can't tell ZPL
+    from EPL by `Content-Type`, and without it the document goes to the printer unconverted.
+  - `copies`, only when the caller sets it.
+  - `params`, built exactly as for convert (**C1**–**C4**) from the source options, and only when one
+    is set. An empty `params` would make the server convert a document that's already in the
+    printer's language.
+
+  Print converts only these sources: `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `fingerprint` `cpcl`
+  `xml` `json` `pdf` `png` `bmp` `gif` `jpeg` `jpg`. The print endpoint doesn't convert any other
+  format, so it would reach the printer as is; the SDK rejects it locally, with parameter `source`. That includes `url`,
+  because print doesn't fetch, and base64 text, because print reads the body as the format's own
+  bytes. In the languages with typed `from*` methods, the print stage offers none for the others.
+- **P3** A template print sends `Content-Type: application/json` and a JSON body built from the
+  records: one record is sent as that object, several as an array, and none as `{}`. Query
+  parameters: `copies` and `validate=true`, each only when set. It takes no source options:
+  a template is already a label.
+- **P4** Every print request carries an `Idempotency-Key` header. A key the caller sets is sent
+  exactly as given. Otherwise the SDK generates a random UUID v4 per call, and **reuses it on every
+  retry of that call**. Without a key, a retry under **F1** after a lost response could print the
+  label twice; with one, the server returns the original job instead. A template batch sends one
+  key: the server derives each entry's key from it (`key#0`, `key#1`, ...), so the SDK must not.
+  The two GETs send no key.
+- **P5** Print calls follow **E**, **F** and **G** like convert calls, with **F5** for the daily
+  limit.
+- **P6** Results:
+  - A document print returns a `PrintJob`: `jobId`, `status`, `copies` (null when not set), and
+    `idempotent` (true for a replayed request; false when the response omits it).
+  - A template print returns a `PrintBatch`, whatever the number of records: `jobs` (a list of
+    `PrintJob`), `remaining`, and `message`. `remaining` is the number of records at the end of the
+    batch that weren't submitted, 0 when the response omits it; resend the same request with the
+    same key to submit them. `message` is null when absent. A single-object response is a batch of
+    one job.
+  - `get job` returns the job's `id`, `printerId`, `agentId`, `sourceFormat`, `copies`, `status`,
+    `error`, `retryCount`, and the `createdDate`, `dispatchedDate`, `completedDate` and
+    `retriedDate` timestamps, each null when unset. The wire is snake_case; each SDK uses its own
+    naming.
+  - `get quota` returns `plan`; `agents` (`used`, `pending`, `limit`, `remaining`); `printers`
+    (`used`, `limit`, `remaining`); `jobsToday` (`used`, `limit`, `remaining`, `resetAt`); and
+    `limits` (`maxPayloadBytes`, `maxStoredPayloadBytes`, `maxBatchSize`).
+  - Keep `status` as a string. The set of job statuses can grow, and a new one must not fail the
+    call. Ignore response members the SDK doesn't know.
+- **P7** Local validation, with no request sent: `copies` must be a whole number from 1 to 9999;
+  `printerId`, `templateId` and `jobId` must be non-empty; a key the caller sets must not be blank;
+  the document must not be empty (`body`); each template record must be a JSON object (`data`, as
+  **C3**).
+
 ### H — Scope
 
 - **H1** `/api/v2.5` streaming is **not** in the fluent surface. It returns 403 for anonymous
   callers ("Streaming APIs are only available to paid users") and is hidden from the OpenAPI spec.
-- **H2** `/api/v2/labels` (template CRUD), `/api/v3/printers` (cloud print), and `/api/v3/keys`
-  (key management) are out of scope for v1. Shape the client so `client.labels` / `client.printers`
-  can be added later **without a breaking change**.
+- **H2** Printing is in scope (rule **P**): sending a document or a template to a printer, getting
+  a job, and reading the print quota. The rest of `/api/v3` stays out: listing printers and their
+  status, listing a printer's jobs, template management and rendering (`/api/v3/templates`), and
+  key management (`/api/v3/keys`). So do `/api/v2/labels` (template CRUD). Shape the client so
+  `client.printers` and `client.templates` can be added later **without a breaking change**.
 
 ---
 
@@ -540,6 +644,11 @@ Approved, deliberate departures from the canonical shape. Anything not listed he
 | **Ruby** | Keyword arguments with **nested hashes** (`label: { width: 4 }`), not Python's flattening. | Nested hash literals are idiomatic Ruby in a way `label_width` is not. |
 | **TypeScript** | Adds a one-shot form `client.convert({ from, to, body, options })` alongside the chain. | The object-literal call is what most TS users reach for; the chain remains for parity. |
 | **Java** | Errors extend `RuntimeException`, not a checked exception. | A checked exception on every `execute()` is hostile inside a fluent chain. |
+| **Print, every language without a chain** (Python, Ruby, Go, Rust) | Print follows the language's convert form: one call with keyword arguments or a request struct (`client.print(printer_id, source, body, copies=2)`, `client.Print(ctx, PrintRequest{...})`), and a separate template call (`print_template`, `PrintTemplate`) instead of `fromTemplate`. Getting a job is `jobs.get` in Python and Ruby and `GetPrintJob` / `get_print_job` in Go and Rust. The printable-source rule (**P2**) is checked when the call runs, parameter `source`. | The same reasons as each language's convert row. Without per-format stages there is no twin to mirror, so each has a test that sorts every convert option into source or target and asserts print takes exactly the source half. |
+| **Rust** | `PrintQuotaExceeded` is a sibling `ApiErrorKind` variant, not a subtype; `ApiError::is_rate_limited()` is true for both. Job and quota timestamps are RFC 3339 strings. | No inheritance (see the Rust row above). The crate has no date-time dependency, and adding one for four read-only fields isn't worth it. |
+| **Go** | Optional strings are `""`, not null: `Code`, `Message`, `Error` and the job ids. `IdempotencyKey: ""` means "generate one". `PrintQuotaExceededError` embeds `RateLimitedError`, so `errors.As` matches it as either. | The SDK already reports an absent `RequestID` as `""`. |
+| **PHP** | The error code is `getErrorCode()`. | `\Exception::getCode()` is final and returns an int. |
+| **Java** | Absent print result values are `Optional` / `OptionalInt`. | It matches the existing `requestId()`. |
 
 **Never diverge on:** URL construction, header set, `?params=` shape, error taxonomy, retry policy,
 request-id surfacing, anonymous mode, 0-based `pdf.pageNumber`, inches for `label.*`.

@@ -219,6 +219,47 @@ option used to be set after `to*`. In 2.0, move the source options before it:
 | `.withDarkness(d)`, `.withColorMode(m)` | in `withRaster` for an image or PDF source; on `toPng` and the other image targets for black-and-white output |
 | `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |
 
+## Print
+
+Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
+configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
+ZPL printer. There is no target stage. Printing needs an API key with the `print` scope.
+
+```ts
+const job = await client
+  .print(printerId)
+  .fromPdf(pdf)
+  .withPage(0)                       // the same source options as convert()
+  .withCopies(2)
+  .withIdempotencyKey(orderNumber)
+  .send();                           // { jobId, status, copies, idempotent }
+
+const batch = await client
+  .print(printerId)
+  .fromTemplate(templateId)
+  .withData({ orderNumber: 'SO-1001', sku: 'A-100' })
+  .send();                           // { jobs, remaining, message }
+
+const details = await client.jobs.get(job.jobId);  // queued, dispatched, printing, completed, failed
+const quota = await client.getPrintQuota();        // quota.jobsToday.remaining
+```
+
+The one-call forms take the same fields: `client.print({ printerId, from: 'pdf', body, copies })` and
+`client.printTemplate({ printerId, templateId, data })`.
+
+- `print(printerId)` offers `from*` methods for ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL,
+  LabelZoom XML and JSON, PDF, and images. To print another format, convert it to the printer's
+  language first.
+- `withCopies(n)` sends the whole job `n` times, from 1 to 9999. It multiplies a quantity in the
+  document: `^PQ3` with 5 copies prints 15 labels.
+- Every print carries an `Idempotency-Key`. Set your own with `withIdempotencyKey` to make a repeated
+  call return the original job instead of printing again. Without one, the SDK generates a key per
+  call, so its own retries can't print twice.
+- A template batch that runs out of time returns `remaining`, the number of records not yet
+  submitted. Send the same request with the same key to submit them.
+- The daily job limit rejects with `PrintQuotaExceededError`, which is never retried: it resets at
+  00:00 UTC.
+
 ## Errors
 
 Every non-2xx rejects with a typed error carrying the server's own message, the raw body, and the
@@ -240,7 +281,10 @@ try {
 ```
 
 `BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`,
-`PayloadTooLargeError`, `RateLimitedError` and `ServerError` all extend `LabelZoomError`.
+`PayloadTooLargeError`, `UnprocessableError` (422), `RateLimitedError` and `ServerError` all extend
+`LabelZoomError`. `PrintQuotaExceededError` extends `RateLimitedError`. Each carries `code`, the
+error's stable code such as `agent_update_required`, or `null`; branch on it rather than on the
+message.
 
 `LabelZoomValidationError` deliberately does **not** — it means the calling code is wrong, it
 never reaches the network, and it should not be swallowed by a handler written for server failures.
@@ -248,7 +292,8 @@ never reaches the network, and it should not be swallowed by a handler written f
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honoring a longer `Retry-After`. Other 4xx responses reject immediately — a malformed request
+honoring a longer `Retry-After`. The daily print limit is the exception: its 429 rejects at once.
+Other 4xx responses reject immediately — a malformed request
 will not become valid on a second attempt.
 
 ```ts

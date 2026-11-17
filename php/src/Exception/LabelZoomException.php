@@ -20,12 +20,14 @@ class LabelZoomException extends \RuntimeException
      * @param string      $message   detail extracted from the response body (rule E2)
      * @param string|null $requestId the `X-LZ-Request-Id` header — quote it to LabelZoom support
      * @param string      $rawBody   the response body, never discarded (rule E1)
+     * @param string|null $errorCode the error body's top-level `code`, or null when it has none (rule E3)
      */
     public function __construct(
         private readonly int $status,
         string $message,
         private readonly ?string $requestId = null,
         private readonly string $rawBody = '',
+        private readonly ?string $errorCode = null,
     ) {
         parent::__construct($message);
     }
@@ -54,5 +56,16 @@ class LabelZoomException extends \RuntimeException
     public function getRawBody(): string
     {
         return $this->rawBody;
+    }
+
+    /**
+     * The error body's stable `code`, such as `agent_update_required`, or null when it has none.
+     *
+     * Codes are stable, so branch on this rather than on {@see self::getMessage()}. Named
+     * `getErrorCode()` because `getCode()` is `\Exception`'s own, final, integer code.
+     */
+    public function getErrorCode(): ?string
+    {
+        return $this->errorCode;
     }
 }

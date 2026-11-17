@@ -4,7 +4,8 @@
 
 Official Java client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
 between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
-ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files. Prints labels on
+LabelZoom Cloud Print printers.
 
 **Java 17+, or Android 8.0 (API 26)+. Zero runtime dependencies.**
 
@@ -199,6 +200,60 @@ In 1.x every option was set after `to*`. In 2.0, move the source options before 
 Only options you set are sent. The SDK never fills in a client-side default, so a change to a
 server default reaches you without an SDK upgrade.
 
+## Print
+
+Send a label to a [Cloud Print](https://docs.labelzoom.com) printer. Printing needs an API key with
+the `print` scope. There is no target stage: the printer's own configuration picks its language, and
+LabelZoom converts the document to it, so a PDF prints on a ZPL printer.
+
+Print a document:
+
+```java
+PrintJob job = client.print(printerId)
+        .fromPdf(Files.readAllBytes(Path.of("shipping-label.pdf")))
+            .withPage(0)                        // the same source options as convert()
+            .withCopies(2)
+            .withIdempotencyKey("SO-1001")
+        .send();
+
+System.out.println(job.jobId() + " " + job.status());   // "queued" or "dispatched"
+```
+
+Print a published template, one label per record:
+
+```java
+PrintBatch batch = client.print(printerId)
+        .fromTemplate(templateId)
+            .withData(
+                    Map.of("orderNumber", "SO-1001", "sku", "A-100"),
+                    Map.of("orderNumber", "SO-1002", "sku", "B-200"))
+            .withValidate(true)                 // reject missing merge fields before printing
+        .send();
+```
+
+Follow a job to completion:
+
+```java
+PrintJobDetails details = client.jobs().get(job.jobId());
+if (details.status().equals("failed")) {
+    System.err.println(details.error().orElse("unknown error"));
+}
+```
+
+`print(printerId)` offers a `from*` method only for the formats print converts: ZPL, EPL, IPL,
+TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF, and images. Convert any other
+format to the printer's language with `convert()` first.
+
+- **Copies.** `withCopies(n)` sends the whole job to the printer `n` times, from 1 to 9999, and
+  multiplies any quantity in the document itself.
+- **Idempotency keys.** Every print carries an `Idempotency-Key`. Set your own with
+  `withIdempotencyKey`, such as an order number, so that repeating the call returns the original
+  job instead of printing again; without one, the SDK generates a key per call and reuses it on
+  that call's retries.
+- **Daily limit.** When the account's daily job limit is used up, `send()` throws
+  `LabelZoomPrintQuotaExceededException`, a `LabelZoomRateLimitedException` that the SDK doesn't
+  retry, because the limit resets at 00:00 UTC; check `client.getPrintQuota()` to see what remains.
+
 ## Errors
 
 Every non-2xx throws a typed exception carrying the server's own message, the raw body, and the
@@ -220,6 +275,9 @@ try {
 All the specific types extend `LabelZoomException`, which extends `RuntimeException` — a checked
 exception on every `execute()` is hostile inside a fluent chain.
 
+`code()` returns the error's stable code, such as `agent_update_required` on a
+`LabelZoomUnprocessableException` (HTTP 422) from a print. Branch on it rather than on the message.
+
 `LabelZoomValidationException` deliberately does **not** extend it. It means the calling code is
 wrong, it never reaches the network, and it should not be swallowed by a handler written for
 server failures.
@@ -227,7 +285,7 @@ server failures.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honoring a longer `Retry-After`. Other 4xx surface immediately.
+honoring a longer `Retry-After`. Other 4xx surface immediately, and so does the daily print limit.
 
 ```java
 LabelZoomClient.builder()
@@ -259,8 +317,9 @@ final class OkHttpTransport implements HttpTransport {
     public Response send(Request request) throws IOException {
         okhttp3.Request.Builder builder = new okhttp3.Request.Builder()
                 .url(request.uri())
-                // No media type here: the SDK sets Content-Type itself, below.
-                .post(RequestBody.create(request.body(), null));
+                // No media type here: the SDK sets Content-Type itself, below. A GET has no body.
+                .method(request.method(),
+                        request.body() == null ? null : RequestBody.create(request.body(), null));
         request.headers().forEach(builder::header);
 
         try (okhttp3.Response response = client.newCall(builder.build()).execute()) {

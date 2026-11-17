@@ -77,16 +77,31 @@ requirement, not an accident.
 using var client = new LabelZoomClient();
 
 var result = await client.Convert()
-    .FromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")
-    .ToPng()
-    .WithDpi(300)
-    .WithLabelSize(widthInches: 4f, heightInches: 6f)
+    .FromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")   // source stage: how the label is read
+        .WithLabelSize(widthInches: 4f, heightInches: 6f)
+    .ToPng()                                       // target stage: what comes out
+        .WithDpi(300)
     .ExecuteAsync();
 
 await File.WriteAllBytesAsync("label.png", result.Bytes);
 ```
 
 Set `LABELZOOM_API_KEY` and every SDK picks it up automatically.
+
+**Printing** uses the same source stage and sends the result to a printer connected through the
+LabelZoom Print Agent. The printer's own configuration picks the output language, so there is no
+target stage. Printing needs an API key with the `print` scope.
+
+```csharp
+var job = await client.Print(printerId)
+    .FromPdf(pdf).WithPage(0)
+    .WithCopies(2)
+    .WithIdempotencyKey(orderNumber)   // a repeated call returns this job instead of printing again
+    .SendAsync();
+```
+
+Every print carries an `Idempotency-Key`, so an SDK retry after a lost response can't print the
+label twice. Template printing, job status and the print quota are in each language's README.
 
 ## Repository layout
 

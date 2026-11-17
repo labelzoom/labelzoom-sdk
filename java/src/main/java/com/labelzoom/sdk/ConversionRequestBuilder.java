@@ -48,7 +48,7 @@ public final class ConversionRequestBuilder {
         return from(format, utf8(body));
     }
 
-    private static byte[] utf8(String body) {
+    static byte[] utf8(String body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source body cannot be null.");
         }
@@ -65,7 +65,7 @@ public final class ConversionRequestBuilder {
         return from(format, readAll(body));
     }
 
-    private static byte[] readAll(InputStream body) {
+    static byte[] readAll(InputStream body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source stream cannot be null.");
         }

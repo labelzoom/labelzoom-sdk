@@ -7,8 +7,9 @@ public final class LabelZoomForbiddenException extends LabelZoomException {
 
     private final boolean paidFeature;
 
-    LabelZoomForbiddenException(String message, String requestId, String rawBody, boolean paidFeature) {
-        super(403, message, requestId, rawBody);
+    LabelZoomForbiddenException(
+            String message, String requestId, String rawBody, String code, boolean paidFeature) {
+        super(403, message, requestId, rawBody, code);
         this.paidFeature = paidFeature;
     }
 

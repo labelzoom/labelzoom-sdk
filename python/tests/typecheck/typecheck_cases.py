@@ -12,7 +12,7 @@ it with ``mypy`` -- pytest deliberately does not collect this module.
 
 from __future__ import annotations
 
-from labelzoom import LabelZoomClient
+from labelzoom import LabelZoomClient, SourceFormat
 
 client = LabelZoomClient(None)
 body = "^XA^FO20,20^A0N,28^FDhi^FS^XZ"
@@ -50,3 +50,27 @@ client.convert("sbpl", "zpl", body)
 client.convert("esclabel", "zpl", body, source_dpi=600)
 client.convert("btw", "pdf", body)
 client.convert("zpl", "cpcl", body)
+
+# Print takes only the formats it converts (contract rule P2). The others reach the printer
+# unconverted, so they are type errors here, not just local validation errors at run time.
+client.print("printer-1", "url", "https://example.com/label.zpl")  # type: ignore[arg-type]
+client.print("printer-1", "btw", b"BT")  # type: ignore[arg-type]
+client.print("printer-1", "esclabel", body)  # type: ignore[arg-type]
+
+
+# A value typed as any SourceFormat is not a PrintSource, even when the member is printable. A
+# parameter, because mypy narrows a variable to the literal assigned to it.
+def print_any(source: SourceFormat) -> None:
+    client.print("printer-1", source, body)  # type: ignore[arg-type]
+
+
+# Print has no target stage, so a target option is not a keyword it takes.
+client.print("printer-1", "zpl", body, target_dpi=300)  # type: ignore[call-arg]
+
+# Positive controls for print.
+client.print("printer-1", "zpl", body, copies=2, idempotency_key="SO-1001")
+client.print("printer-1", "jpg", b"\xff\xd8", source_dpi=300, label_width=4.0)
+client.print("printer-1", "pdf", b"%PDF", pdf_page_number=0, split_rows=2)
+client.print_template("printer-1", "template-1", [{"sku": "A-100"}], validate=True)
+client.jobs.get("job-1")
+client.get_print_quota()

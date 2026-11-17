@@ -463,20 +463,24 @@ export class DynamicTargetBuilder extends TargetStage {
 // Nested groups are merged, never replaced (contract §4.1): `zpl` holds both a source option
 // (`commandsToIgnore`) and target options, and `split`/`layout` can be set in more than one call.
 
-function setPdf(draft: Draft, pdf: NonNullable<ConversionOptions['pdf']>): void {
+/** @internal Shared with the print stage. */
+export function setPdf(draft: { options: ConversionOptions }, pdf: NonNullable<ConversionOptions['pdf']>): void {
   draft.options.pdf = { ...draft.options.pdf, ...pdf };
 }
 
-function setZpl(draft: Draft, zpl: NonNullable<ConversionOptions['zpl']>): void {
+/** @internal Shared with the print stage. */
+export function setZpl(draft: { options: ConversionOptions }, zpl: NonNullable<ConversionOptions['zpl']>): void {
   draft.options.zpl = { ...draft.options.zpl, ...zpl };
 }
 
-function setSplit(draft: Draft, split: SplitOptions): void {
+/** @internal Shared with the print stage. */
+export function setSplit(draft: { options: ConversionOptions }, split: SplitOptions): void {
   draft.options.split = { ...draft.options.split, ...split };
 }
 
 /** Raster options are top-level keys on the wire; only the ones given are written. */
-function setRaster(draft: Draft, raster: RasterOptions): void {
+/** @internal Shared with the print stage. */
+export function setRaster(draft: { options: ConversionOptions }, raster: RasterOptions): void {
   if (raster.scaling !== undefined) draft.options.scaling = raster.scaling;
   if (raster.position !== undefined) draft.options.position = raster.position;
   if (raster.darkness !== undefined) draft.options.darkness = raster.darkness;

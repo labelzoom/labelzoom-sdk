@@ -156,61 +156,121 @@ func (c *Client) Convert(ctx context.Context, request ConvertRequest) (*Result, 
 		endpoint += "?" + query.Encode()
 	}
 
+	var result *Result
+	err = c.send(ctx, call{
+		method:      http.MethodPost,
+		endpoint:    endpoint,
+		contentType: mediaType,
+		// Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
+		// image/jpeg, so naming the target's exact media type yields a 406 from content
+		// negotiation before the handler ever runs.
+		accept: "*/*",
+		body:   request.Body,
+	}, func(response *http.Response) error {
+		var readErr error
+		result, readErr = readResult(response)
+		return readErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// call is one request as the retry loop sends it: everything about it is fixed before the
+// first attempt, so every retry sends the same thing -- the Idempotency-Key included.
+type call struct {
+	method   string
+	endpoint string
+	// contentType is the request Content-Type. Empty sends none, which is right for a GET.
+	contentType string
+	accept      string
+	// idempotencyKey is sent as the Idempotency-Key header when non-empty.
+	idempotencyKey string
+	// body is the request body. Nil sends none.
+	body []byte
+}
+
+// send runs one call under the retry policy (contract F) and hands the successful response
+// to read. Convert and every print call go through it, so they cannot disagree on what is
+// retried or for how long.
+//
+// read runs before the per-attempt timeout is released: canceling the context first would
+// make reading the response body fail.
+func (c *Client) send(ctx context.Context, request call, read func(*http.Response) error) error {
 	attempts := c.maxRetries + 1
 	for attempt := 1; ; attempt++ {
-		response, err := c.attempt(ctx, endpoint, mediaType, request.Body)
+		response, release, err := c.attempt(ctx, request)
 		if err != nil {
 			// A canceled or expired context is the caller's decision, not a transport
 			// failure, and must not be retried.
 			if ctx.Err() != nil || attempt >= attempts {
-				return nil, err
+				return err
 			}
 			c.delay(attempt, nil)
 			continue
 		}
 
 		if response.StatusCode >= 200 && response.StatusCode < 300 {
-			return readResult(response)
+			err := read(response)
+			release()
+			return err
 		}
 
 		apiErr, retryAfter := readError(response)
-		if attempt >= attempts || !isRetryable(response.StatusCode) {
-			return nil, apiErr
+		release()
+
+		// F5: the daily print limit's Retry-After is the UTC reset, hours away. Honoring it
+		// would hang the call, so it surfaces at once whatever the retry budget.
+		var quota *PrintQuotaExceededError
+		if attempt >= attempts || !isRetryable(response.StatusCode) || errors.As(apiErr, &quota) {
+			return apiErr
 		}
 		c.delay(attempt, retryAfter)
 	}
 }
 
-func (c *Client) attempt(ctx context.Context, endpoint, mediaType string, body []byte) (*http.Response, error) {
+// attempt sends one try. On success the caller must call release once it has read the
+// response; on error attempt has already released everything itself.
+func (c *Client) attempt(ctx context.Context, call call) (response *http.Response, release func(), err error) {
+	release = func() {}
 	if c.timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.timeout)
-		defer cancel()
+		ctx, release = context.WithTimeout(ctx, c.timeout)
 	}
 
 	// A fresh reader per attempt: the body has to be replayable, and a consumed one would
 	// make every retry send zero bytes.
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("labelzoom: could not build the request: %w", err)
+	var body io.Reader
+	if call.body != nil {
+		body = bytes.NewReader(call.body)
 	}
-	request.ContentLength = int64(len(body))
+	request, err := http.NewRequestWithContext(ctx, call.method, call.endpoint, body)
+	if err != nil {
+		release()
+		return nil, nil, fmt.Errorf("labelzoom: could not build the request: %w", err)
+	}
+	if call.body != nil {
+		request.ContentLength = int64(len(call.body))
+	}
 
-	request.Header.Set("Content-Type", mediaType)
-	// Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
-	// image/jpeg, so naming the target's exact media type yields a 406 from content
-	// negotiation before the handler ever runs.
-	request.Header.Set("Accept", "*/*")
+	if call.contentType != "" {
+		request.Header.Set("Content-Type", call.contentType)
+	}
+	request.Header.Set("Accept", call.accept)
 	request.Header.Set("User-Agent", c.userAgent)
 	if c.hasCredential {
 		request.Header.Set("Authorization", "Bearer "+c.credential)
 	}
-
-	response, err := c.httpClient.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("labelzoom: request to %s failed: %w", endpoint, err)
+	if call.idempotencyKey != "" {
+		request.Header.Set("Idempotency-Key", call.idempotencyKey)
 	}
-	return response, nil
+
+	response, err = c.httpClient.Do(request)
+	if err != nil {
+		release()
+		return nil, nil, fmt.Errorf("labelzoom: request to %s failed: %w", call.endpoint, err)
+	}
+	return response, release, nil
 }
 
 // delay waits 1s, 2s, 4s with full jitter, overridden by a longer Retry-After.
@@ -264,6 +324,7 @@ func readError(response *http.Response) (error, *float64) {
 	return errorForStatus(
 		response.StatusCode,
 		message,
+		extractCode(rawBody),
 		response.Header.Get(requestIDHeader),
 		rawBody,
 		retryAfter,

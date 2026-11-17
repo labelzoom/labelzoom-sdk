@@ -12,8 +12,9 @@ mod support;
 mod typecheck;
 
 use labelzoom::{
-    ApiErrorKind, ColorMode, ConversionOptions, ConvertRequest, Error, LabelZoomClient, LayoutFill,
-    PdfConversionMode, SourceFormat, TargetFormat, ZplImageCompression,
+    ApiErrorKind, ColorMode, ConversionOptions, ConvertRequest, Error, HttpRequest,
+    LabelZoomClient, LayoutFill, PdfConversionMode, PrintOptions, PrintRequest, SourceFormat,
+    TargetFormat, TemplatePrintRequest, ZplImageCompression,
 };
 use libtest_mimic::{Arguments, Failed, Trial};
 use serde_json::{Map, Value};
@@ -183,6 +184,7 @@ fn run_case(case_id: &str, path: &Path) -> Result<(), Failed> {
         Some("retry") => run_retry_case(given, expect)?,
         Some("validation") => run_validation_case(given, expect)?,
         Some("typecheck") => typecheck::run(case_id, given)?,
+        Some("print") => run_print_case(given, expect)?,
         _ => return Err(format!("unknown case kind for '{case_id}'").into()),
     }
 
@@ -323,12 +325,22 @@ fn build_options(given: &Value) -> Result<ConversionOptions, Failed> {
     Ok(options)
 }
 
-/// Executes one fixture and returns everything the assertions need.
-fn execute(
+/// The stubs a client was built on, kept for the assertions.
+struct Harness {
+    client: LabelZoomClient,
+    transport: Arc<RecordingTransport>,
+    sleeper: Arc<RecordingSleeper>,
+    env_lookups: Arc<Mutex<Vec<String>>>,
+}
+
+/// Builds a client on recording stubs, configured from the fixture's `client`, `env` and
+/// `maxRetries`. Shared by every case kind, so a print case resolves credentials, base URL
+/// and retries exactly as a convert case does.
+fn build_client(
     given: &Value,
     script: Vec<Value>,
     default_max_retries: Option<u32>,
-) -> Result<Outcome, Failed> {
+) -> Result<Harness, Failed> {
     let transport = RecordingTransport::new(script);
     let sleeper = Arc::new(RecordingSleeper::default());
     let env_lookups = Arc::new(Mutex::new(Vec::new()));
@@ -385,6 +397,27 @@ fn execute(
         .build()
         .map_err(|error| format!("could not build the client: {error}"))?;
 
+    Ok(Harness {
+        client,
+        transport,
+        sleeper,
+        env_lookups,
+    })
+}
+
+/// Executes one convert fixture and returns everything the assertions need.
+fn execute(
+    given: &Value,
+    script: Vec<Value>,
+    default_max_retries: Option<u32>,
+) -> Result<Outcome, Failed> {
+    let Harness {
+        client,
+        transport,
+        sleeper,
+        env_lookups,
+    } = build_client(given, script, default_max_retries)?;
+
     let request = ConvertRequest::new(
         SourceFormat::from_name(given["source"].as_str().unwrap_or_default())
             .ok_or_else(|| format!("unknown source '{}'", given["source"]))?,
@@ -425,6 +458,27 @@ fn run_request_case(given: &Value, expect: &Value) -> Result<(), Failed> {
     }
 
     let request = outcome.last_request()?;
+    assert_request(&request, expect)?;
+
+    // Rule G2's negative half: an explicitly empty API key must force anonymous WITHOUT
+    // consulting the environment. An injected lookup is the only way to assert that.
+    if given.pointer("/client/apiKey").and_then(Value::as_str) == Some("") {
+        let lookups = outcome.env_lookups.lock().unwrap();
+        if !lookups.is_empty() {
+            return Err(format!(
+                "an empty API key must force anonymous without an environment lookup, \
+                 but the SDK looked up {lookups:?}"
+            )
+            .into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Asserts one recorded request against the `request` vocabulary (`CONFORMANCE.md`
+/// section 2), plus the two members print cases add: `query` and `bodyJson`.
+fn assert_request(request: &HttpRequest, expect: &Value) -> Result<(), Failed> {
     let url = url::Parts::parse(&request.url)?;
 
     if let Some(method) = expect.get("method").and_then(Value::as_str) {
@@ -463,18 +517,30 @@ fn run_request_case(given: &Value, expect: &Value) -> Result<(), Failed> {
     for (name, pattern) in object(expect, "headersMatch") {
         let actual = request.header(&name).unwrap_or_default();
         let pattern = pattern.as_str().unwrap_or_default();
-        if !matches_pattern(actual, pattern) {
+        if !matches_pattern(actual, pattern)? {
             return Err(format!("header {name} = {actual:?}, want match {pattern:?}").into());
         }
     }
     for (name, pattern) in object(expect, "headersNotMatch") {
         let actual = request.header(&name).unwrap_or_default();
         let pattern = pattern.as_str().unwrap_or_default();
-        if matches_pattern(actual, pattern) {
+        if matches_pattern(actual, pattern)? {
             return Err(
                 format!("header {name} = {actual:?}, want NO match for {pattern:?}").into(),
             );
         }
+    }
+
+    // Plain query parameters, compared exactly after decoding.
+    for (name, expected) in object(expect, "query") {
+        let actual = url.query.get(&name).map(String::as_str);
+        let expected = expected.as_str();
+        check(
+            actual == expected,
+            &format!("query {name}"),
+            actual,
+            expected,
+        )?;
     }
 
     // Structural, not textual: JSON key order differs per language and percent-encoding
@@ -515,17 +581,11 @@ fn run_request_case(given: &Value, expect: &Value) -> Result<(), Failed> {
         let actual = String::from_utf8_lossy(&request.body);
         check(actual == expected, "body", &actual, expected)?;
     }
-
-    // Rule G2's negative half: an explicitly empty API key must force anonymous WITHOUT
-    // consulting the environment. An injected lookup is the only way to assert that.
-    if given.pointer("/client/apiKey").and_then(Value::as_str) == Some("") {
-        let lookups = outcome.env_lookups.lock().unwrap();
-        if !lookups.is_empty() {
-            return Err(format!(
-                "an empty API key must force anonymous without an environment lookup, \
-                 but the SDK looked up {lookups:?}"
-            )
-            .into());
+    if let Some(expected) = expect.get("bodyJson") {
+        let actual: Value = serde_json::from_slice(&request.body)
+            .map_err(|error| format!("the request body is not JSON: {error}"))?;
+        if !json_equivalent(&actual, expected) {
+            return Err(format!("body = {actual}, want {expected}").into());
         }
     }
 
@@ -658,6 +718,330 @@ fn run_validation_case(given: &Value, expect: &Value) -> Result<(), Failed> {
     Ok(())
 }
 
+// ------------------------------------------------------------------------- print
+
+/// One kind for the whole print surface (`CONFORMANCE.md`, "print"). `given.maxRetries`
+/// defaults to 0, and `expect.request` describes the FIRST request.
+fn run_print_case(given: &Value, expect: &Value) -> Result<(), Failed> {
+    let harness = build_client(given, array(given, "responses"), Some(0))?;
+    let outcome = run_print_operation(&harness.client, given)?;
+
+    if let Some(validation) = expect.get("validationError") {
+        match &outcome {
+            Err(Error::Validation(error)) => {
+                let want = validation["parameter"].as_str();
+                check(
+                    Some(error.parameter.as_str()) == want,
+                    "parameter",
+                    &error.parameter,
+                    want.unwrap_or_default(),
+                )?;
+            }
+            other => return Err(format!("expected Error::Validation, got {other:?}").into()),
+        }
+        let want = expect["requestsSent"].as_u64().unwrap_or(0);
+        let actual = harness.transport.count();
+        check(actual as u64 == want, "requests sent", actual, want)?;
+        return Ok(());
+    }
+
+    if let Some(expected) = expect.get("error") {
+        assert_error(expected, outcome.as_ref().err())?;
+    } else {
+        let actual = outcome.map_err(|error| format!("unexpected error: {error}"))?;
+        let (name, expected) = expect["result"]
+            .as_object()
+            .and_then(|result| result.iter().next())
+            .ok_or("expect.result names no result")?;
+        assert_subset(expected, &actual, name)?;
+    }
+
+    if let Some(request) = expect.get("request") {
+        let first = harness
+            .transport
+            .requests
+            .lock()
+            .unwrap()
+            .first()
+            .cloned()
+            .ok_or("no request was sent")?;
+        assert_request(&first, request)?;
+    }
+
+    if let Some(attempts) = expect.get("attempts").and_then(Value::as_u64) {
+        let actual = harness.transport.count();
+        check(actual as u64 == attempts, "attempts", actual, attempts)?;
+    }
+    if let Some(sleeps) = expect.get("sleepsSeconds").and_then(Value::as_array) {
+        let slept = harness.sleeper.seconds();
+        let want: Vec<f64> = sleeps.iter().filter_map(Value::as_f64).collect();
+        if slept.len() != want.len() || slept.iter().zip(&want).any(|(a, b)| (a - b).abs() > 1e-6) {
+            return Err(format!("sleepsSeconds = {slept:?}, want {want:?}").into());
+        }
+    }
+    for header in array(expect, "sameHeaderAcrossAttempts") {
+        let header = header.as_str().unwrap_or_default();
+        let requests = harness.transport.requests.lock().unwrap();
+        let values: Vec<Option<&str>> = requests
+            .iter()
+            .map(|request| request.header(header))
+            .collect();
+        if values.first().copied().flatten().is_none()
+            || values.iter().any(|value| *value != values[0])
+        {
+            return Err(format!("header {header} differs across attempts: {values:?}").into());
+        }
+    }
+
+    Ok(())
+}
+
+/// Runs the fixture's print call and projects its result into the fixture's naming, so
+/// one subset comparison covers all four result types.
+fn run_print_operation(
+    client: &LabelZoomClient,
+    given: &Value,
+) -> Result<Result<Value, Error>, Failed> {
+    let text = |name: &str| given[name].as_str().unwrap_or_default().to_owned();
+    let copies = given
+        .get("copies")
+        .and_then(Value::as_u64)
+        .map(|copies| u32::try_from(copies).unwrap_or(u32::MAX));
+    let key = given
+        .get("idempotencyKey")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+
+    Ok(match given["operation"].as_str().unwrap_or_default() {
+        "print" => {
+            let source = SourceFormat::from_name(&text("source"))
+                .ok_or_else(|| format!("unknown source '{}'", given["source"]))?;
+            let mut request = PrintRequest::new(text("printerId"), source, text("bodyText"))
+                .options(build_print_options(given)?);
+            request.copies = copies;
+            request.idempotency_key = key;
+            client.print(&request).map(|job| project_job(&job))
+        }
+        "printTemplate" => {
+            let mut request = TemplatePrintRequest::new(text("printerId"), text("templateId"));
+            // Set as raw values, not through with_data: a non-object record has to reach
+            // the client for validation-template-data-not-an-object to mean anything.
+            request.data = array(given, "data");
+            request.validate = given.get("validate").and_then(Value::as_bool) == Some(true);
+            request.copies = copies;
+            request.idempotency_key = key;
+            client.print_template(&request).map(|batch| {
+                serde_json::json!({
+                    "jobs": batch.jobs.iter().map(project_job).collect::<Vec<_>>(),
+                    "remaining": batch.remaining,
+                    "message": batch.message,
+                })
+            })
+        }
+        "getJob" => client.get_print_job(&text("jobId")).map(|job| {
+            serde_json::json!({
+                "id": job.id,
+                "printerId": job.printer_id,
+                "agentId": job.agent_id,
+                "sourceFormat": job.source_format,
+                "copies": job.copies,
+                "status": job.status,
+                "error": job.error,
+                "retryCount": job.retry_count,
+                "createdDate": job.created_date,
+                "dispatchedDate": job.dispatched_date,
+                "completedDate": job.completed_date,
+                "retriedDate": job.retried_date,
+            })
+        }),
+        "getQuota" => client.get_print_quota().map(|quota| {
+            let counter = |counter: &labelzoom::PrintQuotaCounter| {
+                serde_json::json!({
+                    "used": counter.used,
+                    "limit": counter.limit,
+                    "remaining": counter.remaining,
+                    "pending": counter.pending,
+                    "resetAt": counter.reset_at,
+                })
+            };
+            serde_json::json!({
+                "plan": quota.plan,
+                "agents": counter(&quota.agents),
+                "printers": counter(&quota.printers),
+                "jobsToday": counter(&quota.jobs_today),
+                "limits": {
+                    "maxPayloadBytes": quota.limits.max_payload_bytes,
+                    "maxStoredPayloadBytes": quota.limits.max_stored_payload_bytes,
+                    "maxBatchSize": quota.limits.max_batch_size,
+                },
+            })
+        }),
+        other => return Err(format!("unknown print operation '{other}'").into()),
+    })
+}
+
+fn project_job(job: &labelzoom::PrintJob) -> Value {
+    serde_json::json!({
+        "jobId": job.job_id,
+        "status": job.status,
+        "copies": job.copies,
+        "idempotent": job.idempotent,
+    })
+}
+
+/// Translates the fixture's wire-shaped source options onto `PrintOptions`, through its
+/// public setters. Like `build_options`, an unmapped option fails the case rather than
+/// being dropped.
+fn build_print_options(given: &Value) -> Result<PrintOptions, Failed> {
+    let mut options = PrintOptions::new();
+    let Some(wire) = given.get("options").and_then(Value::as_object) else {
+        return Ok(options);
+    };
+
+    for (key, value) in wire {
+        let number = |name: &str| value.get(name).and_then(Value::as_f64);
+        let whole = |name: &str| value.get(name).and_then(Value::as_i64);
+        options = match key.as_str() {
+            "sourceDpi" => options.source_dpi(value.as_i64().unwrap_or_default()),
+            "labelIndex" => options.label_index(value.as_i64().unwrap_or_default()),
+            "label" => options.label_size(
+                number("width").ok_or("label.width is missing")?,
+                number("height").ok_or("label.height is missing")?,
+            ),
+            "pdf" => {
+                if let Some(page) = whole("pageNumber") {
+                    options = options.pdf_page(page);
+                }
+                match value.get("conversionMode").and_then(Value::as_str) {
+                    Some("IMAGE") => options.pdf_conversion_mode(PdfConversionMode::Image),
+                    Some("NATIVE") => options.pdf_conversion_mode(PdfConversionMode::Native),
+                    Some(other) => return Err(format!("unknown conversionMode '{other}'").into()),
+                    None => options,
+                }
+            }
+            "split" => {
+                let unmapped: Vec<&String> = value
+                    .as_object()
+                    .into_iter()
+                    .flat_map(Map::keys)
+                    .filter(|name| !matches!(name.as_str(), "rows" | "columns"))
+                    .collect();
+                if !unmapped.is_empty() {
+                    return Err(format!(
+                        "the print runner maps split.rows and split.columns only, not {unmapped:?}"
+                    )
+                    .into());
+                }
+                options.split(
+                    whole("rows").ok_or("split.rows is missing")?,
+                    whole("columns").ok_or("split.columns is missing")?,
+                )
+            }
+            other => {
+                return Err(format!(
+                    "Fixture sets print option '{other}', which the Rust runner does not map. \
+                     Add it to build_print_options rather than skipping the case."
+                )
+                .into())
+            }
+        };
+    }
+
+    Ok(options)
+}
+
+/// Asserts every member the fixture gives, and only those. Timestamps compare as instants,
+/// so `2026-10-11T15:00:00.000Z` matches `2026-10-11T15:00:00Z`; `null` means no value.
+fn assert_subset(expected: &Value, actual: &Value, path: &str) -> Result<(), Failed> {
+    match expected {
+        Value::Object(members) => {
+            for (name, value) in members {
+                let field = format!("{path}.{name}");
+                let actual = actual
+                    .get(name)
+                    .ok_or_else(|| format!("{field} is missing"))?;
+                assert_subset(value, actual, &field)?;
+            }
+            Ok(())
+        }
+        Value::Array(items) => {
+            let actual = actual
+                .as_array()
+                .ok_or_else(|| format!("{path}: expected an array, got {actual}"))?;
+            check(
+                items.len() == actual.len(),
+                &format!("{path} length"),
+                actual.len(),
+                items.len(),
+            )?;
+            for (index, (item, other)) in items.iter().zip(actual).enumerate() {
+                assert_subset(item, other, &format!("{path}[{index}]"))?;
+            }
+            Ok(())
+        }
+        Value::String(text) if instant::parse(text).is_some() => {
+            let actual_instant = actual.as_str().and_then(instant::parse);
+            check(
+                actual_instant == instant::parse(text),
+                path,
+                actual,
+                expected,
+            )
+        }
+        _ => check(json_equivalent(actual, expected), path, actual, expected),
+    }
+}
+
+/// RFC 3339 timestamps reduced to nanoseconds since the epoch, enough to compare two
+/// spellings of one instant. The crate keeps timestamps as the server's strings, so the
+/// runner is what decides that two of them are the same moment.
+mod instant {
+    pub fn parse(text: &str) -> Option<i128> {
+        let (date, time) = text.split_once('T')?;
+        let mut date_parts = date.splitn(3, '-');
+        let year: i64 = date_parts.next()?.parse().ok()?;
+        let month: i64 = date_parts.next()?.parse().ok()?;
+        let day: i64 = date_parts.next()?.parse().ok()?;
+
+        let (clock, offset_seconds) = if let Some(clock) = time.strip_suffix(['Z', 'z']) {
+            (clock, 0)
+        } else {
+            let split = time.rfind(['+', '-'])?;
+            let (clock, offset) = time.split_at(split);
+            let sign = if offset.starts_with('-') { -1 } else { 1 };
+            let (hours, minutes) = offset[1..].split_once(':')?;
+            let offset = hours.parse::<i64>().ok()? * 3600 + minutes.parse::<i64>().ok()? * 60;
+            (clock, sign * offset)
+        };
+
+        let (whole, fraction) = clock.split_once('.').unwrap_or((clock, ""));
+        let mut clock_parts = whole.splitn(3, ':');
+        let hour: i64 = clock_parts.next()?.parse().ok()?;
+        let minute: i64 = clock_parts.next()?.parse().ok()?;
+        let second: i64 = clock_parts.next()?.parse().ok()?;
+        if !fraction.chars().all(|c| c.is_ascii_digit()) || fraction.len() > 9 {
+            return None;
+        }
+        let nanos: i128 = format!("{fraction:0<9}").parse().ok()?;
+
+        let seconds =
+            days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second
+                - offset_seconds;
+        Some(i128::from(seconds) * 1_000_000_000 + nanos)
+    }
+
+    /// Howard Hinnant's days-from-civil, proleptic Gregorian.
+    fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+        let year = if month <= 2 { year - 1 } else { year };
+        let era = year.div_euclid(400);
+        let year_of_era = year - era * 400;
+        let month_index = (month + 9) % 12;
+        let day_of_year = (153 * month_index + 2) / 5 + day - 1;
+        let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+        era * 146_097 + day_of_era - 719_468
+    }
+}
+
 // ---------------------------------------------------------------------- assertions
 
 /// Maps `spec.json`'s symbolic kind names onto this crate's `ApiErrorKind` variants.
@@ -668,7 +1052,14 @@ fn matches_kind(kind: &str, actual: &ApiErrorKind) -> bool {
         "Forbidden" => matches!(actual, ApiErrorKind::Forbidden { .. }),
         "NotFound" => matches!(actual, ApiErrorKind::NotFound),
         "PayloadTooLarge" => matches!(actual, ApiErrorKind::PayloadTooLarge),
-        "RateLimited" => matches!(actual, ApiErrorKind::RateLimited { .. }),
+        "Unprocessable" => matches!(actual, ApiErrorKind::Unprocessable),
+        // PrintQuotaExceeded is a kind of RateLimited (rule E4), so a fixture naming the
+        // general kind accepts the specific one, as a handler for the base type would.
+        "RateLimited" => matches!(
+            actual,
+            ApiErrorKind::RateLimited { .. } | ApiErrorKind::PrintQuotaExceeded { .. }
+        ),
+        "PrintQuotaExceeded" => matches!(actual, ApiErrorKind::PrintQuotaExceeded { .. }),
         "ServerError" => matches!(actual, ApiErrorKind::ServerError),
         _ => false,
     }
@@ -694,6 +1085,11 @@ fn assert_error(expected: &Value, actual: Option<&Error>) -> Result<(), Failed> 
     }
     if let Some(message) = expected.get("message").and_then(Value::as_str) {
         check(api.message == message, "message", &api.message, message)?;
+    }
+    // Present-and-null asserts the SDK reports no code (rule E3).
+    if let Some(code) = expected.get("code") {
+        let actual = api.code.as_deref();
+        check(actual == code.as_str(), "code", actual, code.as_str())?;
     }
     if expected.get("messageNonEmpty").and_then(Value::as_bool) == Some(true)
         && api.message.trim().is_empty()
@@ -795,23 +1191,170 @@ fn array(value: &Value, key: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// The fixtures use anchored `^...` regexes over a fixed alphabet. Matching them directly
-/// avoids a regex dependency in a suite whose only patterns are the User-Agent shape.
-fn matches_pattern(value: &str, pattern: &str) -> bool {
-    if let Some(prefix) = pattern.strip_prefix('^') {
-        // `^labelzoom-[a-z0-9]+-sdk/` -- the only shape the fixtures use.
-        if let Some((head, tail)) = prefix.split_once("[a-z0-9]+") {
-            return value.strip_prefix(head).is_some_and(|rest| {
-                let taken: String = rest
-                    .chars()
-                    .take_while(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-                    .collect();
-                !taken.is_empty() && rest[taken.len()..].starts_with(tail)
-            });
-        }
-        return value.starts_with(prefix);
+/// The fixtures' header patterns are small regexes: anchors, literals, `[...]` classes and
+/// `+`/`*`/`?`/`{n}`/`{n,m}` quantifiers. Matching that subset here avoids a regex
+/// dependency for a handful of patterns, and anything outside it is an error rather than a
+/// silent mismatch, so a fixture that grows a new construct fails loudly.
+fn matches_pattern(value: &str, pattern: &str) -> Result<bool, Failed> {
+    pattern::Pattern::parse(pattern)
+        .map(|pattern| pattern.is_match(value))
+        .map_err(|error| format!("header pattern {pattern:?}: {error}").into())
+}
+
+mod pattern {
+    enum Atom {
+        Literal(char),
+        Class(Vec<(char, char)>),
     }
-    value.contains(pattern)
+
+    struct Piece {
+        atom: Atom,
+        min: usize,
+        max: usize,
+    }
+
+    pub struct Pattern {
+        anchored_start: bool,
+        anchored_end: bool,
+        pieces: Vec<Piece>,
+    }
+
+    impl Pattern {
+        pub fn parse(pattern: &str) -> Result<Self, String> {
+            let mut chars: Vec<char> = pattern.chars().collect();
+            let anchored_start = chars.first() == Some(&'^');
+            if anchored_start {
+                chars.remove(0);
+            }
+            let anchored_end = chars.last() == Some(&'$');
+            if anchored_end {
+                chars.pop();
+            }
+
+            let mut pieces = Vec::new();
+            let mut index = 0;
+            while index < chars.len() {
+                let atom = match chars[index] {
+                    '[' => {
+                        let close = chars[index..]
+                            .iter()
+                            .position(|c| *c == ']')
+                            .ok_or("unclosed character class")?
+                            + index;
+                        let body = &chars[index + 1..close];
+                        if body.first() == Some(&'^') {
+                            return Err("negated classes are not supported".into());
+                        }
+                        let mut ranges = Vec::new();
+                        let mut at = 0;
+                        while at < body.len() {
+                            if at + 2 < body.len() && body[at + 1] == '-' {
+                                ranges.push((body[at], body[at + 2]));
+                                at += 3;
+                            } else {
+                                ranges.push((body[at], body[at]));
+                                at += 1;
+                            }
+                        }
+                        index = close + 1;
+                        Atom::Class(ranges)
+                    }
+                    '\\' => {
+                        let escaped = *chars.get(index + 1).ok_or("trailing backslash")?;
+                        index += 2;
+                        Atom::Literal(escaped)
+                    }
+                    '.' | '(' | ')' | '|' | '^' | '$' | '+' | '*' | '?' | '{' => {
+                        return Err(format!("unsupported construct '{}'", chars[index]));
+                    }
+                    literal => {
+                        index += 1;
+                        Atom::Literal(literal)
+                    }
+                };
+
+                let (min, max) = match chars.get(index) {
+                    Some('+') => {
+                        index += 1;
+                        (1, usize::MAX)
+                    }
+                    Some('*') => {
+                        index += 1;
+                        (0, usize::MAX)
+                    }
+                    Some('?') => {
+                        index += 1;
+                        (0, 1)
+                    }
+                    Some('{') => {
+                        let close = chars[index..]
+                            .iter()
+                            .position(|c| *c == '}')
+                            .ok_or("unclosed quantifier")?
+                            + index;
+                        let body: String = chars[index + 1..close].iter().collect();
+                        let bound = |text: &str| {
+                            text.trim()
+                                .parse::<usize>()
+                                .map_err(|_| format!("bad quantifier {{{body}}}"))
+                        };
+                        index = close + 1;
+                        match body.split_once(',') {
+                            Some((low, high)) => (bound(low)?, bound(high)?),
+                            None => {
+                                let exact = bound(&body)?;
+                                (exact, exact)
+                            }
+                        }
+                    }
+                    _ => (1, 1),
+                };
+                pieces.push(Piece { atom, min, max });
+            }
+
+            Ok(Self {
+                anchored_start,
+                anchored_end,
+                pieces,
+            })
+        }
+
+        pub fn is_match(&self, value: &str) -> bool {
+            let chars: Vec<char> = value.chars().collect();
+            let starts = if self.anchored_start {
+                0..=0
+            } else {
+                0..=chars.len()
+            };
+            starts
+                .into_iter()
+                .any(|start| self.match_from(&self.pieces, &chars[start..]))
+        }
+
+        /// Greedy with backtracking: plenty for patterns this size.
+        fn match_from(&self, pieces: &[Piece], rest: &[char]) -> bool {
+            let Some((piece, others)) = pieces.split_first() else {
+                return !self.anchored_end || rest.is_empty();
+            };
+            let available = rest
+                .iter()
+                .take(piece.max)
+                .take_while(|c| piece.atom.accepts(**c))
+                .count();
+            (piece.min..=available)
+                .rev()
+                .any(|taken| self.match_from(others, &rest[taken..]))
+        }
+    }
+
+    impl Atom {
+        fn accepts(&self, c: char) -> bool {
+            match self {
+                Self::Literal(literal) => c == *literal,
+                Self::Class(ranges) => ranges.iter().any(|(low, high)| (*low..=*high).contains(&c)),
+            }
+        }
+    }
 }
 
 impl Outcome {

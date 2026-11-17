@@ -1,7 +1,12 @@
 //! The client, its builder, and the retry loop.
 
-use crate::error::{error_for_status, extract_message, reason_phrase, Error, TransportError};
+use crate::error::{
+    error_for_status, extract_message, reason_phrase, ApiErrorKind, Error, TransportError,
+};
 use crate::options::ConvertRequest;
+use crate::print::{
+    self, PrintBatch, PrintJob, PrintJobDetails, PrintQuota, PrintRequest, TemplatePrintRequest,
+};
 use crate::result::ConversionResult;
 use crate::transport::{HttpRequest, HttpResponse, Sleeper, ThreadSleeper, Transport};
 use std::sync::Arc;
@@ -17,6 +22,9 @@ pub const API_KEY_ENV_VAR: &str = "LABELZOOM_API_KEY";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const REQUEST_ID_HEADER: &str = "x-lz-request-id";
+
+/// Every print response is JSON, so print calls name it rather than sending `*/*` (rule P1).
+const JSON_MEDIA_TYPE: &str = "application/json";
 
 /// Converts labels through the LabelZoom API.
 ///
@@ -280,10 +288,8 @@ impl LabelZoomClient {
             request.source.wire_token(),
             request.target.wire_token()
         );
-        if let Some(params) = request.options.serialize()? {
-            url.push_str("?params=");
-            url.push_str(&percent_encode(&params));
-        }
+        let params = request.options.serialize()?;
+        append_query(&mut url, &[("params", params)]);
         Ok(url)
     }
 
@@ -311,14 +317,175 @@ impl LabelZoomClient {
             request.source.media_type()
         };
 
-        let mut headers = vec![
+        let headers = vec![
             ("content-type".to_owned(), content_type.to_owned()),
             // Accept must be */*. The server's `produces` list omits image/gif, image/bmp
             // and image/jpeg, so naming the target's exact media type yields a 406 from
             // content negotiation before the handler ever runs.
             ("accept".to_owned(), "*/*".to_owned()),
-            ("user-agent".to_owned(), self.user_agent.clone()),
         ];
+
+        self.send("POST", &url, headers, &request.body)
+            .map(read_result)
+    }
+
+    /// Sends a document to a Cloud Print printer.
+    ///
+    /// There is no target format: the printer's own configuration picks the output language,
+    /// and LabelZoom converts the document to it, so a PDF prints on a ZPL printer. Printing
+    /// needs an API key with the `print` scope.
+    ///
+    /// Every print carries an `Idempotency-Key`: the request's own, or one generated for this
+    /// call and reused on each of its retries, so a retry after a lost response can't print
+    /// twice.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Validation`] for an empty printer id or document, a source that
+    /// [can't be printed](crate::SourceFormat::is_printable), copies outside 1 to 9999, a blank
+    /// idempotency key, or invalid options; [`Error::Api`] for any non-2xx response,
+    /// including [`ApiErrorKind::PrintQuotaExceeded`], which is never retried;
+    /// [`Error::Transport`] when no response arrived, or the response was not JSON.
+    pub fn print(&self, request: &PrintRequest) -> Result<PrintJob, Error> {
+        print::require_id(&request.printer_id, "printerId")?;
+        print::require_printable(request.source)?;
+        if request.body.is_empty() {
+            return Err(Error::validation(
+                "body",
+                "The document cannot be empty; there is nothing to print.",
+            ));
+        }
+        print::check_copies(request.copies)?;
+        let key = print::key_for_call(request.idempotency_key.as_deref())?;
+        let params = request.options.as_conversion_options().serialize()?;
+
+        let mut url = self.api_url(&["api", "v3", "printers", &request.printer_id, "print"]);
+        append_query(
+            &mut url,
+            &[
+                // Always: the server can't tell ZPL from EPL by Content-Type, and without it
+                // the document reaches the printer unconverted.
+                ("sourceFormat", Some(request.source.wire_token().to_owned())),
+                ("copies", request.copies.map(|copies| copies.to_string())),
+                // Only when an option is set: an empty params would make the server convert a
+                // document that's already in the printer's language.
+                ("params", params),
+            ],
+        );
+
+        let headers = vec![
+            (
+                "content-type".to_owned(),
+                request.source.media_type().to_owned(),
+            ),
+            ("accept".to_owned(), JSON_MEDIA_TYPE.to_owned()),
+            ("idempotency-key".to_owned(), key),
+        ];
+
+        let response = self.send("POST", &url, headers, &request.body)?;
+        read_json(&response).map(|json| print::read_print_job(&json))
+    }
+
+    /// Prints a template published from LabelZoom Studio or the web designer, one label per
+    /// record.
+    ///
+    /// The result is a [`PrintBatch`] whatever the number of records. The batch sends one
+    /// `Idempotency-Key`, and the server derives each record's key from it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Validation`] for an empty printer or template id, copies outside 1 to 9999,
+    /// a blank idempotency key, or a record that is not a JSON object; otherwise as
+    /// [`print`](Self::print).
+    pub fn print_template(&self, request: &TemplatePrintRequest) -> Result<PrintBatch, Error> {
+        print::require_id(&request.printer_id, "printerId")?;
+        print::require_id(&request.template_id, "templateId")?;
+        print::check_copies(request.copies)?;
+        let key = print::key_for_call(request.idempotency_key.as_deref())?;
+        let body = print::template_body(&request.data)?;
+
+        let mut url = self.api_url(&[
+            "api",
+            "v3",
+            "printers",
+            &request.printer_id,
+            "templates",
+            &request.template_id,
+            "print",
+        ]);
+        append_query(
+            &mut url,
+            &[
+                ("copies", request.copies.map(|copies| copies.to_string())),
+                ("validate", request.validate.then(|| "true".to_owned())),
+            ],
+        );
+
+        let headers = vec![
+            ("content-type".to_owned(), JSON_MEDIA_TYPE.to_owned()),
+            ("accept".to_owned(), JSON_MEDIA_TYPE.to_owned()),
+            ("idempotency-key".to_owned(), key),
+        ];
+
+        let response = self.send("POST", &url, headers, &body)?;
+        read_json(&response).map(|json| print::read_print_batch(&json))
+    }
+
+    /// Gets a print job's current state, to follow it to completion.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Validation`] for an empty job id; [`Error::Api`] with
+    /// [`ApiErrorKind::NotFound`] for an unknown one; otherwise as [`print`](Self::print).
+    pub fn get_print_job(&self, job_id: &str) -> Result<PrintJobDetails, Error> {
+        print::require_id(job_id, "jobId")?;
+        let url = self.api_url(&["api", "v3", "jobs", job_id]);
+        let response = self.get_json(&url)?;
+        read_json(&response).map(|json| print::read_print_job_details(&json))
+    }
+
+    /// Gets the account's Cloud Print limits and today's usage, so you can stop before a
+    /// print fails with [`ApiErrorKind::PrintQuotaExceeded`].
+    ///
+    /// # Errors
+    ///
+    /// As [`print`](Self::print).
+    pub fn get_print_quota(&self) -> Result<PrintQuota, Error> {
+        let url = self.api_url(&["api", "v3", "print", "quota"]);
+        let response = self.get_json(&url)?;
+        read_json(&response).map(|json| print::read_print_quota(&json))
+    }
+
+    /// A GET with no body, no `Content-Type` and no `Idempotency-Key` (rule P1).
+    fn get_json(&self, url: &str) -> Result<HttpResponse, Error> {
+        let headers = vec![("accept".to_owned(), JSON_MEDIA_TYPE.to_owned())];
+        self.send("GET", url, headers, &[])
+    }
+
+    /// The base URL joined with path segments, each percent-encoded (rule P1).
+    fn api_url(&self, segments: &[&str]) -> String {
+        let mut url = self.base_url.clone();
+        for segment in segments {
+            url.push('/');
+            url.push_str(&percent_encode(segment));
+        }
+        url
+    }
+
+    /// Sends one call under the retry policy (rule F) and returns its 2xx response.
+    ///
+    /// `headers` are the call's own; the identity headers every call shares, `User-Agent`
+    /// and `Authorization`, are added here. Each attempt sends the same headers, which is
+    /// what makes a print's `Idempotency-Key` identical on every retry (rule P4): it is fixed
+    /// by the caller before the first attempt.
+    fn send(
+        &self,
+        method: &'static str,
+        url: &str,
+        mut headers: Vec<(String, String)>,
+        body: &[u8],
+    ) -> Result<HttpResponse, Error> {
+        headers.push(("user-agent".to_owned(), self.user_agent.clone()));
         if let Some(credential) = &self.credential {
             headers.push(("authorization".to_owned(), format!("Bearer {credential}")));
         }
@@ -326,10 +493,10 @@ impl LabelZoomClient {
         let attempts = self.max_retries + 1;
         for attempt in 1..=attempts {
             let outgoing = HttpRequest {
-                method: "POST",
-                url: url.clone(),
+                method,
+                url: url.to_owned(),
                 headers: headers.clone(),
-                body: request.body.clone(),
+                body: body.to_vec(),
             };
 
             let response = match self.transport.execute(outgoing) {
@@ -344,12 +511,16 @@ impl LabelZoomClient {
             };
 
             if (200..300).contains(&response.status) {
-                return Ok(read_result(response));
+                return Ok(response);
             }
 
             let retry_after = retry_after_seconds(&response);
-            if attempt >= attempts || !is_retryable(response.status) {
-                return Err(Error::Api(read_error(&response, retry_after)));
+            let error = read_error(&response, retry_after);
+            // F5: the daily print limit's Retry-After is the 00:00 UTC reset, hours away.
+            // Honoring it would hang the call, so it surfaces at once.
+            let quota_exceeded = matches!(error.kind, ApiErrorKind::PrintQuotaExceeded { .. });
+            if attempt >= attempts || !is_retryable(response.status) || quota_exceeded {
+                return Err(Error::Api(error));
             }
             self.delay(attempt, retry_after);
         }
@@ -399,6 +570,35 @@ fn read_result(response: HttpResponse) -> ConversionResult {
         request_id: response.header(REQUEST_ID_HEADER).map(str::to_owned),
         status: response.status,
         bytes: response.body,
+    }
+}
+
+/// Parses a print response. A 2xx that is not JSON is reported as a transport failure: the
+/// call did not get the response it was promised, and there is no API error to describe.
+fn read_json(response: &HttpResponse) -> Result<serde_json::Value, Error> {
+    serde_json::from_slice(&response.body).map_err(|error| {
+        Error::Transport(TransportError::with_source(
+            format!(
+                "the API answered HTTP {} with a body that is not JSON",
+                response.status
+            ),
+            error,
+        ))
+    })
+}
+
+/// Appends the query parameters that have a value, percent-encoded. None at all leaves a
+/// bare URL (rule C7).
+fn append_query(url: &mut String, parameters: &[(&str, Option<String>)]) {
+    let mut separator = '?';
+    for (name, value) in parameters {
+        if let Some(value) = value {
+            url.push(separator);
+            url.push_str(name);
+            url.push('=');
+            url.push_str(&percent_encode(value));
+            separator = '&';
+        }
     }
 }
 

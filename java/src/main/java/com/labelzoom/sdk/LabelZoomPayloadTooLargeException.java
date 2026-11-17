@@ -5,7 +5,7 @@ public final class LabelZoomPayloadTooLargeException extends LabelZoomException 
 
     private static final long serialVersionUID = 1L;
 
-    LabelZoomPayloadTooLargeException(String message, String requestId, String rawBody) {
-        super(413, message, requestId, rawBody);
+    LabelZoomPayloadTooLargeException(String message, String requestId, String rawBody, String code) {
+        super(413, message, requestId, rawBody, code);
     }
 }

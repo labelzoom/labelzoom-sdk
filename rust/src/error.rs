@@ -6,7 +6,7 @@ use std::fmt;
 /// Caps the derived message. [`ApiError::raw_body`] keeps the whole body.
 pub(crate) const MAX_MESSAGE_LENGTH: usize = 512;
 
-/// Everything a conversion can fail with.
+/// Everything a conversion or a print can fail with.
 ///
 /// Rust has no inheritance, so rule `E4`'s "every API error shares one base type" is this
 /// enum: `Err(Error::Api(e))` is the single arm that catches all of them, and
@@ -20,12 +20,20 @@ pub enum Error {
     Validation(ValidationError),
     /// The API returned a non-2xx response.
     Api(ApiError),
-    /// The request never got a response.
+    /// The request never got a usable response: no response at all, or a print response
+    /// whose body was not JSON.
     Transport(TransportError),
 }
 
 /// A non-2xx response from the LabelZoom API.
+///
+/// `#[non_exhaustive]`: the contract has added a member to this error before ([`code`]), and
+/// without it every such addition is a breaking change for anything that builds or
+/// destructures one.
+///
+/// [`code`]: ApiError::code
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ApiError {
     /// Which of the API's error classes this is.
     pub kind: ApiErrorKind,
@@ -38,6 +46,10 @@ pub struct ApiError {
     pub request_id: Option<String>,
     /// The response body, untruncated. [`ApiError::message`] is derived from it; this is not.
     pub raw_body: String,
+    /// The error body's top-level `code` string, such as `agent_update_required`, or `None`
+    /// when the body has none. Codes are stable, so branch on this rather than on
+    /// [`ApiError::message`].
+    pub code: Option<String>,
 }
 
 /// Which class of API error this is.
@@ -62,10 +74,33 @@ pub enum ApiErrorKind {
     NotFound,
     /// HTTP 413. The body exceeded the tier's limit -- 1 MB on the anonymous free tier.
     PayloadTooLarge,
+    /// HTTP 422. The request was well formed but can't be carried out. Print returns it with
+    /// a [`code`](ApiError::code): `agent_update_required` when the print agent serving the
+    /// printer is too old to print copies, `idempotency_key_reused` when the key was already
+    /// used for a different request, or none for a template print with missing merge fields.
+    Unprocessable,
     /// HTTP 429. Too many requests.
+    ///
+    /// A 429 with code `daily_job_limit_reached` is [`ApiErrorKind::PrintQuotaExceeded`]
+    /// instead. Use [`ApiError::is_rate_limited`] to catch both.
     RateLimited {
         /// `Retry-After` in seconds, when the server sent one. The client already honors
         /// it during its own retries; this exposes it for callers doing theirs.
+        retry_after_seconds: Option<f64>,
+    },
+    /// HTTP 429 with code `daily_job_limit_reached`: the account's daily print job limit is
+    /// used up.
+    ///
+    /// This is a kind of [`ApiErrorKind::RateLimited`]. Rust has no subtypes, so
+    /// [`ApiError::is_rate_limited`] is true for both and is the check to use when either
+    /// means "slow down".
+    ///
+    /// Never retried automatically: the limit resets at 00:00 UTC, which
+    /// `retry_after_seconds` points at, hours away. Call
+    /// [`LabelZoomClient::get_print_quota`](crate::LabelZoomClient::get_print_quota) to check
+    /// the remaining count before printing.
+    PrintQuotaExceeded {
+        /// `Retry-After` in seconds: the time until the daily limit resets.
         retry_after_seconds: Option<f64>,
     },
     /// HTTP 5xx. Retried automatically before surfacing.
@@ -86,10 +121,22 @@ impl ApiError {
         )
     }
 
+    /// Whether this is a 429: [`ApiErrorKind::RateLimited`] or its print-quota kind,
+    /// [`ApiErrorKind::PrintQuotaExceeded`].
+    pub fn is_rate_limited(&self) -> bool {
+        matches!(
+            self.kind,
+            ApiErrorKind::RateLimited { .. } | ApiErrorKind::PrintQuotaExceeded { .. }
+        )
+    }
+
     /// `Retry-After` in seconds, if this is a rate limit that carried one.
     pub fn retry_after_seconds(&self) -> Option<f64> {
         match self.kind {
             ApiErrorKind::RateLimited {
+                retry_after_seconds,
+            }
+            | ApiErrorKind::PrintQuotaExceeded {
                 retry_after_seconds,
             } => retry_after_seconds,
             _ => None,
@@ -215,6 +262,9 @@ impl From<TransportError> for Error {
     }
 }
 
+/// The `code` a 429 carries when the daily print job limit is used up (rule E4).
+const DAILY_JOB_LIMIT_CODE: &str = "daily_job_limit_reached";
+
 /// Maps a response onto the typed error for its status.
 pub(crate) fn error_for_status(
     status: u16,
@@ -223,6 +273,7 @@ pub(crate) fn error_for_status(
     raw_body: String,
     retry_after_seconds: Option<f64>,
 ) -> ApiError {
+    let code = extract_code(&raw_body);
     let kind = match status {
         400 => ApiErrorKind::BadRequest,
         401 => ApiErrorKind::Unauthorized,
@@ -231,6 +282,10 @@ pub(crate) fn error_for_status(
         },
         404 => ApiErrorKind::NotFound,
         413 => ApiErrorKind::PayloadTooLarge,
+        422 => ApiErrorKind::Unprocessable,
+        429 if code.as_deref() == Some(DAILY_JOB_LIMIT_CODE) => ApiErrorKind::PrintQuotaExceeded {
+            retry_after_seconds,
+        },
         429 => ApiErrorKind::RateLimited {
             retry_after_seconds,
         },
@@ -244,6 +299,21 @@ pub(crate) fn error_for_status(
         message,
         request_id,
         raw_body,
+        code,
+    }
+}
+
+/// The error body's top-level `code` string, or `None` (rule E3).
+///
+/// Only a string counts: a numeric `code`, or one nested under another member, is not the
+/// stable machine-readable code the contract describes.
+fn extract_code(raw_body: &str) -> Option<String> {
+    match serde_json::from_str::<serde_json::Value>(raw_body).ok()? {
+        serde_json::Value::Object(mut parsed) => match parsed.remove("code")? {
+            serde_json::Value::String(code) => Some(code),
+            _ => None,
+        },
+        _ => None,
     }
 }
 
@@ -309,4 +379,43 @@ pub(crate) fn reason_phrase(status: u16) -> Option<&'static str> {
         504 => "Gateway Timeout",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn error(status: u16, body: &str) -> ApiError {
+        error_for_status(status, "m".to_owned(), None, body.to_owned(), Some(14400.0))
+    }
+
+    #[test]
+    fn the_daily_limit_is_a_kind_of_rate_limit() {
+        let quota = error(429, r#"{"code":"daily_job_limit_reached"}"#);
+        assert!(matches!(
+            quota.kind,
+            ApiErrorKind::PrintQuotaExceeded { .. }
+        ));
+        assert!(quota.is_rate_limited());
+        assert_eq!(quota.retry_after_seconds(), Some(14400.0));
+
+        let limited = error(429, r#"{"code":"print_rate_limited"}"#);
+        assert!(matches!(limited.kind, ApiErrorKind::RateLimited { .. }));
+        assert!(limited.is_rate_limited());
+        assert_eq!(limited.code.as_deref(), Some("print_rate_limited"));
+    }
+
+    #[test]
+    fn code_is_a_top_level_string_or_nothing() {
+        assert_eq!(
+            error(422, r#"{"code":"agent_update_required"}"#)
+                .code
+                .as_deref(),
+            Some("agent_update_required")
+        );
+        assert_eq!(error(400, r#"{"code":42}"#).code, None);
+        assert_eq!(error(400, r#"{"error":{"code":"nested"}}"#).code, None);
+        assert_eq!(error(502, "<html>Bad Gateway</html>").code, None);
+        assert!(!error(422, "{}").is_rate_limited());
+    }
 }

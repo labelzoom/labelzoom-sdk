@@ -25,6 +25,10 @@
 //	}
 //	os.WriteFile("label.png", result.Bytes, 0o644)
 //
+// [Client.Print] and [Client.PrintTemplate] send a document or a published template to a Cloud
+// Print printer, and [Client.GetPrintJob] follows the job. They need an API key with the print
+// scope.
+//
 // The behavior of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
 // the shared fixtures in conformance/, which this package's test suite executes in full.
 package labelzoom

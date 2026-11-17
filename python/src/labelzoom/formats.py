@@ -75,8 +75,33 @@ TargetFormat = Literal[
     "jpeg",
 ]
 
+#: The formats print converts to the printer's language: a subset of :data:`SourceFormat`.
+#:
+#: The print endpoint sends any other format to the printer as is, so the SDK doesn't offer it,
+#: and ``mypy`` rejects it. That includes ``url``, because print doesn't fetch. Convert another
+#: format to the printer's language first, then print the result.
+PrintSource = Literal[
+    "zpl",
+    "epl",
+    "ipl",
+    "tspl",
+    "dpl",
+    "sbpl",
+    "fingerprint",
+    "cpcl",
+    "xml",
+    "json",
+    "pdf",
+    "png",
+    "bmp",
+    "gif",
+    "jpeg",
+    "jpg",
+]
+
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
 TARGET_FORMATS: tuple[TargetFormat, ...] = get_args(TargetFormat)
+PRINT_SOURCES: tuple[PrintSource, ...] = get_args(PrintSource)
 
 #: Color handling when rasterizing or tracing images.
 ColorMode = Literal["BW", "GRAYSCALE", "COLOR"]
@@ -166,4 +191,19 @@ def validate_formats(source: str, target: str) -> None:
             f"{target!r} is not a target format. Valid values: "
             + ", ".join(repr(f) for f in TARGET_FORMATS)
             + f".{extra}",
+        )
+
+
+def validate_print_source(source: str) -> None:
+    """Reject a format print doesn't convert, locally (contract rule P2).
+
+    The print endpoint would send it to the printer unconverted, so this is never a round trip
+    worth making.
+    """
+    if source not in PRINT_SOURCES:
+        raise LabelZoomValidationError(
+            "source",
+            f"{source!r} can't be printed directly: print converts only "
+            + ", ".join(repr(f) for f in PRINT_SOURCES)
+            + ". Convert it to the printer's language first, then print the result.",
         )

@@ -30,6 +30,14 @@ module LabelZoom
     # writes graphics as hex, so its output is plain text.
     TARGET_FORMATS = %i[zpl epl ipl tspl dpl sbpl cpcl xml json pdf png bmp gif jpeg].freeze
 
+    # The sources print converts to the printer's language (contract P2). The print endpoint
+    # sends any other format to the printer as is, so the SDK rejects it: +:url+ because print
+    # does not fetch, and the rest because print does not convert them.
+    PRINT_SOURCE_FORMATS = %i[
+      zpl epl ipl tspl dpl sbpl fingerprint cpcl
+      xml json pdf png bmp gif jpeg jpg
+    ].freeze
+
     MEDIA_TYPES = {
       zpl: "text/plain",
       epl: "text/plain",
@@ -93,6 +101,18 @@ module LabelZoom
                                 "produces. Expected one of: #{TARGET_FORMATS.join(", ")}.")
     end
 
+    # @return [Symbol] the validated print source.
+    # @raise [ValidationError] if print does not convert it.
+    def print_source!(format)
+      symbol = format.to_s.downcase.to_sym
+      return symbol if PRINT_SOURCE_FORMATS.include?(symbol)
+
+      raise ValidationError.new("source",
+                                "#{format.inspect} can't be printed directly: print converts " \
+                                "only #{PRINT_SOURCE_FORMATS.join(", ")}. Convert it to the " \
+                                "printer's language first, then print the result.")
+    end
+
     # The path segment for a source. +:jpg+ normalizes to "jpeg" (rule A2).
     def source_token(format) = format == :jpg ? "jpeg" : format.to_s
 
@@ -105,4 +125,5 @@ module LabelZoom
 
   SOURCE_FORMATS = Formats::SOURCE_FORMATS
   TARGET_FORMATS = Formats::TARGET_FORMATS
+  PRINT_SOURCE_FORMATS = Formats::PRINT_SOURCE_FORMATS
 end

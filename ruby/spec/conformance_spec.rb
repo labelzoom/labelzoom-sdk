@@ -11,6 +11,7 @@
 require "cgi"
 require "json"
 require "pathname"
+require "time"
 require_relative "support/recording_sleeper"
 
 LANGUAGE = "ruby"
@@ -41,7 +42,9 @@ ERROR_KINDS = {
   "NotFound" => LabelZoom::NotFoundError,
   "PayloadTooLarge" => LabelZoom::PayloadTooLargeError,
   "RateLimited" => LabelZoom::RateLimitedError,
-  "ServerError" => LabelZoom::ServerError
+  "ServerError" => LabelZoom::ServerError,
+  "Unprocessable" => LabelZoom::UnprocessableError,
+  "PrintQuotaExceeded" => LabelZoom::PrintQuotaExceededError
 }.freeze
 
 # What a request/* case gets back: those assertions are about what went out.
@@ -112,22 +115,28 @@ def symbolize(hash, mapping)
   hash.each_with_object({}) { |(key, value), out| out[mapping.fetch(key)] = value }
 end
 
-# Executes one fixture and returns everything the assertions need.
-def run_fixture(given, script, default_max_retries: nil)
+# Executes one fixture and returns everything the assertions need. The block is the call
+# under test; without one, the fixture's convert call.
+def run_fixture(given, script, default_max_retries: nil, &call)
   sleeper = RecordingSleeper.new
   requests = []
   WebMock.after_request { |signature, _| requests << signature }
 
+  # A validation case scripts no response, and must not need one.
+  script = [OK_RESPONSE] if script.empty?
   stub_request(:any, /.*/).to_return(*script.map { |entry| to_webmock(entry) })
 
   client = LabelZoom::Client.new(**client_kwargs(given, default_max_retries),
                                  sleeper: sleeper, jitter: false)
+  call ||= lambda do |c|
+    c.convert(given["source"].to_sym, given["target"].to_sym, given["bodyText"],
+              **convert_kwargs(given))
+  end
 
   result = nil
   error = nil
   begin
-    result = client.convert(given["source"].to_sym, given["target"].to_sym,
-                            given["bodyText"], **convert_kwargs(given))
+    result = call.call(client)
   rescue LabelZoom::APIError, LabelZoom::ValidationError, LabelZoom::TransportError => e
     error = e
   end
@@ -177,6 +186,11 @@ def assert_error(expected, actual)
   expect(actual.raw_body).not_to be_empty if expected["rawBodyPresent"]
   expect(actual.request_id).to eq(expected["requestId"]) if expected.key?("requestId")
   expect(actual.paid_feature?).to eq(expected["isPaidFeature"]) if expected.key?("isPaidFeature")
+  expect(actual.code).to eq(expected["code"]) if expected.key?("code")
+  # PrintQuotaExceeded is a kind of RateLimited, so be_a alone cannot tell them apart.
+  if expected["kind"] == "RateLimited"
+    expect(actual).not_to be_a(LabelZoom::PrintQuotaExceededError)
+  end
   return unless expected.key?("retryAfterSeconds")
 
   expect(actual.retry_after_seconds).to eq(expected["retryAfterSeconds"])
@@ -186,7 +200,11 @@ def run_request_case(given, expect_block)
   outcome = run_fixture(given, [OK_RESPONSE])
   expect(outcome[:error]).to be_nil, -> { "unexpected error: #{outcome[:error].inspect}" }
 
-  signature = outcome[:requests].last
+  assert_request(outcome[:requests].last, expect_block)
+end
+
+# The request vocabulary (CONFORMANCE.md section 2), shared by request and print cases.
+def assert_request(signature, expect_block)
   expect(signature).not_to be_nil
   uri = signature.uri
 
@@ -227,9 +245,14 @@ def run_request_case(given, expect_block)
     keys.each { |key| expect(actual).not_to have_key(key) }
   end
 
-  return unless expect_block.key?("bodyText")
+  (expect_block["query"] || {}).each do |name, expected|
+    expect(query[name]&.first).to eq(expected), -> { "query parameter #{name}" }
+  end
 
-  expect(signature.body.to_s).to eq(expect_block["bodyText"])
+  expect(signature.body.to_s).to eq(expect_block["bodyText"]) if expect_block.key?("bodyText")
+  return unless expect_block.key?("bodyJson")
+
+  expect(JSON.parse(signature.body.to_s)).to eq(expect_block["bodyJson"])
 end
 
 def run_response_case(given, expect_block)
@@ -288,6 +311,97 @@ def run_validation_case(given, expect_block)
   expect(outcome[:requests].length).to eq(expect_block["requestsSent"])
 end
 
+# ------------------------------------------------------------------------ print
+
+# Translates one print fixture into the SDK call. The source options reuse convert's
+# mapping, because print takes them in exactly the same nested form.
+def run_print_operation(client, given)
+  case given["operation"]
+  when "print"
+    kwargs = convert_kwargs(given)
+    kwargs[:copies] = given["copies"] if given.key?("copies")
+    kwargs[:idempotency_key] = given["idempotencyKey"] if given.key?("idempotencyKey")
+    client.print(given["printerId"], given["source"].to_sym, given["bodyText"], **kwargs)
+  when "printTemplate"
+    kwargs = {}
+    kwargs[:data] = given["data"] if given.key?("data")
+    kwargs[:validate] = given["validate"] if given.key?("validate")
+    kwargs[:copies] = given["copies"] if given.key?("copies")
+    kwargs[:idempotency_key] = given["idempotencyKey"] if given.key?("idempotencyKey")
+    client.print_template(given["printerId"], given["templateId"], **kwargs)
+  when "getJob" then client.jobs.get(given["jobId"])
+  when "getQuota" then client.print_quota
+  else raise "Unknown print operation '#{given["operation"]}'."
+  end
+end
+
+TIMESTAMP = /\A\d{4}-\d{2}-\d{2}T/
+
+# The fixtures name result members in camelCase; the SDK's are snake_case.
+def snake_case(name) = name.gsub(/([A-Z])/) { "_#{Regexp.last_match(1).downcase}" }
+
+# Asserts every member the fixture gives, and only those. Timestamps compare as instants,
+# so 2026-10-11T15:00:00.000Z matches 2026-10-11T15:00:00Z.
+def assert_subset(expected, actual, path)
+  case expected
+  when Hash
+    expected.each do |key, value|
+      member = snake_case(key).to_sym
+      expect(actual).to respond_to(member), -> { "#{path}.#{key} is missing" }
+      assert_subset(value, actual.public_send(member), "#{path}.#{key}")
+    end
+  when Array
+    expect(actual).to be_a(Array), -> { "#{path} is not an array: #{actual.inspect}" }
+    expect(actual.length).to eq(expected.length), -> { "#{path}.length" }
+    expected.each_with_index do |item, index|
+      assert_subset(item, actual[index], "#{path}[#{index}]")
+    end
+  when TIMESTAMP
+    expect(actual).to be_a(Time), -> { "#{path} is not a Time: #{actual.inspect}" }
+    expect(actual).to eq(Time.iso8601(expected)), -> { "#{path}: #{actual.inspect}" }
+  else
+    expect(actual).to eq(expected),
+                      -> { "#{path}: expected #{expected.inspect}, got #{actual.inspect}" }
+  end
+end
+
+def run_print_case(given, expect_block)
+  outcome = run_fixture(given, given["responses"], default_max_retries: 0) do |client|
+    run_print_operation(client, given)
+  end
+  requests = outcome[:requests]
+
+  if expect_block.key?("validationError")
+    error = outcome[:error]
+    expect(error).to be_a(LabelZoom::ValidationError),
+                     -> { "expected a ValidationError, got #{error.inspect}" }
+    expect(error.parameter).to eq(expect_block.dig("validationError", "parameter"))
+    expect(requests.length).to eq(expect_block["requestsSent"])
+    return
+  end
+
+  if expect_block.key?("error")
+    assert_error(expect_block["error"], outcome[:error])
+  else
+    expect(outcome[:error]).to be_nil, -> { "unexpected error: #{outcome[:error].inspect}" }
+    name, expected = expect_block["result"].first
+    assert_subset(expected, outcome[:result], name)
+  end
+
+  assert_request(requests.first, expect_block["request"]) if expect_block.key?("request")
+  expect(requests.length).to eq(expect_block["attempts"]) if expect_block.key?("attempts")
+  if expect_block.key?("sleepsSeconds")
+    expect(outcome[:sleeper].slept).to eq(expect_block["sleepsSeconds"])
+  end
+  (expect_block["sameHeaderAcrossAttempts"] || []).each do |name|
+    values = requests.map do |signature|
+      (signature.headers || {}).transform_keys { |header| header.to_s.downcase }[name.downcase]
+    end
+    expect(values.first).not_to be_nil, -> { "header #{name} is missing" }
+    expect(values.uniq.length).to eq(1), -> { "header #{name} differs across attempts: #{values}" }
+  end
+end
+
 # ---------------------------------------------------------------------- the suite
 
 RSpec.describe "conformance" do
@@ -302,6 +416,7 @@ RSpec.describe "conformance" do
       when "response" then run_response_case(given, expect_block)
       when "retry" then run_retry_case(given, expect_block)
       when "validation" then run_validation_case(given, expect_block)
+      when "print" then run_print_case(given, expect_block)
       else raise "Unknown case kind for '#{case_id}'."
       end
 

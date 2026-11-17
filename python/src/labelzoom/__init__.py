@@ -1,7 +1,7 @@
 """Official Python SDK for the `LabelZoom <https://www.labelzoom.com>`_ API.
 
 Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and
-raster images.
+raster images, and prints them on Cloud Print printers.
 
 ```python
 from labelzoom import LabelZoomClient
@@ -17,8 +17,10 @@ from .client import (
     API_KEY_ENV_VAR,
     DEFAULT_BASE_URL,
     AsyncLabelZoomClient,
+    AsyncPrintJobs,
     ConversionResult,
     LabelZoomClient,
+    PrintJobs,
 )
 from .errors import (
     BadRequestError,
@@ -27,29 +29,43 @@ from .errors import (
     LabelZoomValidationError,
     NotFoundError,
     PayloadTooLargeError,
+    PrintQuotaExceededError,
     RateLimitedError,
     ServerError,
     UnauthorizedError,
+    UnprocessableError,
 )
 from .formats import (
+    PRINT_SOURCES,
     SOURCE_FORMATS,
     TARGET_FORMATS,
     ColorMode,
     LayoutFill,
     PdfConversionMode,
+    PrintSource,
     SourceFormat,
     TargetFormat,
     ZplImageCompression,
 )
 from .options import UNSET, ConversionOptions, DataRecord
+from .printing import (
+    PrintBatch,
+    PrintJob,
+    PrintJobDetails,
+    PrintLimits,
+    PrintQuota,
+    PrintQuotaCounter,
+)
 
 __all__ = [
     "API_KEY_ENV_VAR",
     "DEFAULT_BASE_URL",
+    "PRINT_SOURCES",
     "SOURCE_FORMATS",
     "TARGET_FORMATS",
     "UNSET",
     "AsyncLabelZoomClient",
+    "AsyncPrintJobs",
     "BadRequestError",
     "ColorMode",
     "ConversionOptions",
@@ -63,11 +79,21 @@ __all__ = [
     "NotFoundError",
     "PayloadTooLargeError",
     "PdfConversionMode",
+    "PrintBatch",
+    "PrintJob",
+    "PrintJobDetails",
+    "PrintJobs",
+    "PrintLimits",
+    "PrintQuota",
+    "PrintQuotaCounter",
+    "PrintQuotaExceededError",
+    "PrintSource",
     "RateLimitedError",
     "ServerError",
     "SourceFormat",
     "TargetFormat",
     "UnauthorizedError",
+    "UnprocessableError",
     "ZplImageCompression",
     "__version__",
 ]

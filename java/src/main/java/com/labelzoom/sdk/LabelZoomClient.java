@@ -11,10 +11,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 
 /**
- * Client for the LabelZoom conversion API.
+ * Client for the LabelZoom API: label conversion and Cloud Print.
  *
  * <p>Thread-safe and intended to be long-lived. Create one per application, not one per request.
  *
@@ -87,6 +88,37 @@ public final class LabelZoomClient implements AutoCloseable {
         return new ConversionRequestBuilder(this);
     }
 
+    /**
+     * Starts a print to a Cloud Print printer. Choose a document with a {@code from*} method, or a
+     * published template with {@link PrintRequestBuilder#fromTemplate(String)}.
+     *
+     * <p>There is no target stage: the printer's own configuration picks the output language, and
+     * LabelZoom converts the document to it. Printing needs an API key with the {@code print} scope.
+     *
+     * @param printerId the printer's id, from the Printers page or the printers list
+     * @throws LabelZoomValidationException if {@code printerId} is null or blank
+     */
+    public PrintRequestBuilder print(String printerId) {
+        return new PrintRequestBuilder(this, PrintWriters.requireId(printerId, "printerId"));
+    }
+
+    /** Print jobs: look one up by id to follow it to completion. */
+    public PrintJobsClient jobs() {
+        return new PrintJobsClient(this);
+    }
+
+    /**
+     * Gets the account's Cloud Print limits and today's usage, so a caller can stop before it hits
+     * a {@link LabelZoomPrintQuotaExceededException}.
+     *
+     * @throws LabelZoomException if the API returns a non-2xx response
+     */
+    public PrintQuota getPrintQuota() {
+        HttpTransport.Request request = request(
+                "GET", apiUri("/api/v3/print/quota"), PrintWriters.JSON_MEDIA_TYPE, null, null, null);
+        return send(request, response -> PrintQuota.fromJson(PrintResponses.read(response)));
+    }
+
     /** Releases resources. The JDK transport holds none, so this is a no-op by default. */
     @Override
     public void close() {
@@ -103,18 +135,50 @@ public final class LabelZoomClient implements AutoCloseable {
 
         String uri = buildUri(source, target, params, rawQuery);
 
-        Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Content-Type", contentType);
         // Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
         // image/jpeg, so naming the target's exact media type yields a 406 from content
         // negotiation before the handler ever runs.
-        headers.put("Accept", "*/*");
+        HttpTransport.Request request = request("POST", uri, "*/*", body, contentType, null);
+        return send(request, response -> new ConversionResult(
+                response.body(),
+                response.header("Content-Type"),
+                response.statusCode(),
+                response.header(REQUEST_ID_HEADER)));
+    }
+
+    /**
+     * Builds a request with the identity headers every call shares.
+     *
+     * @param body the request body, or null for a request with none, which then has no
+     *     {@code Content-Type}
+     * @param idempotencyKey sent as {@code Idempotency-Key} when not null
+     */
+    HttpTransport.Request request(
+            String method, String uri, String accept,
+            byte[] body, String contentType, String idempotencyKey) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        if (body != null) {
+            headers.put("Content-Type", contentType);
+        }
+        headers.put("Accept", accept);
         headers.put("User-Agent", userAgent);
         if (credential != null) {
             headers.put("Authorization", "Bearer " + credential);
         }
+        if (idempotencyKey != null) {
+            headers.put("Idempotency-Key", idempotencyKey);
+        }
+        return new HttpTransport.Request(method, uri, headers, body);
+    }
 
-        HttpTransport.Request request = new HttpTransport.Request("POST", uri, headers, body);
+    /**
+     * Sends a request under the retry policy (contract section F) and reads a success with
+     * {@code onSuccess}.
+     *
+     * <p>The same request is sent on every attempt, so anything that must not change between
+     * attempts, such as a print's {@code Idempotency-Key}, is fixed before the first one.
+     */
+    <T> T send(HttpTransport.Request request, Function<HttpTransport.Response, T> onSuccess) {
         int attempts = maxRetries + 1;
 
         for (int attempt = 1; ; attempt++) {
@@ -133,16 +197,15 @@ public final class LabelZoomClient implements AutoCloseable {
             }
 
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                return new ConversionResult(
-                        response.body(),
-                        response.header("Content-Type"),
-                        response.statusCode(),
-                        response.header(REQUEST_ID_HEADER));
+                return onSuccess.apply(response);
             }
 
             LabelZoomException error = toException(response);
 
-            if (attempt >= attempts || !isRetryable(response.statusCode())) {
+            // F5: the daily print limit's Retry-After is the UTC reset, hours away. Honoring it
+            // would hang the call, so it surfaces at once.
+            if (attempt >= attempts || !isRetryable(response.statusCode())
+                    || error instanceof LabelZoomPrintQuotaExceededException) {
                 throw error;
             }
 
@@ -150,6 +213,16 @@ public final class LabelZoomClient implements AutoCloseable {
             // exposes it, and RFC 9110 allows the header on 503 as well.
             delay(attempt, retryAfterSeconds(response));
         }
+    }
+
+    /** The base URL joined with an API path and query. Ids are percent-encoded by the caller. */
+    String apiUri(String pathAndQuery) {
+        return baseUrl + pathAndQuery;
+    }
+
+    /** The {@code X-LZ-Request-Id} of a response, or null. */
+    static String requestId(HttpTransport.Response response) {
+        return response.header(REQUEST_ID_HEADER);
     }
 
     String buildUri(
@@ -182,7 +255,8 @@ public final class LabelZoomClient implements AutoCloseable {
         return uri.toString();
     }
 
-    private static String encode(String value) {
+    /** Percent-encodes a query value or a path segment. */
+    static String encode(String value) {
         // URLEncoder is form encoding, which differs from percent-encoding for space and a few
         // others. Correcting those keeps the JSON readable in server logs.
         // The String charset-name overload, not the Charset one: Android only has the latter
@@ -206,20 +280,26 @@ public final class LabelZoomClient implements AutoCloseable {
         String message = extractMessage(rawBody);
         String requestId = response.header(REQUEST_ID_HEADER);
         int status = response.statusCode();
+        // Contract E3: the body's top-level "code", for every error and not only print's.
+        String code = JsonReader.topLevelString(rawBody, "code");
 
         return switch (status) {
-            case 400 -> new LabelZoomBadRequestException(message, requestId, rawBody);
-            case 401 -> new LabelZoomUnauthorizedException(message, requestId, rawBody);
+            case 400 -> new LabelZoomBadRequestException(message, requestId, rawBody, code);
+            case 401 -> new LabelZoomUnauthorizedException(message, requestId, rawBody, code);
             case 403 -> new LabelZoomForbiddenException(
-                    message, requestId, rawBody,
+                    message, requestId, rawBody, code,
                     message.toLowerCase(Locale.ROOT).contains("paid feature"));
-            case 404 -> new LabelZoomNotFoundException(message, requestId, rawBody);
-            case 413 -> new LabelZoomPayloadTooLargeException(message, requestId, rawBody);
-            case 429 -> new LabelZoomRateLimitedException(
-                    message, requestId, rawBody, retryAfterSeconds(response));
+            case 404 -> new LabelZoomNotFoundException(message, requestId, rawBody, code);
+            case 413 -> new LabelZoomPayloadTooLargeException(message, requestId, rawBody, code);
+            case 422 -> new LabelZoomUnprocessableException(message, requestId, rawBody, code);
+            case 429 -> LabelZoomPrintQuotaExceededException.DAILY_JOB_LIMIT_CODE.equals(code)
+                    ? new LabelZoomPrintQuotaExceededException(
+                            message, requestId, rawBody, code, retryAfterSeconds(response))
+                    : new LabelZoomRateLimitedException(
+                            message, requestId, rawBody, code, retryAfterSeconds(response));
             default -> status >= 500
-                    ? new LabelZoomServerException(status, message, requestId, rawBody)
-                    : new LabelZoomException(status, message, requestId, rawBody);
+                    ? new LabelZoomServerException(status, message, requestId, rawBody, code)
+                    : new LabelZoomException(status, message, requestId, rawBody, code);
         };
     }
 

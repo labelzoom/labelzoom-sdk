@@ -25,6 +25,7 @@ conformance/
     retry/*.json         a scripted response sequence -> attempts and sleeps
     validation/*.json    a bad call -> a local validation error, with no HTTP request
     typecheck/*.json     a snippet that must NOT compile (statically typed languages)
+    print/*.json         a print call -> its request, result, error, retries or validation
   skips/<lang>.json      declared skips, each requiring a reason
   lint.mjs               validates the fixtures themselves
 ```
@@ -74,6 +75,38 @@ divergences in [API_CONTRACT.md §9](API_CONTRACT.md#9-divergences) are only ski
   `expect.requestsSent === 0`.
 - **`typecheck`** supplies a `given.snippet` that must fail to compile. Dynamically typed
   languages declare these in `skips/`.
+
+### `print` — the print surface (contract rule P)
+
+One kind covers every print call, because each one mixes what the other kinds test separately.
+`given.operation` picks the call:
+
+| `operation` | Call | Extra `given` fields |
+|---|---|---|
+| `print` | print a document | `printerId`, `source`, `bodyText`, `options`, `copies`, `idempotencyKey` |
+| `printTemplate` | print a template | `printerId`, `templateId`, `data`, `validate`, `copies`, `idempotencyKey` |
+| `getJob` | get a job | `jobId` |
+| `getQuota` | read the print quota | — |
+
+`given.responses[]` is the scripted response sequence, as in `retry` cases, and is empty for a
+validation case. `given.maxRetries` defaults to 0. `options` holds source options only, in the
+wire shape, applied the way a `request` case applies them.
+
+`expect` may hold:
+
+- `request`: assertions on the **first** request, in the `request` vocabulary, plus two more:
+  `query`, a map of plain query parameters to exact values (parameters it doesn't list aren't
+  checked; `queryAbsent` covers absence), and `bodyJson`, compared structurally like `queryJson`.
+  Keep `{}` and `[]` apart when comparing `bodyJson`: a decoder that reads both as an empty array
+  or map would let `print/template-no-data` pass while the SDK sends `[]`.
+- `result`: exactly one of `printJob`, `printBatch`, `job` or `quota`, matching the operation.
+  Compare only the members given. Timestamps compare as instants, so `2026-10-11T15:00:00.000Z`
+  matches `2026-10-11T15:00:00Z`. `null` means the SDK reports no value.
+- `error`, with the `response` semantics, plus `code` when given (`null` means none).
+- `attempts` and `sleepsSeconds`, with the `retry` semantics.
+- `sameHeaderAcrossAttempts`: header names whose value must be identical on every attempt. This
+  is how **P4** (one Idempotency-Key per call, reused on retry) is pinned.
+- `validationError` and `requestsSent`, with the `validation` semantics.
 
 ## 3. Assertion semantics — the parts that bite
 

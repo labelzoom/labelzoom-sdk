@@ -4,7 +4,8 @@
 
 Official Python client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode
 labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
-ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files. It also prints to Cloud
+Print printers.
 
 Python 3.10+. Fully typed (`py.typed`), sync and async clients, one dependency
 ([httpx](https://www.python-httpx.org/)).
@@ -166,6 +167,53 @@ result = client.convert("zpl", "png", zpl, options=preset, rotation=90)
 
 Keyword arguments passed alongside `options` win.
 
+## Print
+
+Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
+configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
+ZPL printer. There is no target format. Printing needs an API key with the `print` scope.
+
+```python
+import time
+from pathlib import Path
+from labelzoom import LabelZoomClient
+
+with LabelZoomClient("lz_live_...") as client:
+    job = client.print(
+        printer_id, "pdf", Path("label.pdf").read_bytes(),
+        pdf_page_number=0,                       # the same source options as convert()
+        copies=2,
+        idempotency_key=order_number,
+    )                                            # PrintJob(job_id, status, copies, idempotent)
+
+    batch = client.print_template(
+        printer_id, template_id,
+        [{"orderNumber": "SO-1001", "sku": "A-100"}],
+    )                                            # PrintBatch(jobs, remaining, message)
+
+    details = client.jobs.get(job.job_id)
+    while details.status not in ("completed", "failed"):
+        time.sleep(2)
+        details = client.jobs.get(job.job_id)
+
+    quota = client.get_print_quota()             # quota.jobs_today.remaining
+```
+
+`AsyncLabelZoomClient` has the same methods, awaited, and `await client.jobs.get(job_id)`.
+
+- `print` takes ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF,
+  and images, typed as `PrintSource`. To print another format, convert it to the printer's
+  language first.
+- `copies` sends the whole job that many times, from 1 to 9999, so `^PQ3` with `copies=5` prints
+  15 labels.
+- Every print carries an `Idempotency-Key`: set your own with `idempotency_key` to make a repeated
+  call return the original job instead of printing again, or leave it out and the SDK generates
+  one per call, so its own retries can't print twice.
+- A template batch that runs out of time returns `remaining`, the number of records not yet
+  submitted. Send the same call with the same key to submit them.
+- The daily job limit raises `PrintQuotaExceededError`, which is never retried because the limit
+  resets at 00:00 UTC.
+
 ## Errors
 
 Every non-2xx raises a typed error carrying the server's own message, the raw body, and the
@@ -185,7 +233,10 @@ except LabelZoomError as error:
 ```
 
 `BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`,
-`PayloadTooLargeError`, `RateLimitedError` and `ServerError` all subclass `LabelZoomError`.
+`PayloadTooLargeError`, `UnprocessableError` (422), `RateLimitedError` and `ServerError` all
+subclass `LabelZoomError`. `PrintQuotaExceededError` subclasses `RateLimitedError`. Each carries
+`code`, the error's stable code such as `agent_update_required`, or `None`; branch on it rather
+than on the message.
 
 `LabelZoomValidationError` deliberately does **not** — it means the calling code is wrong, it
 never reaches the network, and it should not be swallowed by a handler written for server
@@ -194,8 +245,9 @@ failures. It subclasses `ValueError`.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full
-jitter, honoring a longer `Retry-After`. Other 4xx responses raise immediately — a malformed
-request will not become valid on a second attempt.
+jitter, honoring a longer `Retry-After`. The daily print limit is the exception: its 429 raises
+at once. Other 4xx responses raise immediately — a malformed request will not become valid on a
+second attempt.
 
 ```python
 client = LabelZoomClient(max_retries=0, timeout=30.0)

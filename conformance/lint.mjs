@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const REPO = join(ROOT, '..');
-const KINDS = ['request', 'response', 'retry', 'validation', 'typecheck'];
+const KINDS = ['request', 'response', 'retry', 'validation', 'typecheck', 'print'];
+const PRINT_OPERATIONS = new Set(['print', 'printTemplate', 'getJob', 'getQuota']);
+const PRINT_RESULTS = { print: 'printJob', printTemplate: 'printBatch', getJob: 'job', getQuota: 'quota' };
 
 const errors = [];
 const fail = (where, msg) => errors.push(`${where}: ${msg}`);
@@ -123,6 +125,39 @@ for (const id of onDisk) {
       if (!c.given.snippet) fail(id, 'typecheck case must supply given.snippet');
       if (e.compileError !== true) fail(id, 'typecheck case must expect compileError: true');
       break;
+    case 'print': {
+      // One kind for the whole print surface: given.operation picks the call, and the
+      // expectations reuse the request, response, retry and validation vocabulary.
+      const op = c.given.operation;
+      if (!PRINT_OPERATIONS.has(op)) fail(id, `unknown given.operation "${op}"`);
+      if (!Array.isArray(c.given.responses)) {
+        fail(id, 'print case must supply given.responses[] (empty for a validation case)');
+      }
+      for (const field of ['headers', 'headersMatch']) {
+        for (const k of Object.keys(e.request?.[field] ?? {})) {
+          if (k !== k.toLowerCase()) fail(id, `expect.request.${field} key "${k}" must be lowercase`);
+        }
+      }
+      if (e.request?.path && !e.request.path.startsWith('/api/v3/')) {
+        fail(id, `unexpected print path "${e.request.path}"`);
+      }
+      if (typeof e.request?.query === 'string') {
+        fail(id, 'expect.request.query must be an object of exact values, not a literal string');
+      }
+      if (e.validationError) {
+        if (e.requestsSent !== 0) fail(id, 'a print validation case must assert requestsSent === 0');
+        if (c.given.responses?.length) fail(id, 'a print validation case must queue no responses');
+      } else if (!e.result && !e.error) {
+        fail(id, 'print case must expect a result, an error or a validationError');
+      }
+      if (e.result && Object.keys(e.result).join() !== PRINT_RESULTS[op]) {
+        fail(id, `a ${op} result must be exactly { ${PRINT_RESULTS[op]}: ... }`);
+      }
+      if (e.sleepsSeconds && e.sleepsSeconds.length !== e.attempts - 1) {
+        fail(id, 'sleepsSeconds must have exactly attempts - 1 entries');
+      }
+      break;
+    }
   }
 }
 

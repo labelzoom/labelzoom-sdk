@@ -20,11 +20,17 @@ module LabelZoom
     #   and capped at 512 characters; this is not.
     attr_reader :raw_body
 
-    def initialize(message, status:, request_id: nil, raw_body: "")
+    # @return [String, nil] the error body's top-level +code+, such as
+    #   +"agent_update_required"+, or nil when the body has none. Codes are stable, so branch
+    #   on this rather than on {#message}.
+    attr_reader :code
+
+    def initialize(message, status:, request_id: nil, raw_body: "", code: nil)
       super(message)
       @status = status
       @request_id = request_id
       @raw_body = raw_body
+      @code = code
     end
   end
 
@@ -53,6 +59,12 @@ module LabelZoom
   # HTTP 413. The body exceeded the tier's limit -- 1 MB on the anonymous free tier.
   class PayloadTooLargeError < APIError; end
 
+  # HTTP 422. The request is well formed but cannot be carried out. Print returns it with a
+  # {#code}: +agent_update_required+ when the print agent serving the printer is too old for
+  # the request, +idempotency_key_reused+ when the key was already used for a different
+  # request, and for a template print whose records are missing fields.
+  class UnprocessableError < APIError; end
+
   # HTTP 429. Too many requests.
   class RateLimitedError < APIError
     # @return [Float, nil] Retry-After in seconds, when the server sent one. The client
@@ -65,6 +77,14 @@ module LabelZoom
       @retry_after_seconds = retry_after_seconds
     end
   end
+
+  # HTTP 429 with code +daily_job_limit_reached+: the account's daily print job limit is used
+  # up. A kind of {RateLimitedError}, so a handler for that still catches it.
+  #
+  # Never retried automatically, whatever +Retry-After+ says: the limit resets at 00:00 UTC,
+  # so {#retry_after_seconds} is hours away. Call +client.print_quota+ to check what remains
+  # before printing.
+  class PrintQuotaExceededError < RateLimitedError; end
 
   # HTTP 5xx. Retried automatically before surfacing.
   class ServerError < APIError; end

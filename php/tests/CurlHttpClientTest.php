@@ -143,6 +143,26 @@ final class CurlHttpClientTest extends TestCase
         self::assertSame('^XA^FO20,20^FDhi^FS^XZ', $echo['body']);
     }
 
+    /**
+     * The print API's GETs send no Content-Type (contract P1). cURL adds a form Content-Type to
+     * any request whose POSTFIELDS is set, even to an empty string, so a GET must not set it.
+     */
+    public function testABodilessGetSendsNoContentType(): void
+    {
+        $factory = new Psr17Factory();
+        $request = $factory->createRequest('GET', self::$baseUrl . '/echo')
+            ->withHeader('Accept', 'application/json');
+
+        $response = (new CurlHttpClient())->sendRequest($request);
+
+        /** @var array{method: string, uri: string, headers: array<string, string>, body: string} $echo */
+        $echo = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame('GET', $echo['method']);
+        self::assertArrayNotHasKey('content-type', $echo['headers']);
+        self::assertSame('', $echo['body']);
+    }
+
     public function testItPreservesBinaryBodiesAndReadsResponseHeaders(): void
     {
         $factory = new Psr17Factory();
