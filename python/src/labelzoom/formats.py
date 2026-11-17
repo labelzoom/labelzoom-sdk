@@ -94,8 +94,8 @@ LayoutFill = Literal["SEQUENTIAL", "REPEAT"]
 # The one place in the SDK that knows the format matrix.
 #
 # The superseded .NET builder hierarchy spread this across seven classes and they drifted:
-# one handled 2 of 15 sources it had then, another returned the source content type as the target format.
-# Keep it here.
+# one handled 2 of the 15 sources there were then, another returned the source content type as
+# the target format. Keep it here.
 _SOURCE_MEDIA_TYPES: dict[str, str] = {
     "zpl": "text/plain",
     "epl": "text/plain",
