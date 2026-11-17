@@ -8,8 +8,23 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
 
-/** The default {@link HttpTransport}, backed by {@code java.net.http.HttpClient}. */
+/**
+ * The default {@link HttpTransport}, backed by {@code java.net.http.HttpClient}.
+ *
+ * <p>This is the only class in the SDK that may reference {@code java.net.http}. Android has no
+ * {@code java.net.http}, so an Android caller supplies its own transport, and this class must
+ * then never be loaded. {@code AndroidCompatibilityTest} pins that.
+ */
 final class JdkHttpTransport implements HttpTransport {
+
+    /**
+     * Builds the transport a client gets when the caller supplies none. Returns the interface so
+     * that verifying the caller never needs this class's {@code java.net.http} types.
+     */
+    static HttpTransport createDefault(Duration timeout) {
+        return new JdkHttpTransport(
+                HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), timeout);
+    }
 
     private final HttpClient httpClient;
     private final Duration timeout;

@@ -2,8 +2,8 @@ package com.labelzoom.sdk;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -62,16 +62,14 @@ public final class LabelZoomClient implements AutoCloseable {
         this.sleeper = builder.sleeper != null ? builder.sleeper : LabelZoomClient::sleepQuietly;
 
         String agent = "labelzoom-java-sdk/" + version() + " (java)";
-        if (builder.userAgentSuffix != null && !builder.userAgentSuffix.isBlank()) {
+        if (builder.userAgentSuffix != null && !Compat.isBlank(builder.userAgentSuffix)) {
             agent = agent + " " + builder.userAgentSuffix.trim();
         }
         this.userAgent = agent;
 
         this.transport = builder.transport != null
                 ? builder.transport
-                : new JdkHttpTransport(
-                        HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
-                        builder.timeout);
+                : JdkHttpTransport.createDefault(builder.timeout);
     }
 
     /** Creates a builder. Every option has a working default. */
@@ -187,7 +185,15 @@ public final class LabelZoomClient implements AutoCloseable {
     private static String encode(String value) {
         // URLEncoder is form encoding, which differs from percent-encoding for space and a few
         // others. Correcting those keeps the JSON readable in server logs.
-        return URLEncoder.encode(value, StandardCharsets.UTF_8)
+        // The String charset-name overload, not the Charset one: Android only has the latter
+        // from API 33.
+        String encoded;
+        try {
+            encoded = URLEncoder.encode(value, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 is a required charset", e);
+        }
+        return encoded
                 .replace("+", "%20")
                 .replace("*", "%2A")
                 .replace("%7E", "~");
@@ -226,9 +232,9 @@ public final class LabelZoomClient implements AutoCloseable {
      * {@code error}, an HTML 502, a truncated fragment — falls through to the raw text.
      */
     static String extractMessage(String rawBody) {
-        if (rawBody != null && !rawBody.isBlank()) {
+        if (rawBody != null && !Compat.isBlank(rawBody)) {
             String parsed = JsonMessage.extract(rawBody);
-            if (parsed != null && !parsed.isBlank()) {
+            if (parsed != null && !Compat.isBlank(parsed)) {
                 return truncate(parsed);
             }
             return truncate(rawBody.trim());
@@ -331,7 +337,7 @@ public final class LabelZoomClient implements AutoCloseable {
 
         /** API base URL. A path prefix is preserved, so a reverse proxy works as expected. */
         public Builder baseUrl(String baseUrl) {
-            if (baseUrl == null || baseUrl.isBlank()) {
+            if (baseUrl == null || Compat.isBlank(baseUrl)) {
                 throw new IllegalArgumentException("Base URL cannot be null or blank.");
             }
             this.baseUrl = baseUrl;
