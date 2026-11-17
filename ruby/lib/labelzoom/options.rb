@@ -105,7 +105,9 @@ module LabelZoom
       when :source_dpi, :target_dpi
         # Contract C8: only a positive resolution is checked locally.
         unless value.is_a?(Integer) && value.positive?
-          raise ValidationError.new(key.to_s, "#{key} must be a positive whole number, but was #{value.inspect}.")
+          raise ValidationError.new(key.to_s,
+                                    "#{key} must be a positive whole number, " \
+                                    "but was #{value.inspect}.")
         end
       when :darkness
         unless value.is_a?(Numeric) && value.between?(0, 100)

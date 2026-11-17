@@ -62,7 +62,8 @@ class ConversionOptions:
     #: pixels map to inches. Server default 203. Not for PDF, NiceLabel, BarTender or LabelZoom
     #: XML/JSON sources, which have no dots (contract C8).
     source_dpi: int | _Unset = UNSET
-    #: The resolution of the output. Server default: ``source_dpi``, else 203. Not for a PDF target.
+    #: The resolution of the output. Server default: ``source_dpi``, else 203. Not for a PDF
+    #: target.
     target_dpi: int | _Unset = UNSET
     #: Degrees clockwise. Must be a multiple of 90. Server default 0.
     rotation: int | _Unset = UNSET
@@ -230,7 +231,9 @@ def _validate_dpi(name: str, value: Any) -> int:
     # Contract C8: only a positive resolution is checked locally; which formats take one is
     # server policy.
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-        raise LabelZoomValidationError(name, f"{name} must be a positive whole number, but was {value!r}.")
+        raise LabelZoomValidationError(
+            name, f"{name} must be a positive whole number, but was {value!r}."
+        )
     return value
 
 
