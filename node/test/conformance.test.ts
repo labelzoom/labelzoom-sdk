@@ -159,6 +159,7 @@ function buildRequest(client: LabelZoomClient, given: any) {
       }
       case 'split': sourceStage.withSplit(value as NonNullable<ConversionOptions['split']>); break;
       case 'labelIndex': sourceStage.withLabelIndex(value as number); break;
+      case 'sourceDpi': sourceStage.withDpi(value as number); break;
       // How an image or PDF is rasterized: a source option, set as one group.
       case 'scaling': sourceStage.withRaster({ scaling: value as number }); break;
       case 'colorMode': sourceStage.withRaster({ colorMode: value as any }); break;
@@ -182,7 +183,7 @@ function buildRequest(client: LabelZoomClient, given: any) {
 
   for (const [key, value] of entries) {
     switch (key) {
-      case 'dpi': builder.withDpi(value as number); break;
+      case 'targetDpi': builder.withDpi(value as number); break;
       case 'rotation': builder.withRotation(value as number); break;
       case 'watermark': builder.withWatermark(value as boolean); break;
       case 'dialect': builder.withDialect(value as string); break;
@@ -203,7 +204,7 @@ function buildRequest(client: LabelZoomClient, given: any) {
 }
 
 const TARGET_OPTION_NAMES = new Set([
-  'dpi', 'rotation', 'watermark', 'dialect', 'layout',
+  'targetDpi', 'rotation', 'watermark', 'dialect', 'layout',
 ]);
 
 function newClient(

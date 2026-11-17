@@ -19,9 +19,9 @@ DataRecord = Mapping[str, Any]
 class _Unset:
     """The "caller never set this" sentinel.
 
-    ``None`` cannot do this job: ``watermark=False`` and ``dpi=0`` are meaningful values a
+    ``None`` cannot do this job: ``watermark=False`` and ``rotation=0`` are meaningful values a
     caller may set deliberately, and contract rule C1 forbids the SDK from emitting anything
-    the caller did not ask for. A client-side ``dpi=203`` in a request nobody configured
+    the caller did not ask for. A client-side ``target_dpi=203`` in a request nobody configured
     would defeat any future change to the server's default.
     """
 
@@ -58,8 +58,12 @@ class ConversionOptions:
     are the same names and are usually what you want.
     """
 
-    #: Output resolution. Server default 203.
-    dpi: int | _Unset = UNSET
+    #: The resolution the source was made for: how a printer-language job's dots or an image's
+    #: pixels map to inches. Server default 203. Not for PDF, NiceLabel, BarTender or LabelZoom
+    #: XML/JSON sources, which have no dots (contract C8).
+    source_dpi: int | _Unset = UNSET
+    #: The resolution of the output. Server default: ``source_dpi``, else 203. Not for a PDF target.
+    target_dpi: int | _Unset = UNSET
     #: Degrees clockwise. Must be a multiple of 90. Server default 0.
     rotation: int | _Unset = UNSET
     #: Percent. Server default 100.
@@ -141,7 +145,8 @@ class ConversionOptions:
 
 # Flat field name -> path within the wire JSON. The only place the nesting is described.
 _WIRE_PATHS: dict[str, tuple[str, ...]] = {
-    "dpi": ("dpi",),
+    "source_dpi": ("sourceDpi",),
+    "target_dpi": ("targetDpi",),
     "rotation": ("rotation",),
     "scaling": ("scaling",),
     "color_mode": ("colorMode",),
@@ -200,6 +205,8 @@ def serialize_options(options: ConversionOptions | None) -> str | None:
 
         if field.name == "rotation":
             value = _validate_rotation(value)
+        elif field.name in ("source_dpi", "target_dpi"):
+            value = _validate_dpi(field.name, value)
         elif field.name == "darkness":
             value = _validate_darkness(value)
         elif field.name == "data":
@@ -217,6 +224,14 @@ def serialize_options(options: ConversionOptions | None) -> str | None:
         return None
 
     return json.dumps(params, separators=(",", ":"))
+
+
+def _validate_dpi(name: str, value: Any) -> int:
+    # Contract C8: only a positive resolution is checked locally; which formats take one is
+    # server policy.
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise LabelZoomValidationError(name, f"{name} must be a positive whole number, but was {value!r}.")
+    return value
 
 
 def _validate_rotation(value: Any) -> int:

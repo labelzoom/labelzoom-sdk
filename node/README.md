@@ -45,7 +45,7 @@ const result = await client.convert({
   from: 'zpl',
   to: 'png',
   body: '^XA^FO20,20^A0N,28^FDHello^FS^XZ',
-  options: { dpi: 300, label: { width: 4, height: 6 } },
+  options: { targetDpi: 300, label: { width: 4, height: 6 } },
 });
 
 await writeFile('label.png', result.bytes);
@@ -133,7 +133,8 @@ first if it came from untrusted input.
 
 | Option | Notes |
 |---|---|
-| `dpi` | server default 203 |
+| `sourceDpi` | the resolution the job or image was made for; server default 203. Not for PDF, NiceLabel, BarTender or LabelZoom XML/JSON sources |
+| `targetDpi` | the resolution of the output; server default is `sourceDpi`, else 203. Not for a PDF target |
 | `rotation` | must be a multiple of 90; rejected locally otherwise |
 | `scaling` | percent, server default 100 |
 | `colorMode` | `'BW'`, `'GRAYSCALE'` (default), `'COLOR'` |
@@ -165,7 +166,9 @@ the index signature on `ConversionOptions` is a safe forward-compatibility escap
 | Source | `withSplit({ … })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
 | Source | `withRaster({ scaling, position, darkness, colorMode })` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` |
 | Source | `withCommandsToIgnore` | `fromZpl` |
-| Target | `withDpi`, `withRotation`, `withWatermark`, `withDialect`, `withParameter` | every target |
+| Source | `withDpi` (sends `sourceDpi`) | every source but `fromPdf`, `fromXml` and `fromJson` |
+| Target | `withDpi` (sends `targetDpi`) | every target but `toPdf` |
+| Target | `withRotation`, `withWatermark`, `withDialect`, `withParameter` | every target |
 | Target | `withImageCompression`, `withCollapseCopies`, `withLayout({ … })` | `toZpl` |
 | Target | `withColorMode`, `withDarkness` | `toPng`, `toBmp`, `toGif`, `toJpeg` |
 
@@ -204,6 +207,7 @@ option used to be set after `to*`. In 2.0, move the source options before it:
 | `.withZplCommandsToIgnore('^PQ')` | `.fromZpl(zpl).withCommandsToIgnore('^PQ')` |
 | `.withLabelSize(w, h)`, `.withLabelIndex(i)`, `.withData(...)` | same name, before `to*` |
 | `.withZplImageCompression(c)` | `.toZpl().withImageCompression(c)` |
+| `.withDpi(d)` or `options.dpi`, which set both resolutions | `.withDpi(d)` on the target stage, or `targetDpi`, for the output; add it on the source stage (`sourceDpi`) too if the job was made for `d` |
 | `.withScaling(p)`, `.withPosition(x, y)` | `.fromPdf(pdf).withRaster({ scaling: p, position: { x, y } })`, or `fromPng` and the other images |
 | `.withDarkness(d)`, `.withColorMode(m)` | in `withRaster` for an image or PDF source; on `toPng` and the other image targets for black-and-white output |
 | `ConversionSourceBuilder`, `ConversionTargetBuilder` | `SourceStage` and `TargetStage` subclasses, such as `PdfSourceBuilder` and `ZplTargetBuilder` |

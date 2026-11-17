@@ -24,13 +24,14 @@ public class StageShapeTests
 {
     private static readonly Type[] SourceStages =
     {
-        typeof(SourceBuilder), typeof(ZplSourceBuilder), typeof(ImageSourceBuilder),
-        typeof(PdfSourceBuilder), typeof(DynamicSourceBuilder),
+        typeof(SourceBuilder), typeof(PrinterLanguageSourceBuilder), typeof(ZplSourceBuilder),
+        typeof(ImageSourceBuilder), typeof(PdfSourceBuilder), typeof(DynamicSourceBuilder),
     };
 
     private static readonly Type[] TargetStages =
     {
-        typeof(TargetBuilder), typeof(ZplTargetBuilder), typeof(ImageTargetBuilder), typeof(DynamicTargetBuilder),
+        typeof(TargetBuilder), typeof(PdfTargetBuilder), typeof(ZplTargetBuilder), typeof(ImageTargetBuilder),
+        typeof(DynamicTargetBuilder),
     };
 
     [Theory]
@@ -50,6 +51,9 @@ public class StageShapeTests
     [InlineData(typeof(TargetBuilder), "WithDarkness")]
     [InlineData(typeof(ZplTargetBuilder), "WithColorMode")]
     [InlineData(typeof(ImageTargetBuilder), "WithLayout")]
+    [InlineData(typeof(PdfSourceBuilder), "WithDpi")]
+    [InlineData(typeof(SourceBuilder), "WithDpi")]
+    [InlineData(typeof(PdfTargetBuilder), "WithDpi")]
     public void FormatSpecificOptionIsAbsentFromOtherFormats(Type builder, string method) =>
         Assert.False(HasMethod(builder, method), $"{builder.Name} must not offer {method}.");
 
@@ -68,11 +72,18 @@ public class StageShapeTests
     [InlineData(typeof(ImageTargetBuilder), "WithColorMode")]
     [InlineData(typeof(ImageTargetBuilder), "WithDarkness")]
     [InlineData(typeof(DynamicTargetBuilder), "WithColorMode")]
+    [InlineData(typeof(ZplSourceBuilder), "WithDpi")]
+    [InlineData(typeof(PrinterLanguageSourceBuilder), "WithDpi")]
+    [InlineData(typeof(ImageSourceBuilder), "WithDpi")]
+    [InlineData(typeof(DynamicSourceBuilder), "WithDpi")]
+    [InlineData(typeof(TargetBuilder), "WithDpi")]
+    [InlineData(typeof(ZplTargetBuilder), "WithDpi")]
+    [InlineData(typeof(ImageTargetBuilder), "WithDpi")]
+    [InlineData(typeof(DynamicTargetBuilder), "WithDpi")]
     public void FormatSpecificOptionIsOnItsFormat(Type builder, string method) =>
         Assert.True(HasMethod(builder, method), $"{builder.Name} must offer {method}.");
 
     [Theory]
-    [InlineData("WithDpi")]
     [InlineData("WithRotation")]
     [InlineData("WithLayout")]
     [InlineData("WithDialect")]
@@ -111,10 +122,12 @@ public class StageShapeTests
         Assert.IsType<ZplSourceBuilder>(client.Convert().FromZpl("^XA^XZ"));
         Assert.IsType<PdfSourceBuilder>(client.Convert().FromPdf(new byte[] { 1 }));
         Assert.IsType<ImageSourceBuilder>(client.Convert().FromPng(new byte[] { 1 }));
-        Assert.IsType<SourceBuilder>(client.Convert().FromEpl("N"));
+        Assert.IsType<PrinterLanguageSourceBuilder>(client.Convert().FromEpl("N"));
+        Assert.IsType<SourceBuilder>(client.Convert().FromXml("<labelZoomXml/>"));
         Assert.IsType<DynamicSourceBuilder>(client.Convert().From(SourceFormat.Zpl, "^XA^XZ"));
         Assert.IsType<ImageTargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToPng());
-        Assert.IsType<TargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToPdf());
+        Assert.IsType<PdfTargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToPdf());
+        Assert.IsType<TargetBuilder>(client.Convert().FromZpl("^XA^XZ").ToEpl());
     }
 
     [Fact]
@@ -148,7 +161,7 @@ public class StageShapeTests
         Assert.Equal(2, json.GetProperty("split").GetProperty("rows").GetInt32());
         Assert.Equal(2, json.GetProperty("split").GetProperty("columns").GetInt32());
         Assert.True(json.GetProperty("split").GetProperty("skipBlank").GetBoolean());
-        Assert.Equal(203, json.GetProperty("dpi").GetInt32());
+        Assert.Equal(203, json.GetProperty("targetDpi").GetInt32());
         Assert.True(json.GetProperty("zpl").GetProperty("collapseCopies").GetBoolean());
         Assert.Equal(2, json.GetProperty("layout").GetProperty("across").GetInt32());
         Assert.Equal(0.125f, json.GetProperty("layout").GetProperty("gap").GetSingle());
@@ -167,6 +180,30 @@ public class StageShapeTests
         var ex = Assert.Throws<LabelZoomValidationException>(() =>
             client.Convert().FromPng(new byte[] { 1 }).WithRaster(r => r.Darkness(101)));
         Assert.Equal("darkness", ex.ParamName);
+    }
+
+    [Fact]
+    public async Task EachStageSendsItsOwnDpi()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "^XA^XZ", "text/plain");
+        using var client = new LabelZoomClient(new LabelZoomClientOptions
+        {
+            ApiKey = string.Empty,
+            HttpMessageHandler = handler,
+        });
+
+        await client.Convert()
+            .FromZpl("^XA^XZ")
+                .WithDpi(300)
+            .ToZpl()
+                .WithDpi(203)
+            .ExecuteAsync();
+
+        var json = handler.LastRequest.Params!.Value;
+        Assert.Equal(300, json.GetProperty("sourceDpi").GetInt32());
+        Assert.Equal(203, json.GetProperty("targetDpi").GetInt32());
+        Assert.False(json.TryGetProperty("dpi", out _), "the legacy dpi key must never be sent (contract C8)");
     }
 
     private static bool HasMethod(Type type, string name) =>

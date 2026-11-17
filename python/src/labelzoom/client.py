@@ -191,7 +191,7 @@ class LabelZoomClient(_BaseClient):
     from labelzoom import LabelZoomClient
 
     with LabelZoomClient() as client:
-        result = client.convert("zpl", "png", zpl, dpi=300)
+        result = client.convert("zpl", "png", zpl, target_dpi=300)
         Path("label.png").write_bytes(result.content)
     ```
     """
@@ -247,7 +247,8 @@ class LabelZoomClient(_BaseClient):
         *,
         options: ConversionOptions | None = None,
         as_base64_text: bool = False,
-        dpi: int | _Unset = UNSET,
+        source_dpi: int | _Unset = UNSET,
+        target_dpi: int | _Unset = UNSET,
         rotation: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
         color_mode: ColorMode | _Unset = UNSET,
@@ -306,7 +307,8 @@ class LabelZoomClient(_BaseClient):
         :raises LabelZoomError: The API returned a non-2xx response.
         """
         merged = (options or ConversionOptions()).merge(
-            dpi=dpi,
+            source_dpi=source_dpi,
+            target_dpi=target_dpi,
             rotation=rotation,
             scaling=scaling,
             color_mode=color_mode,
@@ -417,7 +419,8 @@ class AsyncLabelZoomClient(_BaseClient):
         *,
         options: ConversionOptions | None = None,
         as_base64_text: bool = False,
-        dpi: int | _Unset = UNSET,
+        source_dpi: int | _Unset = UNSET,
+        target_dpi: int | _Unset = UNSET,
         rotation: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
         color_mode: ColorMode | _Unset = UNSET,
@@ -451,7 +454,8 @@ class AsyncLabelZoomClient(_BaseClient):
     ) -> ConversionResult:
         """Convert a label from one format to another. See :meth:`LabelZoomClient.convert`."""
         merged = (options or ConversionOptions()).merge(
-            dpi=dpi,
+            source_dpi=source_dpi,
+            target_dpi=target_dpi,
             rotation=rotation,
             scaling=scaling,
             color_mode=color_mode,

@@ -30,13 +30,6 @@ namespace LabelZoom.Sdk.Conversion
 
         private protected TSelf Self => (TSelf)this;
 
-        /// <summary>Output resolution in dots per inch. The server default is 203.</summary>
-        public TSelf WithDpi(int dpi)
-        {
-            ParameterWriters.Dpi(Parameters, dpi);
-            return Self;
-        }
-
         /// <summary>Rotation in degrees. Must be a multiple of 90. The server default is 0.</summary>
         /// <param name="rotation">Degrees clockwise: 0, 90, 180 or 270.</param>
         public TSelf WithRotation(int rotation)

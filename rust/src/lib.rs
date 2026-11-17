@@ -23,7 +23,7 @@
 //!     TargetFormat::Png,
 //!     "^XA^FO20,20^A0N,28^FDHello^FS^XZ",
 //! )
-//! .options(ConversionOptions::new().dpi(300).label_size(4.0, 6.0));
+//! .options(ConversionOptions::new().target_dpi(300).label_size(4.0, 6.0));
 //!
 //! client.convert(&request)?.save("label.png")?;
 //! # Ok(())

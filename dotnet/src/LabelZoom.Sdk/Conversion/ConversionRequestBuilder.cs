@@ -10,8 +10,9 @@ namespace LabelZoom.Sdk.Conversion
     /// <para>
     /// A named <c>From*</c> method returns a source stage typed for that format, so only the options
     /// that apply to it are offered: <see cref="FromPdf(byte[])"/> returns a
-    /// <see cref="PdfSourceBuilder"/> with <see cref="PdfSourceBuilder.WithPage"/>, and
-    /// <see cref="FromZpl"/> doesn't.
+    /// <see cref="PdfSourceBuilder"/> with <see cref="PdfSourceBuilder.WithPage"/>, which
+    /// <see cref="FromZpl"/> doesn't have. In turn, <see cref="FromZpl"/> has <c>WithDpi</c>, which a
+    /// PDF doesn't: it has no dots for a resolution to apply to.
     /// </para>
     /// <para>
     /// <see cref="From(SourceFormat, byte[])"/> and the other methods that take a
@@ -64,19 +65,19 @@ namespace LabelZoom.Sdk.Conversion
             new ZplSourceBuilder(Draft(SourceFormat.Zpl, Utf8(zpl)));
 
         /// <summary>Converts from EPL/EPL2.</summary>
-        public SourceBuilder FromEpl(string epl) => Text(SourceFormat.Epl, epl);
+        public PrinterLanguageSourceBuilder FromEpl(string epl) => PrinterLanguage(SourceFormat.Epl, epl);
 
         /// <summary>Converts from Intermec IPL.</summary>
-        public SourceBuilder FromIpl(string ipl) => Text(SourceFormat.Ipl, ipl);
+        public PrinterLanguageSourceBuilder FromIpl(string ipl) => PrinterLanguage(SourceFormat.Ipl, ipl);
 
         /// <summary>Converts from TSPL/TSPL2.</summary>
-        public SourceBuilder FromTspl(string tspl) => Text(SourceFormat.Tspl, tspl);
+        public PrinterLanguageSourceBuilder FromTspl(string tspl) => PrinterLanguage(SourceFormat.Tspl, tspl);
 
         /// <summary>Converts from DPL.</summary>
-        public SourceBuilder FromDpl(string dpl) => Text(SourceFormat.Dpl, dpl);
+        public PrinterLanguageSourceBuilder FromDpl(string dpl) => PrinterLanguage(SourceFormat.Dpl, dpl);
 
         /// <summary>Converts from SATO SBPL.</summary>
-        public SourceBuilder FromSbpl(string sbpl) => Text(SourceFormat.Sbpl, sbpl);
+        public PrinterLanguageSourceBuilder FromSbpl(string sbpl) => PrinterLanguage(SourceFormat.Sbpl, sbpl);
 
         /// <summary>Converts from LabelZoom XML.</summary>
         public SourceBuilder FromXml(string xml) => Text(SourceFormat.Xml, xml);
@@ -146,6 +147,9 @@ namespace LabelZoom.Sdk.Conversion
 
         private SourceBuilder Text(SourceFormat format, string body) =>
             new SourceBuilder(Draft(format, Utf8(body)));
+
+        private PrinterLanguageSourceBuilder PrinterLanguage(SourceFormat format, string body) =>
+            new PrinterLanguageSourceBuilder(Draft(format, Utf8(body)));
 
         private ImageSourceBuilder Image(SourceFormat format, byte[] body) =>
             new ImageSourceBuilder(Draft(format, body));

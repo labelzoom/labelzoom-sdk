@@ -3,13 +3,35 @@ using System;
 namespace LabelZoom.Sdk.Conversion
 {
     /// <summary>
-    /// The target stage for a format with no options of its own: EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML
-    /// and JSON, and PDF.
+    /// The target stage for EPL, IPL, TSPL, DPL, SBPL, LabelZoom XML and LabelZoom JSON.
     /// </summary>
     public sealed class TargetBuilder : TargetStage<TargetBuilder>
     {
         internal TargetBuilder(ConversionDraft draft, TargetFormat target)
             : base(draft, target)
+        {
+        }
+
+        /// <summary>
+        /// The resolution of the output, in dots per inch. The server default is the source's resolution,
+        /// else 203. To move a label to a printer of another density at the same physical size, set the
+        /// source's resolution too.
+        /// </summary>
+        public TargetBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.TargetDpi(Parameters, dpi);
+            return this;
+        }
+    }
+
+    /// <summary>
+    /// The target stage for PDF. A PDF has no resolution of its own, so there is no <c>WithDpi</c>: the
+    /// label keeps its physical size.
+    /// </summary>
+    public sealed class PdfTargetBuilder : TargetStage<PdfTargetBuilder>
+    {
+        internal PdfTargetBuilder(ConversionDraft draft)
+            : base(draft, TargetFormat.Pdf)
         {
         }
     }
@@ -20,6 +42,17 @@ namespace LabelZoom.Sdk.Conversion
         internal ImageTargetBuilder(ConversionDraft draft, TargetFormat target)
             : base(draft, target)
         {
+        }
+
+        /// <summary>
+        /// The resolution of the output, in dots per inch. The server default is the source's resolution,
+        /// else 203. To move a label to a printer of another density at the same physical size, set the
+        /// source's resolution too.
+        /// </summary>
+        public ImageTargetBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.TargetDpi(Parameters, dpi);
+            return this;
         }
 
         /// <summary>
@@ -48,6 +81,17 @@ namespace LabelZoom.Sdk.Conversion
         internal ZplTargetBuilder(ConversionDraft draft)
             : base(draft, TargetFormat.Zpl)
         {
+        }
+
+        /// <summary>
+        /// The resolution of the output, in dots per inch. The server default is the source's resolution,
+        /// else 203. To move a label to a printer of another density at the same physical size, set the
+        /// source's resolution too.
+        /// </summary>
+        public ZplTargetBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.TargetDpi(Parameters, dpi);
+            return this;
         }
 
         /// <summary>
@@ -96,6 +140,17 @@ namespace LabelZoom.Sdk.Conversion
         internal DynamicTargetBuilder(ConversionDraft draft, TargetFormat target)
             : base(draft, target)
         {
+        }
+
+        /// <summary>
+        /// The resolution of the output, in dots per inch. The server default is the source's resolution,
+        /// else 203. To move a label to a printer of another density at the same physical size, set the
+        /// source's resolution too.
+        /// </summary>
+        public DynamicTargetBuilder WithDpi(int dpi)
+        {
+            ParameterWriters.TargetDpi(Parameters, dpi);
+            return this;
         }
 
         /// <inheritdoc cref="ZplTargetBuilder.WithImageCompression"/>

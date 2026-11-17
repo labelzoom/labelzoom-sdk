@@ -36,8 +36,8 @@ result, err := client.Convert(ctx, labelzoom.ConvertRequest{
     To:   labelzoom.TargetPNG,
     Body: []byte("^XA^FO20,20^A0N,28^FDHello^FS^XZ"),
     Options: &labelzoom.Options{
-        DPI:   labelzoom.Ptr(300),
-        Label: &labelzoom.LabelSize{Width: labelzoom.Ptr(4.0), Height: labelzoom.Ptr(6.0)},
+        TargetDPI: labelzoom.Ptr(300),
+        Label:     &labelzoom.LabelSize{Width: labelzoom.Ptr(4.0), Height: labelzoom.Ptr(6.0)},
     },
 })
 if err != nil {
@@ -91,7 +91,8 @@ upgrade. `labelzoom.Ptr` is the constructor:
 
 ```go
 Options: &labelzoom.Options{
-    DPI:       labelzoom.Ptr(300),          // server default 203
+    SourceDPI: labelzoom.Ptr(300),          // what the job was made for; server default 203
+    TargetDPI: labelzoom.Ptr(203),          // the output; server default is SourceDPI, else 203
     Rotation:  labelzoom.Ptr(90),           // must be a multiple of 90
     Scaling:   labelzoom.Ptr(75.0),         // percent; server default 100
     ColorMode: labelzoom.Ptr(labelzoom.ColorModeGrayscale),

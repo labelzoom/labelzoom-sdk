@@ -11,8 +11,13 @@ export type DataRecord = Record<string, unknown>;
  * client-side default, so a change to a server default reaches you without an SDK upgrade.
  */
 export interface ConversionOptions {
-  /** Output resolution. Server default 203. */
-  dpi?: number;
+  /**
+   * The resolution the source was made for: how a printer-language job's dots or an image's pixels map to inches.
+   * Server default 203. Not for PDF, NiceLabel, BarTender or LabelZoom XML/JSON sources.
+   */
+  sourceDpi?: number;
+  /** The resolution of the output. Server default: `sourceDpi`, else 203. Not for the PDF target. */
+  targetDpi?: number;
   /** Degrees clockwise. Must be a multiple of 90. Server default 0. */
   rotation?: number;
   /** Percent. Server default 100. */
@@ -122,6 +127,15 @@ export function serializeOptions(options: ConversionOptions | undefined): string
             'rotation',
             `Rotation must be a multiple of 90 degrees, but was ${String(value)}.`,
           );
+        }
+        params[key] = value;
+        break;
+
+      case 'sourceDpi':
+      case 'targetDpi':
+        // Contract C8: only a positive resolution is checked locally; which formats take one is server policy.
+        if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+          throw new LabelZoomValidationError(key, `${key} must be a positive whole number, but was ${String(value)}.`);
         }
         params[key] = value;
         break;

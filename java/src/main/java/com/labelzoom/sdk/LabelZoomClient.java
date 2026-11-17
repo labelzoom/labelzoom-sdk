@@ -27,7 +27,7 @@ import java.util.function.LongConsumer;
  *     ConversionResult result = client.convert()
  *             .fromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")
  *             .toPng()
- *             .withDpi(300)
+ *             .withTargetDpi(300)
  *             .execute();
  *     result.save(Path.of("label.png"));
  * }

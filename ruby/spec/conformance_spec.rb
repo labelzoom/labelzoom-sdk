@@ -95,7 +95,9 @@ def convert_kwargs(given)
                                         "columnGap" => :column_gap, "rowGap" => :row_gap,
                                         "skipBlank" => :skip_blank)
     when "labelIndex" then kwargs[:label_index] = value
-    when "dpi", "rotation", "scaling", "darkness", "watermark", "dialect", "data"
+    when "sourceDpi" then kwargs[:source_dpi] = value
+    when "targetDpi" then kwargs[:target_dpi] = value
+    when "rotation", "scaling", "darkness", "watermark", "dialect", "data"
       kwargs[key.to_sym] = value
     else
       raise "Fixture sets option '#{key}', which the Ruby runner does not map. " \

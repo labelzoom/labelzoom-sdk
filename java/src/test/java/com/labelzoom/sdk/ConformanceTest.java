@@ -345,7 +345,8 @@ class ConformanceTest {
             Map.Entry<String, JsonNode> option = it.next();
             JsonNode v = option.getValue();
             switch (option.getKey()) {
-                case "dpi" -> builder.withDpi(v.asInt());
+                case "sourceDpi" -> builder.withSourceDpi(v.asInt());
+                case "targetDpi" -> builder.withTargetDpi(v.asInt());
                 case "rotation" -> builder.withRotation(v.asInt());
                 case "scaling" -> builder.withScaling((float) v.asDouble());
                 case "colorMode" -> builder.withColorMode(ColorMode.valueOf(v.asText()));

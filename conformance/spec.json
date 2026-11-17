@@ -1,5 +1,5 @@
 {
-  "version": "1.3.0",
+  "version": "2.0.0",
   "contract": "../docs/API_CONTRACT.md",
   "defaults": {
     "baseUrl": "https://api.labelzoom.com",
@@ -15,7 +15,7 @@
     "RateLimited",
     "ServerError"
   ],
-  "caseCount": 94,
+  "caseCount": 96,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -31,7 +31,9 @@
     "request/param-data-array",
     "request/param-data-single-object-is-wrapped",
     "request/param-dialect",
-    "request/param-dpi",
+    "request/param-source-dpi",
+    "request/param-target-dpi",
+    "request/param-source-and-target-dpi",
     "request/param-label-index",
     "request/param-label-size",
     "request/param-label-size-omitted",

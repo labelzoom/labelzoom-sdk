@@ -7,7 +7,7 @@ raster images.
 from labelzoom import LabelZoomClient
 
 with LabelZoomClient() as client:               # anonymous free tier; no key required
-    result = client.convert("zpl", "png", "^XA^FO20,20^A0N,28^FDhi^FS^XZ", dpi=300)
+    result = client.convert("zpl", "png", "^XA^FO20,20^A0N,28^FDhi^FS^XZ", target_dpi=300)
     print(result.status, result.content_type, len(result.content))
 ```
 """

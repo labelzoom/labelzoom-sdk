@@ -45,7 +45,7 @@ let request = ConvertRequest::new(
     TargetFormat::Png,
     "^XA^FO20,20^A0N,28^FDHello^FS^XZ",
 )
-.options(ConversionOptions::new().dpi(300).label_size(4.0, 6.0));
+.options(ConversionOptions::new().target_dpi(300).label_size(4.0, 6.0));
 
 client.convert(&request)?.save("label.png")?;
 ```
@@ -96,7 +96,8 @@ crate upgrade.
 
 ```rust
 ConversionOptions::new()
-    .dpi(300)                                   // server default 203
+    .source_dpi(300)                            // what the job was made for; server default 203
+    .target_dpi(203)                            // the output; server default is the source's, else 203
     .rotation(90)                               // must be a multiple of 90
     .scaling(75.0)                              // percent; server default 100
     .color_mode(ColorMode::Grayscale)

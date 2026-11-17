@@ -1,6 +1,6 @@
 {
-  "id": "request/param-dpi",
-  "note": "C2: dpi travels inside the single ?params= JSON object.",
+  "id": "request/param-target-dpi",
+  "note": "C2/C8: the target stage's dpi is the resolution of the output, and travels as targetDpi. The legacy dpi key is never sent.",
   "given": {
     "client": {
       "apiKey": null
@@ -9,7 +9,7 @@
     "target": "png",
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "options": {
-      "dpi": 300
+      "targetDpi": 300
     }
   },
   "expect": {
@@ -28,8 +28,14 @@
     "bodyText": "^XA^FO20,20^A0N,28^FDhi^FS^XZ",
     "queryJson": {
       "params": {
-        "dpi": 300
+        "targetDpi": 300
       }
+    },
+    "queryJsonAbsentKeys": {
+      "params": [
+        "dpi",
+        "sourceDpi"
+      ]
     }
   }
 }

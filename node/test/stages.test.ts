@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DynamicSourceBuilder,
+  PdfTargetBuilder,
+  PrinterLanguageSourceBuilder,
   ImageTargetBuilder,
   ImageSourceBuilder,
   LabelZoomClient,
@@ -29,7 +31,8 @@ describe('stage shape', () => {
     expect(client.convert().fromZpl('^XA^XZ')).toBeInstanceOf(ZplSourceBuilder);
     expect(client.convert().fromPdf(new Uint8Array([1]))).toBeInstanceOf(PdfSourceBuilder);
     expect(client.convert().fromPng(new Uint8Array([1]))).toBeInstanceOf(ImageSourceBuilder);
-    expect(client.convert().fromEpl('N')).toBeInstanceOf(SourceBuilder);
+    expect(client.convert().fromEpl('N')).toBeInstanceOf(PrinterLanguageSourceBuilder);
+    expect(client.convert().fromXml('<labelZoomXml/>')).toBeInstanceOf(SourceBuilder);
     expect(client.convert().from('zpl', '^XA^XZ')).toBeInstanceOf(DynamicSourceBuilder);
   });
 
@@ -52,10 +55,34 @@ describe('stage shape', () => {
     expect(() => toPdf.withCollapseCopies()).toThrow(TypeError);
   });
 
+  it('offers withDpi only where a resolution applies', () => {
+    // @ts-expect-error a PDF has no dots, so no source resolution.
+    expect(() => client.convert().fromPdf(new Uint8Array([1])).withDpi(300)).toThrow(TypeError);
+    // @ts-expect-error LabelZoom XML records its own resolution.
+    expect(() => client.convert().fromXml('<labelZoomXml/>').withDpi(300)).toThrow(TypeError);
+    // @ts-expect-error a PDF target has no resolution of its own.
+    expect(() => client.convert().fromZpl('^XA^XZ').toPdf().withDpi(300)).toThrow(TypeError);
+    expect(client.convert().fromEpl('N')).toBeInstanceOf(PrinterLanguageSourceBuilder);
+    expect(client.convert().fromZpl('^XA^XZ').toPdf()).toBeInstanceOf(PdfTargetBuilder);
+  });
+
+  it('sends each stage\'s dpi as its own key, never the legacy dpi', async () => {
+    let captured: URL | undefined;
+    const typed = new LabelZoomClient({
+      apiKey: '',
+      fetch: (async (input: string | URL) => {
+        captured = new URL(String(input));
+        return new Response('^XA^XZ', { status: 200, headers: { 'content-type': 'text/plain' } });
+      }) as unknown as typeof globalThis.fetch,
+    });
+    await typed.convert().fromZpl('^XA^XZ').withDpi(300).toZpl().withDpi(203).execute();
+    expect(JSON.parse(captured?.searchParams.get('params') ?? 'null')).toEqual({ sourceDpi: 300, targetDpi: 203 });
+  });
+
   it('offers no target options at the source stage', () => {
     const source = client.convert().fromPdf(new Uint8Array([1]));
-    // @ts-expect-error withDpi changes the output, so it is set after to*().
-    expect(() => source.withDpi(203)).toThrow(TypeError);
+    // @ts-expect-error withRotation turns the finished label, so it is set after to*().
+    expect(() => source.withRotation(90)).toThrow(TypeError);
     // @ts-expect-error execute needs a target.
     expect(() => source.execute()).toThrow(TypeError);
   });
@@ -110,7 +137,7 @@ describe('stage shape', () => {
     expect(JSON.parse(captured?.searchParams.get('params') ?? 'null')).toEqual({
       pdf: { pageNumber: 0 },
       split: { rows: 2, columns: 2, skipBlank: true },
-      dpi: 203,
+      targetDpi: 203,
       rotation: 90,
       scaling: 150,
       position: { x: -20, y: 5 },

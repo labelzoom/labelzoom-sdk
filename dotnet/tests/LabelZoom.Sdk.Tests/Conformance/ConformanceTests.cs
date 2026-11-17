@@ -413,7 +413,7 @@ public sealed class ConformanceTests
 
     private static readonly HashSet<string> TargetOptionNames = new HashSet<string>
     {
-        "dpi", "rotation", "watermark", "dialect", "layout",
+        "targetDpi", "rotation", "watermark", "dialect", "layout",
     };
 
     private static void ApplySourceOptions(DynamicSourceBuilder builder, JsonElement options)
@@ -484,6 +484,9 @@ public sealed class ConformanceTests
                 case "labelIndex":
                     builder.WithLabelIndex(option.Value.GetInt32());
                     break;
+                case "sourceDpi":
+                    builder.WithDpi(option.Value.GetInt32());
+                    break;
                 // How an image or PDF is rasterized: a source option, set as one group.
                 case "scaling":
                     builder.WithRaster(r => r.Scaling(option.Value.GetSingle()));
@@ -524,7 +527,7 @@ public sealed class ConformanceTests
         {
             switch (option.Name)
             {
-                case "dpi":
+                case "targetDpi":
                     builder.WithDpi(option.Value.GetInt32());
                     break;
                 case "rotation":

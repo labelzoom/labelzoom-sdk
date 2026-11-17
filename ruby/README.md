@@ -39,7 +39,7 @@ require "labelzoom"
 client = LabelZoom::Client.new          # anonymous; this works
 
 result = client.convert(:zpl, :png, "^XA^FO20,20^A0N,28^FDHello^FS^XZ",
-                        dpi: 300,
+                        target_dpi: 300,
                         label: { width: 4, height: 6 })
 
 result.save("label.png")
@@ -80,7 +80,7 @@ upgrade.
 
 ```ruby
 client.convert(:zpl, :png, zpl,
-               dpi: 300,                                  # server default 203
+               target_dpi: 300,                           # server default: the source's, else 203
                rotation: 90,                              # must be a multiple of 90
                scaling: 75.0,                             # percent; server default 100
                color_mode: "GRAYSCALE",

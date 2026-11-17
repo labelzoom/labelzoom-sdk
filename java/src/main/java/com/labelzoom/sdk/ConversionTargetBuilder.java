@@ -35,13 +35,31 @@ public final class ConversionTargetBuilder {
         this.contentType = contentType;
     }
 
-    /** Output resolution in dots per inch. The server default is 203. */
-    public ConversionTargetBuilder withDpi(int dpi) {
+    /**
+     * The resolution the source was made for, in dots per inch: how a printer-language job's dots or an
+     * image's pixels map to inches. The server default is 203. Not for PDF, NiceLabel, BarTender or
+     * LabelZoom XML/JSON sources, which have no dots (contract C8).
+     */
+    public ConversionTargetBuilder withSourceDpi(int dpi) {
+        params.put("sourceDpi", positiveDpi(dpi));
+        return this;
+    }
+
+    /**
+     * The resolution of the output, in dots per inch. The server default is the source's resolution,
+     * else 203. Not for the PDF target. To move a label to a printer of another density at the same
+     * physical size, set both.
+     */
+    public ConversionTargetBuilder withTargetDpi(int dpi) {
+        params.put("targetDpi", positiveDpi(dpi));
+        return this;
+    }
+
+    private static int positiveDpi(int dpi) {
         if (dpi <= 0) {
             throw new LabelZoomValidationException("dpi", "DPI must be greater than zero.");
         }
-        params.put("dpi", dpi);
-        return this;
+        return dpi;
     }
 
     /**
