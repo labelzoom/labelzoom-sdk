@@ -38,7 +38,7 @@ use Psr\Http\Message\StreamFactoryInterface;
  * $result = $client->convert()
  *     ->fromZpl('^XA^FO20,20^A0N,28^FDHello^FS^XZ')
  *     ->toPng()
- *     ->withTargetDpi(300)
+ *         ->withDpi(300)
  *     ->execute();
  *
  * $result->save('label.png');
@@ -165,7 +165,7 @@ final class LabelZoomClient
     }
 
     /**
-     * Performs the conversion. Called by {@see ConversionTargetBuilder::execute()}.
+     * Performs the conversion. Called by {@see TargetStage::execute()}.
      *
      * @param array<string, mixed>  $params   the `?params=` object, already validated
      * @param array<string, string> $rawQuery additional literal query parameters

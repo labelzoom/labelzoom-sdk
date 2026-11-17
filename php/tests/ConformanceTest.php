@@ -6,7 +6,8 @@ namespace LabelZoom\Sdk\Tests;
 
 use LabelZoom\Sdk\ColorMode;
 use LabelZoom\Sdk\ConversionResult;
-use LabelZoom\Sdk\ConversionTargetBuilder;
+use LabelZoom\Sdk\DynamicSourceBuilder;
+use LabelZoom\Sdk\DynamicTargetBuilder;
 use LabelZoom\Sdk\Exception\BadRequestException;
 use LabelZoom\Sdk\Exception\ForbiddenException;
 use LabelZoom\Sdk\Exception\LabelZoomException;
@@ -19,8 +20,11 @@ use LabelZoom\Sdk\Exception\UnauthorizedException;
 use LabelZoom\Sdk\Exception\ValidationException;
 use LabelZoom\Sdk\LabelZoomClient;
 use LabelZoom\Sdk\LayoutFill;
+use LabelZoom\Sdk\LayoutOptions;
 use LabelZoom\Sdk\PdfConversionMode;
+use LabelZoom\Sdk\RasterOptions;
 use LabelZoom\Sdk\SourceFormat;
+use LabelZoom\Sdk\SplitOptions;
 use LabelZoom\Sdk\TargetFormat;
 use LabelZoom\Sdk\ZplImageCompression;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -272,121 +276,165 @@ final class ConformanceTest extends TestCase
      *
      * @param array<string, mixed> $given
      */
-    private function build(LabelZoomClient $client, array $given): ConversionTargetBuilder
+    private function build(LabelZoomClient $client, array $given): DynamicTargetBuilder
     {
         $source = SourceFormat::from((string) $given['source']);
         $target = TargetFormat::from((string) $given['target']);
         $body = (string) $given['bodyText'];
 
         $request = $client->convert();
-        $sourceBuilder = ($given['sourceEncoding'] ?? null) === 'base64text'
+        $sourceStage = ($given['sourceEncoding'] ?? null) === 'base64text'
             ? $request->fromBase64Text($source, $body)
             : $request->from($source, $body);
 
-        $builder = $sourceBuilder->to($target);
-
+        // One fixture object can mix source and target options: the zpl group holds both
+        // commandsToIgnore (source) and imageCompression (target). Source options are applied
+        // before to() and target options after it, which is the order the staged builders require.
         /** @var array<string, mixed> $options */
         $options = $given['options'] ?? [];
+        self::applySourceOptions($sourceStage, $options);
+        $targetStage = $sourceStage->to($target);
+        self::applyTargetOptions($targetStage, $options);
+
+        return $targetStage;
+    }
+
+    private const TARGET_OPTIONS = ['targetDpi', 'rotation', 'watermark', 'dialect', 'layout'];
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private static function applySourceOptions(DynamicSourceBuilder $builder, array $options): void
+    {
         foreach ($options as $key => $value) {
-            $builder = match ($key) {
-                'sourceDpi' => $builder->withSourceDpi((int) $value),
-                'targetDpi' => $builder->withTargetDpi((int) $value),
-                'rotation' => $builder->withRotation((int) $value),
-                'scaling' => $builder->withScaling((float) $value),
-                'darkness' => $builder->withDarkness((int) $value),
-                'watermark' => $builder->withWatermark((bool) $value),
-                'dialect' => $builder->withDialect((string) $value),
-                'colorMode' => $builder->withColorMode(ColorMode::from((string) $value)),
-                'position' => $builder->withPosition((int) $value['x'], (int) $value['y']),
+            match ($key) {
+                'sourceDpi' => $builder->withDpi((int) $value),
                 'label' => $builder->withLabelSize((float) $value['width'], (float) $value['height']),
                 'data' => $builder->withData($value),
                 'pdf' => self::applyPdf($builder, $value),
-                'zpl' => self::applyZpl($builder, $value),
-                'layout' => self::applyLayout($builder, $value),
-                'split' => self::applySplit($builder, $value),
+                'zpl' => self::applyZplSource($builder, $value),
+                'split' => $builder->withSplit(static function (SplitOptions $s) use ($value): void {
+                    self::applySplit($s, $value);
+                }),
+                // How an image or PDF is rasterized: a source option, set as one group.
+                'scaling' => $builder->withRaster(static fn (RasterOptions $r) => $r->scaling((float) $value)),
+                'darkness' => $builder->withRaster(static fn (RasterOptions $r) => $r->darkness((int) $value)),
+                'colorMode' => $builder->withRaster(
+                    static fn (RasterOptions $r) => $r->colorMode(ColorMode::from((string) $value)),
+                ),
+                'position' => $builder->withRaster(
+                    static fn (RasterOptions $r) => $r->position((int) $value['x'], (int) $value['y']),
+                ),
                 'labelIndex' => $builder->withLabelIndex((int) $value),
                 // Silently ignoring an unmapped option would let a new fixture pass without
                 // ever exercising what it was added to pin.
-                default => throw new \LogicException(
+                default => in_array($key, self::TARGET_OPTIONS, true) ? null : throw new \LogicException(
                     "Fixture sets option '{$key}', which the PHP runner does not map. "
                     . 'Add it to ConformanceTest::build() rather than skipping the case.',
                 ),
             };
         }
+    }
 
-        return $builder;
+    /**
+     * @param array<string, mixed> $options
+     */
+    private static function applyTargetOptions(DynamicTargetBuilder $builder, array $options): void
+    {
+        foreach ($options as $key => $value) {
+            match ($key) {
+                'targetDpi' => $builder->withDpi((int) $value),
+                'rotation' => $builder->withRotation((int) $value),
+                'watermark' => $builder->withWatermark((bool) $value),
+                'dialect' => $builder->withDialect((string) $value),
+                'zpl' => self::applyZplTarget($builder, $value),
+                'layout' => $builder->withLayout(static function (LayoutOptions $l) use ($value): void {
+                    self::applyLayout($l, $value);
+                }),
+                // A source option, already applied before to(). applySourceOptions rejects a name
+                // that is neither.
+                default => null,
+            };
+        }
     }
 
     /**
      * @param array<string, mixed> $pdf
      */
-    private static function applyPdf(ConversionTargetBuilder $builder, array $pdf): ConversionTargetBuilder
+    private static function applyPdf(DynamicSourceBuilder $builder, array $pdf): void
     {
         if (isset($pdf['conversionMode'])) {
-            $builder = $builder->withPdfConversionMode(PdfConversionMode::from((string) $pdf['conversionMode']));
+            $builder->withPdfConversionMode(PdfConversionMode::from((string) $pdf['conversionMode']));
         }
         if (isset($pdf['pageNumber'])) {
-            $builder = $builder->withPdfPage((int) $pdf['pageNumber']);
+            $builder->withPdfPage((int) $pdf['pageNumber']);
         }
-
-        return $builder;
     }
 
     /**
      * @param array<string, mixed> $zpl
      */
-    private static function applyZpl(ConversionTargetBuilder $builder, array $zpl): ConversionTargetBuilder
+    private static function applyZplSource(DynamicSourceBuilder $builder, array $zpl): void
     {
         if (isset($zpl['commandsToIgnore'])) {
             /** @var list<string> $commands */
             $commands = $zpl['commandsToIgnore'];
-            $builder = $builder->withZplCommandsToIgnore($commands);
+            $builder->withZplCommandsToIgnore($commands);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $zpl
+     */
+    private static function applyZplTarget(DynamicTargetBuilder $builder, array $zpl): void
+    {
         if (isset($zpl['imageCompression'])) {
-            $builder = $builder->withZplImageCompression(
-                ZplImageCompression::from((string) $zpl['imageCompression']),
-            );
+            $builder->withZplImageCompression(ZplImageCompression::from((string) $zpl['imageCompression']));
         }
         if (isset($zpl['collapseCopies'])) {
-            $builder = $builder->withZplCollapseCopies((bool) $zpl['collapseCopies']);
+            $builder->withZplCollapseCopies((bool) $zpl['collapseCopies']);
         }
-
-        return $builder;
     }
 
     /**
      * @param array<string, mixed> $layout
      */
-    private static function applyLayout(ConversionTargetBuilder $builder, array $layout): ConversionTargetBuilder
+    private static function applyLayout(LayoutOptions $l, array $layout): void
     {
-        $builder = $builder->withLayout((int) $layout['across'], (float) $layout['gap']);
-        if (isset($layout['fill'])) {
-            $builder = $builder->withLayoutFill(LayoutFill::from((string) $layout['fill']));
+        if (isset($layout['across'])) {
+            $l->across((int) $layout['across']);
         }
-
-        return $builder;
+        if (isset($layout['gap'])) {
+            $l->gap((float) $layout['gap']);
+        }
+        if (isset($layout['fill'])) {
+            $l->fill(LayoutFill::from((string) $layout['fill']));
+        }
     }
 
     /**
      * @param array<string, mixed> $split
      */
-    private static function applySplit(ConversionTargetBuilder $builder, array $split): ConversionTargetBuilder
+    private static function applySplit(SplitOptions $s, array $split): void
     {
-        $builder = $builder->withSplit((int) $split['rows'], (int) $split['columns']);
+        if (isset($split['rows'])) {
+            $s->rows((int) $split['rows']);
+        }
+        if (isset($split['columns'])) {
+            $s->columns((int) $split['columns']);
+        }
         if (isset($split['width'])) {
-            $builder = $builder->withSplitLabelSize((float) $split['width'], (float) $split['height']);
+            $s->labelSize((float) $split['width'], (float) $split['height']);
         }
         if (isset($split['left'])) {
-            $builder = $builder->withSplitMargins((float) $split['left'], (float) $split['top']);
+            $s->margins((float) $split['left'], (float) $split['top']);
         }
         if (isset($split['columnGap'])) {
-            $builder = $builder->withSplitGaps((float) $split['columnGap'], (float) $split['rowGap']);
+            $s->gaps((float) $split['columnGap'], (float) $split['rowGap']);
         }
         if (isset($split['skipBlank'])) {
-            $builder = $builder->withSplitSkipBlank((bool) $split['skipBlank']);
+            $s->skipBlank((bool) $split['skipBlank']);
         }
-
-        return $builder;
     }
 
     /**
