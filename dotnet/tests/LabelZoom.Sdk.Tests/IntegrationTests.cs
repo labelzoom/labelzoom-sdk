@@ -16,21 +16,33 @@ namespace LabelZoom.Sdk.Tests;
 /// Their job is to catch server contract drift, not to re-test the SDK — everything else is
 /// covered offline by the conformance suite.
 /// </para>
+/// <para>
+/// Every test but one authenticates with <c>LABELZOOM_API_KEY</c>, the way a paying caller
+/// does, and the workflow fails before running them if that secret is missing. One test,
+/// <see cref="Anonymous_ZplToPng_Succeeds"/>, stays anonymous on purpose: the free tier is a
+/// supported configuration and the first thing a new user hits, so it keeps its own watch.
+/// Run locally without the variable set and the keyed tests fall back to anonymous, so they
+/// still pass.
+/// </para>
 /// </remarks>
 [Trait("Category", "Integration")]
 public sealed class IntegrationTests
 {
     private const string SampleZpl = "^XA^FO20,20^A0N,28^FDLabelZoom SDK^FS^XZ";
 
-    // Deliberately anonymous. The free tier is a supported configuration and the one most new
-    // users hit first, so it is what the smoke tests exercise.
-    private static LabelZoomClient NewClient() =>
+    // Leaves ApiKey null, so the SDK reads LABELZOOM_API_KEY itself: the same path a caller's
+    // own configuration takes. Unset, it is anonymous.
+    private static LabelZoomClient NewClient() => new(new LabelZoomClientOptions());
+
+    // Deliberately anonymous, whatever the environment holds. Only the free-tier canary uses it.
+    private static LabelZoomClient NewAnonymousClient() =>
         new(new LabelZoomClientOptions { ApiKey = string.Empty });
 
+    /// <summary>The free-tier canary: the one test that always runs without a key.</summary>
     [Fact]
     public async Task Anonymous_ZplToPng_Succeeds()
     {
-        using var client = NewClient();
+        using var client = NewAnonymousClient();
 
         var result = await client.Convert().FromZpl(SampleZpl).ToPng().ExecuteAsync();
 
@@ -41,7 +53,7 @@ public sealed class IntegrationTests
     }
 
     [Fact]
-    public async Task Anonymous_ZplToPdf_Succeeds()
+    public async Task ZplToPdf_Succeeds()
     {
         using var client = NewClient();
 
@@ -51,7 +63,7 @@ public sealed class IntegrationTests
     }
 
     [Fact]
-    public async Task Anonymous_PdfToZpl_Succeeds()
+    public async Task PdfToZpl_Succeeds()
     {
         using var client = NewClient();
 
@@ -77,7 +89,7 @@ public sealed class IntegrationTests
     [InlineData(TargetFormat.Gif, "image/gif")]
     [InlineData(TargetFormat.Bmp, "image/bmp")]
     [InlineData(TargetFormat.Jpeg, "image/jpeg")]
-    public async Task Anonymous_ImageTargets_AreNotRejectedByContentNegotiation(
+    public async Task ImageTargets_AreNotRejectedByContentNegotiation(
         TargetFormat target, string expectedContentType)
     {
         using var client = NewClient();
