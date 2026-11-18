@@ -143,7 +143,7 @@ export class LabelZoomClient {
    *
    * ```ts
    * const result = await client.convert({
-   *   from: 'zpl', to: 'png', body: zpl, options: { dpi: 300 },
+   *   from: 'zpl', to: 'png', body: zpl, options: { targetDpi: 300 },
    * });
    * ```
    */

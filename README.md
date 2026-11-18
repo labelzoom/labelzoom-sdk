@@ -2,148 +2,140 @@
 
 # LabelZoom SDK
 
-Official client libraries for the [LabelZoom API](https://api.labelzoom.com) — convert barcode
-labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
-ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
+Official client libraries for the [LabelZoom API](https://api.labelzoom.com), in eight languages.
+Convert barcode labels between printer languages, PDF, images, and design files, and print them on
+any printer connected through the LabelZoom Print Agent.
 
-## Status
+The SDKs call the same conversion pipeline that serves labelzoom.com. Every SDK reads ZPL, EPL,
+IPL, TSPL, DPL, SBPL, CPCL, ESC/Label, Fingerprint, EZPL, and TPCL printer code; NiceLabel,
+BarTender, and DYMO label designs; PDF; PNG, BMP, GIF, and JPEG images; and LabelZoom XML and
+JSON. It writes the printer languages, PDF, images, and LabelZoom XML and JSON.
 
-The SDKs are built around a shared, machine-checked
-[API contract](docs/API_CONTRACT.md). This table is the honest state of play, not a roadmap:
+## Packages
 
-| Language | Package | Status |
-|---|---|---|
-| [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | released [![NuGet](https://img.shields.io/nuget/v/LabelZoom.Sdk)](https://www.nuget.org/packages/LabelZoom.Sdk) — the reference implementation |
-| [Node / TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | released [![npm](https://img.shields.io/npm/v/@labelzoom/sdk)](https://www.npmjs.com/package/@labelzoom/sdk) |
-| [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | released [![Maven Central](https://img.shields.io/maven-central/v/com.labelzoom/labelzoom-sdk)](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) |
-| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | released [![PyPI](https://img.shields.io/pypi/v/labelzoom-sdk)](https://pypi.org/project/labelzoom-sdk/) |
-| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | released [![Packagist](https://img.shields.io/packagist/v/labelzoom/sdk)](https://packagist.org/packages/labelzoom/sdk) |
-| [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | released [![Go](https://img.shields.io/github/v/tag/labelzoom/labelzoom-sdk?filter=go%2F*&label=go)](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) |
-| [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | released [![Gem](https://img.shields.io/gem/v/labelzoom)](https://rubygems.org/gems/labelzoom) |
-| [Rust](rust/) | [`labelzoom`](https://crates.io/crates/labelzoom) | released [![crates.io](https://img.shields.io/crates/v/labelzoom)](https://crates.io/crates/labelzoom) |
+| Language | Package | Version |
+| --- | --- | --- |
+| [.NET](dotnet/) | [`LabelZoom.Sdk`](https://www.nuget.org/packages/LabelZoom.Sdk) | [![NuGet](https://img.shields.io/nuget/v/LabelZoom.Sdk)](https://www.nuget.org/packages/LabelZoom.Sdk) |
+| [Node and TypeScript](node/) | [`@labelzoom/sdk`](https://www.npmjs.com/package/@labelzoom/sdk) | [![npm](https://img.shields.io/npm/v/@labelzoom/sdk)](https://www.npmjs.com/package/@labelzoom/sdk) |
+| [Java](java/) | [`com.labelzoom:labelzoom-sdk`](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) | [![Maven Central](https://img.shields.io/maven-central/v/com.labelzoom/labelzoom-sdk)](https://central.sonatype.com/artifact/com.labelzoom/labelzoom-sdk) |
+| [Python](python/) | [`labelzoom-sdk`](https://pypi.org/project/labelzoom-sdk/) | [![PyPI](https://img.shields.io/pypi/v/labelzoom-sdk)](https://pypi.org/project/labelzoom-sdk/) |
+| [PHP](php/) | [`labelzoom/sdk`](https://packagist.org/packages/labelzoom/sdk) | [![Packagist](https://img.shields.io/packagist/v/labelzoom/sdk)](https://packagist.org/packages/labelzoom/sdk) |
+| [Go](go/) | [`github.com/labelzoom/labelzoom-sdk/go`](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) | [![Go](https://img.shields.io/github/v/tag/labelzoom/labelzoom-sdk?filter=go%2F*&label=go)](https://pkg.go.dev/github.com/labelzoom/labelzoom-sdk/go) |
+| [Ruby](ruby/) | [`labelzoom`](https://rubygems.org/gems/labelzoom) | [![Gem](https://img.shields.io/gem/v/labelzoom)](https://rubygems.org/gems/labelzoom) |
+| [Rust](rust/) | [`labelzoom`](https://crates.io/crates/labelzoom) | [![crates.io](https://img.shields.io/crates/v/labelzoom)](https://crates.io/crates/labelzoom) |
 
-npm, PyPI, NuGet, crates.io and RubyGems release from CI over OIDC trusted publishing,
-with no stored credential. Maven Central and Packagist have no OIDC equivalent, so those
-two use scoped repository secrets — and Packagist, which reads `composer.json` from a
-repository root rather than accepting an upload, publishes via a split mirror repo
-([`.github/workflows/release-php.yml`](.github/workflows/release-php.yml) explains why).
-Go publishes to no registry at all: the module proxy serves straight from a `go/vX.Y.Z`
-tag, which is why its release workflow is a gate rather than a publisher.
+Each language directory has a README with install steps and examples. For languages without a
+package, such as PowerShell, Groovy, and VB.NET, copy a snippet from [`samples/`](samples/).
 
-The first five shipped `1.0.0` together, once five independent implementations had
-validated the shared contract against the same fixtures; Go, Ruby and Rust joined at
-`1.0.0` after doing the same. The contract is versioned separately from every SDK, in
-`conformance/spec.json` — see
-[`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+## Convert a label
 
-For copy-paste snippets in languages without a package — PowerShell, Groovy, VB.NET, and
-friends — see [`samples/`](samples/).
-
-## What the API does
-
-One endpoint covers almost everything:
-
-```
-POST https://api.labelzoom.com/api/v2/convert/{sourceFormat}/to/{targetFormat}
-```
-
-**Sources:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `esclabel` `fingerprint` `ezpl` `cpcl` `tpcl`
-`nlbl` `lbl` `btw` `dymo` `xml` `json` `pdf` `png` `bmp` `gif` `jpg` `jpeg` `url`
-
-**Targets:** `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `cpcl` `xml` `json` `pdf` `png` `bmp` `gif`
-`jpeg`
-
-The newer printer languages (ESC/Label, Fingerprint, EZPL, TPCL) and the design-file formats
-(NiceLabel, BarTender, DYMO) are source-only. Send NiceLabel and BarTender files as bytes. CPCL is
-a target too, and writes graphics as hex, so its output is plain text.
-
-`jpg` and `url` are **source-only** — `jpg` is an input spelling that normalizes to `jpeg`, and
-`url` tells the server to go fetch a document rather than naming a format. Every SDK enforces that
-at compile time where the language allows it.
-
-The printer languages round-trip: `epl`, `ipl`, `tspl`, `dpl` and `sbpl` are targets as well as
-sources, so `pdf/to/epl` and `zpl/to/sbpl` are real conversions. Their output is `text/plain` with
-every label concatenated — but they can all carry raw binary (EPL's `GW`, TSPL's `BITMAP`, IPL's
-`STX`/`ETX`-framed bitmap columns, SBPL's inline graphics), so read the result's **bytes**, not its
-text, whenever a label might carry graphics.
-
-**Authentication is optional.** Without a key you get the free tier: watermarked output, first
-label only, a 1 MB request cap, and no multi-page, JSON-target, or image-to-image conversion. With
-a key you get the rest. Every SDK works with no credential configured — that is a contract
-requirement, not an accident.
+A conversion is a pipeline: choose the source, say how to read it, choose the target, say what to
+write, then run it. The examples here are C#; every SDK has the same steps in its own idiom.
 
 ```csharp
-// No API key: this works, and returns a watermarked label.
-using var client = new LabelZoomClient();
+using var client = new LabelZoomClient();          // reads LABELZOOM_API_KEY; works without one
 
 var result = await client.Convert()
-    .FromZpl("^XA^FO20,20^A0N,28^FDHello^FS^XZ")   // source stage: how the label is read
+    .FromPdf(pdf)                                   // source
+        .WithPage(0)                                //   how it's read: 0-based page
         .WithLabelSize(widthInches: 4f, heightInches: 6f)
-    .ToPng()                                       // target stage: what comes out
-        .WithDpi(300)
+    .ToZpl()                                        // target
+        .WithDpi(203)                               //   what's written: for a 203 dpi printer
     .ExecuteAsync();
 
-await File.WriteAllBytesAsync("label.png", result.Bytes);
+File.WriteAllBytes("label.zpl", result.Bytes);
 ```
 
-Set `LABELZOOM_API_KEY` and every SDK picks it up automatically.
+The chain only offers an option where it acts. `FromZpl(zpl).WithPage(0)` doesn't compile, because
+ZPL has no pages, and neither does `ToPdf().WithDpi(300)`, because a PDF has no resolution.
 
-**Printing** is the same pipeline with a printer as the target. The printer's own configuration
-picks the output language, and LabelZoom converts the document to it. Printing needs an API key with
-the `print` scope.
+## Print a label
+
+Printing is the same pipeline with a printer as the target. The printer's own configuration sets its
+language, and LabelZoom converts the document to it, so a PDF or a BarTender file prints on a ZPL
+printer. Printing needs an API key with the `print` scope.
 
 ```csharp
 var job = await client.Convert()
     .FromPdf(pdf).WithPage(0)
     .ToPrinter(printerId)
         .WithCopies(2)
-        .WithIdempotencyKey(orderNumber)   // a repeated call returns this job instead of printing again
+        .WithIdempotencyKey(orderNumber)            // a repeat returns this job instead of printing again
     .ExecuteAsync();
+
+var status = await client.Jobs.GetAsync(job.JobId); // queued, dispatched, printing, completed, failed
 ```
 
-Every print carries an `Idempotency-Key`, so an SDK retry after a lost response can't print the
-label twice. Template printing, job status and the print quota are in each language's README.
+Templates published from LabelZoom Studio or the web designer print the same way:
+`Convert().FromTemplate(templateId).WithData(order).ToPrinter(printerId)`.
 
-## Repository layout
+## What the SDK handles for you
 
-```
-docs/API_CONTRACT.md   what every SDK must do, stated once
-docs/CONFORMANCE.md    how to add a language
-conformance/           language-neutral fixtures all SDKs are tested against
-dotnet/ node/ java/ …  one directory per SDK
-samples/               copy-paste snippets for languages without a package
-```
+| You get | So you don't have to |
+| --- | --- |
+| Retries on `429`, `5xx`, and dropped connections, with backoff that honors `Retry-After` | Write a retry loop, or guess how long a rate limit lasts |
+| An `Idempotency-Key` on every print, kept the same across retries | Print a label twice when a response is lost and the request is retried |
+| Typed errors with the server's message, error `code`, and request ID | Parse error bodies, or match on message text |
+| Bytes for binary output, and text decoded with the response's charset | Corrupt a PNG, a PDF, or a printer job with embedded graphics by reading it as a string |
+| Validation of options before the request is sent | Spend a round trip to learn that a rotation must be a multiple of 90 |
+| Only the options you set, sent in one `params` object | Override the server's own defaults with an SDK's guesses |
+| A client that works with no API key | Sign up before you can try it. Output has a watermark until you add a key. |
+
+Without an API key you get the free tier: output has a watermark, and one label converts per
+request. See [Rate limits and plans](https://docs.labelzoom.com/reference/rate-limits-and-plans/)
+on docs.labelzoom.com.
 
 ## Why a conformance suite
 
-Eight independent implementations of one wire protocol drift, and they drift quietly. So the
-behavior lives in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) as numbered rules, the
-machine-checkable subset lives in [`conformance/`](conformance/) as language-neutral JSON, and
-every language's test suite runs the same cases and asserts it ran all of them.
+Eight independent implementations of one protocol drift, and the drift is quiet: a wrong request is
+often still a valid one. So the behavior is written down once and tested the same way everywhere.
 
-The rules exist because each one was gotten wrong at least once. Two examples:
+- [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) states each rule, with the reason it exists.
+- [`conformance/`](conformance/) holds the testable rules as language-neutral JSON cases: a call and
+  the exact request it must send, or a response and the result or error it must produce.
+- Every language's test suite runs every case, and fails if it skipped one without a written reason.
 
-- **`Accept: */*`, always.** The server's `produces` list omits `image/gif`, `image/bmp`, and
-  `image/jpeg`, so sending the target's exact media type returns **406** for those three targets.
-- **`pdf.pageNumber` is 0-based** and `label.width` / `label.height` are **inches**. Both are
-  routinely misread; both are pinned by fixtures.
+Each rule is there because a client got it wrong. Two examples:
 
-```sh
-node conformance/lint.mjs
-```
+- **Only options the caller set are sent.** The output follows the source's resolution unless you
+  name another. An SDK that sends `targetDpi=203` by default turns a label written for a 300 dpi
+  printer into a 203 dpi one, with no error.
+- **One `Idempotency-Key` per print call, reused on every retry.** A new key per attempt makes the
+  retry a second print. A missing key does too.
+
+## Repository layout
+
+| Path | What it holds |
+| --- | --- |
+| `docs/API_CONTRACT.md` | What every SDK must do |
+| `docs/CONFORMANCE.md` | How the fixtures work, and how to add a language |
+| `conformance/` | The language-neutral cases every SDK runs |
+| `dotnet/`, `node/`, `java/`, `python/`, `php/`, `go/`, `ruby/`, `rust/` | One SDK per directory |
+| `samples/` | Copy-paste snippets for languages without a package |
 
 ## Contributing
 
-Read [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) first, then
-[`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). Changing SDK behavior means changing a fixture, and
-changing a fixture re-runs every language.
+1. Read [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), then [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md).
+2. To change behavior, change the contract and its fixture first. A fixture change runs every
+   language's suite.
+3. Run the fixture linter before you open a pull request:
+
+   ```sh
+   node conformance/lint.mjs
+   ```
+
+npm, PyPI, NuGet, crates.io, and RubyGems releases publish from CI through OIDC trusted publishing,
+with no stored credential. Maven Central and Packagist have no OIDC equivalent, so they use scoped
+repository secrets. Packagist reads `composer.json` from a repository root, so the PHP SDK publishes
+through a mirror repository; [`release-php.yml`](.github/workflows/release-php.yml) explains why. Go
+has no registry: the module proxy serves each `go/vX.Y.Z` tag directly.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 ## Links
 
 - [LabelZoom](https://www.labelzoom.com)
 - [API documentation](https://docs.labelzoom.com)
-- [OpenAPI spec](https://api.labelzoom.com/v3/api-docs) · [Swagger UI](https://api.labelzoom.com/swagger-ui/)
+- [OpenAPI spec](https://api.labelzoom.com/v3/api-docs) and [Swagger UI](https://api.labelzoom.com/swagger-ui/)

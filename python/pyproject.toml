@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "labelzoom-sdk"
 dynamic = ["version"]
-description = "Official Python SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and raster images."
+description = "Official Python SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, images and LabelZoom XML/JSON, reads ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and prints them with Cloud Print."
 readme = "README.md"
 license = "MIT"
 # A byte-identical copy of the repository LICENSE. It cannot be a parent-directory include:

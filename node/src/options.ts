@@ -26,7 +26,10 @@ export interface ConversionOptions {
   colorMode?: ColorMode;
   /** Luminance threshold 0–100. Server default 70. */
   darkness?: number;
-  /** Pixel offset of the extracted region. */
+  /**
+   * Where an image or PDF source's picture sits on its label, in output dots from the label's top-left
+   * corner. A negative offset crops that much off the picture's left or top.
+   */
   position?: { x: number; y: number };
   /** Forced on for the anonymous free tier regardless. */
   watermark?: boolean;

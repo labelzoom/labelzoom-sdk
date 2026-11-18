@@ -8,7 +8,8 @@ import (
 // DataRecord holds one label's variable-field values, keyed by field name.
 type DataRecord map[string]any
 
-// Position is the pixel offset of the extracted region. Server default 0,0.
+// Position is where an image or PDF source's picture sits on its label, in output dots from the
+// label's top-left corner. A negative offset crops. Server default 0,0.
 type Position struct {
 	X int `json:"x"`
 	Y int `json:"y"`
@@ -82,8 +83,8 @@ type SplitOptions struct {
 // Options are the conversion parameters, in the shape the API expects.
 //
 // Every field is optional and only the ones you set are sent. The SDK never fills in a
-// client-side default, which is why the scalars are pointers -- see [Int], [Float64],
-// [Bool] and [String]. Setting nothing at all produces a bare URL with no query string.
+// client-side default, which is why the scalars are pointers: set one with [Ptr]. Setting
+// nothing at all produces a bare URL with no query string.
 type Options struct {
 	// SourceDPI is the resolution the source was made for: how a printer-language job's dots or an
 	// image's pixels map to inches. Server default 203. Not for PDF, NiceLabel, BarTender or
@@ -100,7 +101,8 @@ type Options struct {
 	ColorMode *ColorMode
 	// Darkness is a luminance threshold from 0 to 100. Server default 70.
 	Darkness *int
-	// Position is the pixel offset of the extracted region.
+	// Position is where an image or PDF source's picture sits on its label, in output dots from
+	// the label's top-left corner. A negative offset crops.
 	Position *Position
 	// Watermark is forced on for the anonymous free tier regardless of what you set.
 	Watermark *bool

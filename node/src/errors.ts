@@ -89,7 +89,6 @@ export class RateLimitedError extends LabelZoomError {
   }
 }
 
-/** HTTP 5xx. Retried automatically before surfacing. */
 /**
  * HTTP 429 with code `daily_job_limit_reached`: the account's daily print job limit is used up. It
  * resets at 00:00 UTC, which `retryAfterSeconds` points at. Never retried automatically, because the
@@ -103,6 +102,7 @@ export class PrintQuotaExceededError extends RateLimitedError {}
  */
 export class UnprocessableError extends LabelZoomError {}
 
+/** HTTP 5xx. Retried automatically before surfacing. */
 export class ServerError extends LabelZoomError {}
 
 /**

@@ -15,7 +15,9 @@ const maxMessageLength = 512
 // these work:
 //
 //	var rateLimited *labelzoom.RateLimitedError
-//	if errors.As(err, &rateLimited) { time.Sleep(rateLimited.RetryAfter()) }
+//	if errors.As(err, &rateLimited) && rateLimited.RetryAfterSeconds != nil {
+//		time.Sleep(time.Duration(*rateLimited.RetryAfterSeconds * float64(time.Second)))
+//	}
 //
 //	var apiErr *labelzoom.APIError
 //	if errors.As(err, &apiErr) { log.Printf("request %s failed: %s", apiErr.RequestID, apiErr.Message) }
