@@ -1,6 +1,6 @@
 {
     "name": "labelzoom/sdk",
-    "description": "Official PHP SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and raster images.",
+    "description": "Official PHP SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, images and LabelZoom XML/JSON, reads ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and prints them with Cloud Print.",
     "type": "library",
     "keywords": ["labelzoom", "zpl", "epl", "ipl", "tspl", "dpl", "sbpl", "zebra", "barcode", "label", "pdf"],
     "homepage": "https://www.labelzoom.com",

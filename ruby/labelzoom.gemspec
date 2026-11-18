@@ -9,8 +9,9 @@ Gem::Specification.new do |spec|
   spec.email = ["support@labelzoom.com"]
 
   spec.summary = "Official Ruby client for the LabelZoom label conversion API."
-  spec.description = "Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, " \
-                     "LabelZoom XML/JSON, and raster images via the LabelZoom API."
+  spec.description = "Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, " \
+                     "images, and LabelZoom XML/JSON; reads ESC/Label, Fingerprint, EZPL, TPCL, " \
+                     "NiceLabel, BarTender, and DYMO files; and prints them with Cloud Print."
   spec.homepage = "https://www.labelzoom.com"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1"

@@ -97,7 +97,7 @@ pub struct PdfOptions {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZplOptions {
-    /// Drop the named commands from the output, e.g. `["^PQ"]`.
+    /// Skip the named commands while reading a ZPL source, for example `["^PQ"]`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub commands_to_ignore: Option<Vec<String>>,
     /// Encoding of embedded images. Server default `Z64`.
@@ -332,7 +332,7 @@ impl ConversionOptions {
         self
     }
 
-    /// Drops the named commands from ZPL output.
+    /// Skips the named commands while reading a ZPL source.
     #[must_use]
     pub fn zpl_commands_to_ignore<I, S>(mut self, commands: I) -> Self
     where

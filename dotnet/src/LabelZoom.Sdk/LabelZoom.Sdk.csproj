@@ -18,7 +18,7 @@
     <Authors>LabelZoom</Authors>
     <Company>RJF Technology Solutions</Company>
     <Product>LabelZoom .NET SDK</Product>
-    <Description>Official .NET SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and raster images.</Description>
+    <Description>Official .NET SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, images and LabelZoom XML/JSON, reads ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and prints them with Cloud Print.</Description>
     <PackageTags>labelzoom;zpl;epl;ipl;tspl;dpl;sbpl;zebra;pdf;conversion;barcode;labels</PackageTags>
     <PackageProjectUrl>https://github.com/labelzoom/labelzoom-sdk</PackageProjectUrl>
     <RepositoryUrl>https://github.com/labelzoom/labelzoom-sdk</RepositoryUrl>
