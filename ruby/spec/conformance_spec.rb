@@ -313,22 +313,24 @@ end
 
 # ------------------------------------------------------------------------ print
 
-# Translates one print fixture into the SDK call. The source options reuse convert's
-# mapping, because print takes them in exactly the same nested form.
+# Translates one print fixture into the SDK call. The options, rotation included, reuse
+# convert's mapping, because print takes them in exactly the same nested form. So does
+# sourceEncoding: "base64text" becomes the same base64_text: true a convert call passes, which
+# print rejects.
 def run_print_operation(client, given)
   case given["operation"]
   when "print"
     kwargs = convert_kwargs(given)
     kwargs[:copies] = given["copies"] if given.key?("copies")
     kwargs[:idempotency_key] = given["idempotencyKey"] if given.key?("idempotencyKey")
-    client.print(given["printerId"], given["source"].to_sym, given["bodyText"], **kwargs)
+    client.print(given["source"].to_sym, given["printerId"], given["bodyText"], **kwargs)
   when "printTemplate"
     kwargs = {}
     kwargs[:data] = given["data"] if given.key?("data")
     kwargs[:validate] = given["validate"] if given.key?("validate")
     kwargs[:copies] = given["copies"] if given.key?("copies")
     kwargs[:idempotency_key] = given["idempotencyKey"] if given.key?("idempotencyKey")
-    client.print_template(given["printerId"], given["templateId"], **kwargs)
+    client.print_template(given["templateId"], given["printerId"], **kwargs)
   when "getJob" then client.jobs.get(given["jobId"])
   when "getQuota" then client.print_quota
   else raise "Unknown print operation '#{given["operation"]}'."

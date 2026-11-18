@@ -126,20 +126,22 @@ hand you a wrong label and no signal.
 
 ## Print
 
-Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
-configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
-ZPL printer. There is no target format. Printing needs an API key with the `print` scope.
+Send a document to a printer connected through the LabelZoom Print Agent. A printer is a target:
+`print` takes the same arguments as `convert`, with the printer where the target format goes. The
+printer's own configuration sets its language, and LabelZoom converts the document to it, so a PDF
+prints on a ZPL printer. Printing needs an API key with the `print` scope.
 
 ```ruby
 client = LabelZoom::Client.new(api_key: "lz_live_...")
 
-job = client.print(printer_id, :pdf, File.binread("label.pdf"),
-                   pdf: { page_number: 0 },       # the same source options as convert
+job = client.print(:pdf, printer_id, File.binread("label.pdf"),
+                   pdf: { page_number: 0 },       # any source options
+                   rotation: 90,
                    copies: 2,
                    idempotency_key: order_number)
 job.job_id                                         # also job.status, job.copies, job.idempotent?
 
-batch = client.print_template(printer_id, template_id,
+batch = client.print_template(template_id, printer_id,
                               data: [{ orderNumber: "SO-1001", sku: "A-100" }])
 batch.jobs                                         # one LabelZoom::PrintJob per record
 
@@ -149,10 +151,12 @@ details.status                                     # queued, dispatched, printin
 client.print_quota.jobs_today.remaining
 ```
 
-- `print` takes `:zpl` `:epl` `:ipl` `:tspl` `:dpl` `:sbpl` `:fingerprint` `:cpcl` `:xml`
-  `:json` `:pdf` `:png` `:bmp` `:gif` `:jpeg` and `:jpg`. To print another format, convert it to
-  the printer's language first. It accepts only source options: a target option such as
-  `target_dpi:` raises `LabelZoom::ValidationError`.
+- Every source format prints, including NiceLabel, BarTender and DYMO files. A URL and base64 text
+  can't: fetch or decode the document and print its bytes. `:url` and `base64_text: true` raise
+  `LabelZoom::ValidationError`.
+- `print` takes every source option, and `rotation:` is the only target option it takes. The other
+  target options, such as `target_dpi:`, depend on the output language, which the printer sets, so
+  they raise `LabelZoom::ValidationError`.
 - `copies:` sends the whole job that many times, from 1 to 9999, and multiplies any quantity in the
   document: `^PQ3` with 5 copies prints 15 labels.
 - Every print carries an `Idempotency-Key`. Pass your own `idempotency_key:` to make a repeated

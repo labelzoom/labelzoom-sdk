@@ -213,32 +213,35 @@ to a server default reaches you without an SDK upgrade.
 
 ## Print
 
-Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
-configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
-ZPL printer. There is no target stage. Printing needs an API key with the `print` scope.
+Send a document to a printer connected through the LabelZoom Print Agent. A printer is a target,
+like `ToZpl()`: the printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
 
 ```csharp
 using LabelZoom.Sdk.Printing;
 
-var job = await client.Print(printerId)
+var job = await client.Convert()
     .FromPdf(pdf)
-        .WithPage(0)                       // the same source options as Convert()
-    .WithCopies(2)
-    .WithIdempotencyKey(orderNumber)
-    .SendAsync();                          // PrintJob { JobId, Status, Copies, Idempotent }
+        .WithPage(0)                       // any source options
+    .ToPrinter(printerId)
+        .WithCopies(2)
+        .WithIdempotencyKey(orderNumber)
+    .ExecuteAsync();                       // PrintJob { JobId, Status, Copies, Idempotent }
 
-var batch = await client.Print(printerId)
+var batch = await client.Convert()
     .FromTemplate(templateId)
-    .WithData(new { orderNumber = "SO-1001", sku = "A-100" })
-    .SendAsync();                          // PrintBatch { Jobs, Remaining }
+        .WithData(new { orderNumber = "SO-1001", sku = "A-100" })
+    .ToPrinter(printerId)
+    .ExecuteAsync();                       // PrintBatch { Jobs, Remaining }
 
 var details = await client.Jobs.GetAsync(job.JobId);   // queued, dispatched, printing, completed, failed
 var quota = await client.GetPrintQuotaAsync();         // quota.JobsToday.Remaining
 ```
 
-- `Print(printerId)` offers `From*` methods for ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL,
-  LabelZoom XML and JSON, PDF, and images. To print another format, convert it to the printer's
-  language first.
+- Every source format prints, including NiceLabel, BarTender and DYMO files. A URL and base64 text
+  can't: decode or fetch the document and print its bytes.
+- The printer target offers `WithRotation`. Other target options depend on the output language, which
+  the printer sets.
 - `WithCopies(n)` sends the whole job `n` times, from 1 to 9999. It multiplies a quantity in the
   document: `^PQ3` with 5 copies prints 15 labels.
 - Every print carries an `Idempotency-Key`. Set your own with `WithIdempotencyKey` to make a repeated

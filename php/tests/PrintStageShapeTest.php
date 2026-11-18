@@ -4,155 +4,131 @@ declare(strict_types=1);
 
 namespace LabelZoom\Sdk\Tests;
 
-use LabelZoom\Sdk\ConversionRequestBuilder;
-use LabelZoom\Sdk\DynamicPrintBuilder;
 use LabelZoom\Sdk\DynamicSourceBuilder;
 use LabelZoom\Sdk\Exception\ValidationException;
-use LabelZoom\Sdk\ImagePrintBuilder;
 use LabelZoom\Sdk\ImageSourceBuilder;
 use LabelZoom\Sdk\LabelZoomClient;
-use LabelZoom\Sdk\PdfPrintBuilder;
 use LabelZoom\Sdk\PdfSourceBuilder;
-use LabelZoom\Sdk\PrintBuilder;
-use LabelZoom\Sdk\PrinterLanguagePrintBuilder;
+use LabelZoom\Sdk\PrintBatch;
 use LabelZoom\Sdk\PrinterLanguageSourceBuilder;
-use LabelZoom\Sdk\PrintRequestBuilder;
+use LabelZoom\Sdk\PrinterTargetBuilder;
+use LabelZoom\Sdk\PrintJob;
 use LabelZoom\Sdk\SourceBuilder;
+use LabelZoom\Sdk\SourceFormat;
+use LabelZoom\Sdk\SourceStage;
 use LabelZoom\Sdk\SplitOptions;
-use LabelZoom\Sdk\ZplPrintBuilder;
+use LabelZoom\Sdk\TemplatePrinterTargetBuilder;
+use LabelZoom\Sdk\TemplateSourceBuilder;
 use LabelZoom\Sdk\ZplSourceBuilder;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Pins the print stage against the convert source stage it mirrors (contract section 1.2).
+ * Pins the printer target (contract section 1 and rule P2): a printer is reached from every source
+ * stage through `toPrinter()`, and its stage offers only the options that apply to a printer.
  *
- * The print builders can't reuse the convert source builders, because those carry the `to*`
- * transitions and print has no target stage. So each format has a print twin. These tests are
- * what stop the twins drifting: a source option added to {@see PdfSourceBuilder} and not to
- * {@see PdfPrintBuilder} fails here.
- *
- * The conformance suite prints through {@see DynamicPrintBuilder}, because its fixtures pick
- * formats at run time. The last tests here send through the typed builders, so that path is
- * checked on the wire too.
+ * The conformance suite prints through {@see DynamicSourceBuilder}, because its fixtures pick
+ * formats at run time. The tests here send through the typed builders, so that path is checked on
+ * the wire too.
  */
 final class PrintStageShapeTest extends TestCase
 {
-    /** Convert source stage => its print twin. */
-    private const TWINS = [
-        SourceBuilder::class => PrintBuilder::class,
-        PrinterLanguageSourceBuilder::class => PrinterLanguagePrintBuilder::class,
-        ZplSourceBuilder::class => ZplPrintBuilder::class,
-        ImageSourceBuilder::class => ImagePrintBuilder::class,
-        PdfSourceBuilder::class => PdfPrintBuilder::class,
-        DynamicSourceBuilder::class => DynamicPrintBuilder::class,
-    ];
-
-    /** The methods a print stage has and a convert source stage doesn't. */
-    private const PRINT_ONLY = ['withCopies', 'withIdempotencyKey', 'send'];
-
-    /** The convert `from*` methods with no print twin: print doesn't convert these (rule P2). */
-    private const NOT_PRINTABLE = [
-        'fromBase64Text',
-        'fromUrl',
-        'fromEscLabel',
-        'fromEzpl',
-        'fromTpcl',
-        'fromNlbl',
-        'fromLbl',
-        'fromBtw',
-        'fromDymo',
+    private const SOURCE_STAGES = [
+        SourceBuilder::class,
+        PrinterLanguageSourceBuilder::class,
+        ZplSourceBuilder::class,
+        ImageSourceBuilder::class,
+        PdfSourceBuilder::class,
+        DynamicSourceBuilder::class,
     ];
 
     private const UUID_V4 = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 
-    /** @return iterable<string, array{class-string, class-string}> */
-    public static function twins(): iterable
+    /** @return iterable<string, array{class-string}> */
+    public static function sourceStages(): iterable
     {
-        foreach (self::TWINS as $convert => $print) {
-            yield $print => [$convert, $print];
+        foreach (self::SOURCE_STAGES as $stage) {
+            yield $stage => [$stage];
         }
     }
 
-    /**
-     * @param class-string $convert
-     * @param class-string $print
-     */
-    #[DataProvider('twins')]
-    public function testPrintTwinOffersExactlyTheConvertSourceOptions(string $convert, string $print): void
+    /** @param class-string $stage */
+    #[DataProvider('sourceStages')]
+    public function testEverySourceStageCanTargetAPrinter(string $stage): void
     {
-        $convertOptions = array_values(array_filter(
-            self::methods($convert),
-            static fn (string $name): bool => !str_starts_with($name, 'to'),
-        ));
-        $printOptions = array_values(array_filter(
-            self::methods($print),
-            static fn (string $name): bool => !in_array($name, self::PRINT_ONLY, true),
-        ));
-
-        self::assertSame($convertOptions, $printOptions, "{$print} must offer exactly {$convert}'s source options");
+        self::assertTrue(method_exists($stage, 'toPrinter'), "{$stage} must offer toPrinter");
+        self::assertSame(PrinterTargetBuilder::class, self::returnType($stage, 'toPrinter'));
+        // Declared once, on the base stage, so no source stage can drift from the others.
+        self::assertSame(
+            SourceStage::class,
+            (new \ReflectionMethod($stage, 'toPrinter'))->getDeclaringClass()->getName(),
+        );
     }
 
-    /**
-     * @param class-string $convert
-     * @param class-string $print
-     */
-    #[DataProvider('twins')]
-    public function testPrintTwinHasNoTargetStage(string $convert, string $print): void
+    public function testThePrinterTargetOffersOnlyPrinterOptions(): void
     {
-        foreach (self::methods($print) as $name) {
-            self::assertFalse(str_starts_with($name, 'to'), "{$print} must not offer {$name}");
-        }
-        self::assertNotContains('execute', self::methods($print));
-        foreach (self::PRINT_ONLY as $name) {
-            self::assertContains($name, self::methods($print));
-        }
+        self::assertSame(
+            ['execute', 'withCopies', 'withIdempotencyKey', 'withRotation'],
+            self::methods(PrinterTargetBuilder::class),
+        );
+        self::assertSame(PrintJob::class, self::returnType(PrinterTargetBuilder::class, 'execute'));
     }
 
-    public function testPrintOffersFromMethodsOnlyForPrintableFormats(): void
+    public function testTheTemplateSourceTakesDataAndTargetsOnlyAPrinter(): void
     {
-        $convert = array_values(array_filter(
-            self::methods(ConversionRequestBuilder::class),
-            static fn (string $name): bool => !in_array($name, self::NOT_PRINTABLE, true),
-        ));
-        $print = array_values(array_filter(
-            self::methods(PrintRequestBuilder::class),
-            static fn (string $name): bool => $name !== 'fromTemplate',
-        ));
-
-        self::assertSame($convert, $print);
-        self::assertContains('fromTemplate', self::methods(PrintRequestBuilder::class));
+        self::assertSame(['toPrinter', 'withData', 'withValidate'], self::methods(TemplateSourceBuilder::class));
+        self::assertSame(
+            TemplatePrinterTargetBuilder::class,
+            self::returnType(TemplateSourceBuilder::class, 'toPrinter'),
+        );
+        self::assertSame(
+            ['execute', 'withCopies', 'withIdempotencyKey'],
+            self::methods(TemplatePrinterTargetBuilder::class),
+        );
+        self::assertSame(PrintBatch::class, self::returnType(TemplatePrinterTargetBuilder::class, 'execute'));
     }
 
-    public function testEachFromMethodReturnsTheTwinOfItsConvertStage(): void
+    public function testTheClientHasNoSeparatePrintEntry(): void
     {
-        foreach (self::methods(PrintRequestBuilder::class) as $name) {
-            if ($name === 'fromTemplate') {
-                continue;
+        // Printing starts from convert(). A second entry point would be a second chain to keep in step.
+        self::assertFalse(method_exists(LabelZoomClient::class, 'print'));
+    }
+
+    public function testAUrlAndBase64TextAreRefusedLocally(): void
+    {
+        $http = new MockHttpClient();
+        $client = new LabelZoomClient(apiKey: 'lz_test', httpClient: $http);
+
+        $stages = [
+            'url' => $client->convert()->fromUrl('https://example.com/label.zpl'),
+            'base64 text' => $client->convert()->fromBase64Text(SourceFormat::Pdf, 'JVBERi0='),
+        ];
+        foreach ($stages as $name => $stage) {
+            try {
+                $stage->toPrinter('p1');
+                self::fail("Expected a ValidationException for {$name}.");
+            } catch (ValidationException $e) {
+                self::assertSame('source', $e->getParameter(), $name);
             }
-            $convertStage = self::returnType(ConversionRequestBuilder::class, $name);
-            self::assertArrayHasKey($convertStage, self::TWINS, "convert {$name}() returns {$convertStage}");
-            self::assertSame(
-                self::TWINS[$convertStage],
-                self::returnType(PrintRequestBuilder::class, $name),
-                "print {$name}() must return the twin of convert {$name}()",
-            );
         }
+        self::assertSame([], $http->requests);
     }
 
-    public function testTypedPrintChainSendsSourceOptionsCopiesAndKey(): void
+    public function testTypedChainSendsSourceOptionsRotationCopiesAndKey(): void
     {
         $http = new MockHttpClient();
         $http->enqueue(200, '{"jobId":"j1","status":"queued","copies":2}', ['Content-Type' => 'application/json']);
         $client = new LabelZoomClient(apiKey: 'lz_test', maxRetries: 0, httpClient: $http);
 
-        $job = $client->print('shelf/1')
+        $job = $client->convert()
             ->fromPdf('%PDF')
                 ->withPage(1)
                 ->withSplit(static fn (SplitOptions $s) => $s->rows(2))
-            ->withCopies(2)
-            ->withIdempotencyKey('order-42')
-            ->send();
+            ->toPrinter('shelf/1')
+                ->withRotation(90)
+                ->withCopies(2)
+                ->withIdempotencyKey('order-42')
+            ->execute();
 
         $request = $http->lastRequest();
         $uri = $request->getUri();
@@ -164,7 +140,7 @@ final class PrintStageShapeTest extends TestCase
         self::assertSame('2', $query['copies'] ?? null);
         self::assertIsString($query['params'] ?? null);
         self::assertSame(
-            ['pdf' => ['pageNumber' => 1], 'split' => ['rows' => 2]],
+            ['pdf' => ['pageNumber' => 1], 'split' => ['rows' => 2], 'rotation' => 90],
             json_decode($query['params'], true, 512, JSON_THROW_ON_ERROR),
         );
         self::assertSame('order-42', $request->getHeaderLine('Idempotency-Key'));
@@ -178,6 +154,22 @@ final class PrintStageShapeTest extends TestCase
         self::assertFalse($job->isIdempotent());
     }
 
+    public function testADesignFilePrintsAsItsOwnBytes(): void
+    {
+        $http = new MockHttpClient();
+        $http->enqueue(200, '{"jobId":"j1","status":"queued"}', ['Content-Type' => 'application/json']);
+        $client = new LabelZoomClient(apiKey: 'lz_test', maxRetries: 0, httpClient: $http);
+
+        $client->convert()->fromBtw("\x00\xff\x10")->toPrinter('p1')->execute();
+
+        $request = $http->lastRequest();
+        parse_str($request->getUri()->getQuery(), $query);
+        self::assertSame('btw', $query['sourceFormat'] ?? null);
+        self::assertArrayNotHasKey('params', $query);
+        self::assertSame('application/octet-stream', $request->getHeaderLine('Content-Type'));
+        self::assertSame("\x00\xff\x10", (string) $request->getBody());
+    }
+
     public function testEachCallGetsItsOwnGeneratedKey(): void
     {
         $http = new MockHttpClient();
@@ -185,9 +177,9 @@ final class PrintStageShapeTest extends TestCase
         $http->enqueue(200, '{"jobId":"j2","status":"queued"}', ['Content-Type' => 'application/json']);
         $client = new LabelZoomClient(apiKey: 'lz_test', maxRetries: 0, httpClient: $http);
 
-        $print = $client->print('printer-1')->fromZpl('^XA^XZ');
-        $print->send();
-        $print->send();
+        $print = $client->convert()->fromZpl('^XA^XZ')->toPrinter('printer-1');
+        $print->execute();
+        $print->execute();
 
         // Two calls are two prints. Only a retry within one call may reuse a key (rule P4).
         $first = $http->requests[0]->getHeaderLine('Idempotency-Key');
@@ -197,13 +189,39 @@ final class PrintStageShapeTest extends TestCase
         self::assertNotSame($first, $second);
     }
 
+    public function testTypedTemplateChainSendsDataValidateCopiesAndKey(): void
+    {
+        $http = new MockHttpClient();
+        $http->enqueue(200, '{"jobId":"j1","status":"queued"}', ['Content-Type' => 'application/json']);
+        $client = new LabelZoomClient(apiKey: 'lz_test', maxRetries: 0, httpClient: $http);
+
+        $batch = $client->convert()
+            ->fromTemplate('tmpl-1')
+                ->withData(['orderNumber' => 'SO-1001'])
+                ->withValidate()
+            ->toPrinter('printer-1')
+                ->withCopies(3)
+                ->withIdempotencyKey('batch-7')
+            ->execute();
+
+        $request = $http->lastRequest();
+        self::assertSame('/api/v3/printers/printer-1/templates/tmpl-1/print', $request->getUri()->getPath());
+        parse_str($request->getUri()->getQuery(), $query);
+        self::assertSame(['copies' => '3', 'validate' => 'true'], $query);
+        self::assertSame('application/json', $request->getHeaderLine('Content-Type'));
+        self::assertSame('batch-7', $request->getHeaderLine('Idempotency-Key'));
+        // One record is sent as that object, not as a one-element array (rule P3).
+        self::assertSame('{"orderNumber":"SO-1001"}', (string) $request->getBody());
+        self::assertCount(1, $batch->getJobs());
+    }
+
     public function testAnEmptyTemplateIdIsRejectedLocally(): void
     {
         $http = new MockHttpClient();
         $client = new LabelZoomClient(apiKey: 'lz_test', httpClient: $http);
 
         try {
-            $client->print('printer-1')->fromTemplate(' ');
+            $client->convert()->fromTemplate(' ');
             self::fail('Expected a ValidationException.');
         } catch (ValidationException $e) {
             self::assertSame('templateId', $e->getParameter());

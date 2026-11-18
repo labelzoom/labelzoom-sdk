@@ -91,11 +91,17 @@ func runPrintOperation(t *testing.T, client *labelzoom.Client, g given) (any, er
 
 	switch g.Operation {
 	case "print":
+		// Print takes no base64-text input, so a fixture asking for one can't be written as a
+		// call; skips/go.json declares the one case that does.
+		if g.SourceEncoding != "" {
+			t.Fatalf("print takes no base64-text input, so sourceEncoding %q can't be expressed; "+
+				"declare the case in skips/go.json", g.SourceEncoding)
+		}
 		return client.Print(ctx, labelzoom.PrintRequest{
-			PrinterID:      g.PrinterID,
 			Source:         labelzoom.SourceFormat(g.Source),
 			Body:           []byte(g.BodyText),
 			Options:        buildPrintOptions(t, g.Options),
+			PrinterID:      g.PrinterID,
 			Copies:         g.Copies,
 			IdempotencyKey: key,
 		})
@@ -108,10 +114,10 @@ func runPrintOperation(t *testing.T, client *labelzoom.Client, g given) (any, er
 		}
 		validate := g.Validate != nil && *g.Validate
 		return client.PrintTemplate(ctx, labelzoom.TemplatePrintRequest{
-			PrinterID:      g.PrinterID,
 			TemplateID:     g.TemplateID,
 			Data:           data,
 			Validate:       validate,
+			PrinterID:      g.PrinterID,
 			Copies:         g.Copies,
 			IdempotencyKey: key,
 		})
@@ -125,18 +131,19 @@ func runPrintOperation(t *testing.T, client *labelzoom.Client, g given) (any, er
 	}
 }
 
-// buildPrintOptions reuses the convert translation, then moves the source options across. A
-// fixture setting a target option on a print is a fixture bug, so it fails loudly.
+// buildPrintOptions reuses the convert translation, then moves the source options and rotation
+// across. A fixture setting any other target option on a print is a fixture bug, so it fails
+// loudly.
 func buildPrintOptions(t *testing.T, wire map[string]any) *labelzoom.PrintOptions {
 	t.Helper()
 	options := buildOptions(t, wire)
 	if options == nil {
 		return nil
 	}
-	if options.TargetDPI != nil || options.Rotation != nil || options.Watermark != nil ||
+	if options.TargetDPI != nil || options.Watermark != nil ||
 		options.Dialect != nil || options.Layout != nil || options.RawQuery != nil ||
 		(options.ZPL != nil && (options.ZPL.ImageCompression != nil || options.ZPL.CollapseCopies != nil)) {
-		t.Fatalf("print fixture sets a target option, which a print does not take: %v", wire)
+		t.Fatalf("print fixture sets a target option other than rotation, which a print does not take: %v", wire)
 	}
 
 	printOptions := &labelzoom.PrintOptions{
@@ -150,6 +157,7 @@ func buildPrintOptions(t *testing.T, wire map[string]any) *labelzoom.PrintOption
 		PDF:        options.PDF,
 		Split:      options.Split,
 		LabelIndex: options.LabelIndex,
+		Rotation:   options.Rotation,
 	}
 	if options.ZPL != nil {
 		printOptions.ZPL = &labelzoom.ZPLSourceOptions{CommandsToIgnore: options.ZPL.CommandsToIgnore}

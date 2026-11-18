@@ -6,67 +6,60 @@ using LabelZoom.Sdk.Printing;
 namespace LabelZoom.Sdk.Tests;
 
 /// <summary>
-/// Pins the print stage against the convert source stage it mirrors (contract section 1.2).
+/// Pins the printer target (contract section 1 and P2): a printer is reached from every source stage
+/// through <c>ToPrinter</c>, and its stage offers only the options that apply to a printer.
 /// </summary>
-/// <remarks>
-/// The print builders can't reuse the convert source builders, because those carry the <c>To*</c>
-/// transitions and print has no target stage. So each format has a print twin. These tests are what
-/// stop the twins drifting: a source option added to <see cref="PdfSourceBuilder"/> and not to
-/// <see cref="PdfPrintBuilder"/> fails here.
-/// </remarks>
 public class PrintStageShapeTests
 {
-    private static readonly HashSet<string> PrintOnly = new() { "WithCopies", "WithIdempotencyKey", "SendAsync" };
-
-    public static TheoryData<Type, Type> Twins => new()
+    public static TheoryData<Type> SourceStages => new()
     {
-        { typeof(SourceBuilder), typeof(PrintBuilder) },
-        { typeof(PrinterLanguageSourceBuilder), typeof(PrinterLanguagePrintBuilder) },
-        { typeof(ZplSourceBuilder), typeof(ZplPrintBuilder) },
-        { typeof(ImageSourceBuilder), typeof(ImagePrintBuilder) },
-        { typeof(PdfSourceBuilder), typeof(PdfPrintBuilder) },
-        { typeof(DynamicSourceBuilder), typeof(DynamicPrintBuilder) },
+        typeof(SourceBuilder), typeof(PrinterLanguageSourceBuilder), typeof(ZplSourceBuilder),
+        typeof(ImageSourceBuilder), typeof(PdfSourceBuilder), typeof(DynamicSourceBuilder),
     };
 
     [Theory]
-    [MemberData(nameof(Twins))]
-    public void PrintTwinOffersExactlyTheConvertSourceOptions(Type convert, Type print)
+    [MemberData(nameof(SourceStages))]
+    public void EverySourceStageCanTargetAPrinter(Type stage)
     {
-        var convertOptions = Options(convert).Where(name => !name.StartsWith("To", StringComparison.Ordinal));
-        var printOptions = Options(print).Where(name => !PrintOnly.Contains(name));
-
-        Assert.Equal(convertOptions.OrderBy(n => n), printOptions.OrderBy(n => n));
-    }
-
-    [Theory]
-    [MemberData(nameof(Twins))]
-    public void PrintTwinHasNoTargetStage(Type _, Type print)
-    {
-        Assert.DoesNotContain(Options(print), name => name.StartsWith("To", StringComparison.Ordinal));
-        Assert.Contains("SendAsync", Options(print));
+        var toPrinter = stage.GetMethod("ToPrinter", BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotNull(toPrinter);
+        Assert.Equal(typeof(PrinterTargetBuilder), toPrinter!.ReturnType);
     }
 
     [Fact]
-    public void PrintOffersFromMethodsOnlyForPrintableFormats()
+    public void ThePrinterTargetOffersOnlyPrinterOptions()
     {
-        var methods = typeof(PrintRequestBuilder).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Select(m => m.Name)
-            .ToHashSet();
-
-        foreach (var notPrintable in new[]
-                 { "FromUrl", "FromBase64Text", "FromEscLabel", "FromEzpl", "FromTpcl", "FromNlbl", "FromLbl", "FromBtw", "FromDymo" })
-        {
-            Assert.DoesNotContain(notPrintable, methods);
-        }
-
-        foreach (var printable in new[] { "FromZpl", "FromPdf", "FromPng", "FromFingerprint", "FromCpcl", "FromTemplate" })
-        {
-            Assert.Contains(printable, methods);
-        }
+        Assert.Equal(
+            new[] { "ExecuteAsync", "WithCopies", "WithIdempotencyKey", "WithRotation" },
+            PublicMethods(typeof(PrinterTargetBuilder)));
+        Assert.Equal(typeof(Task<PrintJob>), typeof(PrinterTargetBuilder).GetMethod("ExecuteAsync")!.ReturnType);
     }
 
     [Fact]
-    public async Task TypedPrintChainSendsSourceOptionsCopiesAndKey()
+    public void TheTemplateSourceTakesDataAndTargetsOnlyAPrinter()
+    {
+        Assert.Equal(new[] { "ToPrinter", "WithData", "WithValidate" }, PublicMethods(typeof(TemplateSourceBuilder)));
+        Assert.Equal(
+            new[] { "ExecuteAsync", "WithCopies", "WithIdempotencyKey" },
+            PublicMethods(typeof(TemplatePrinterTargetBuilder)));
+    }
+
+    [Fact]
+    public void ANonFetchingPrintRefusesAUrlAndBase64Text()
+    {
+        using var client = new LabelZoomClient(new LabelZoomClientOptions { ApiKey = "lz_test" });
+
+        var url = Assert.Throws<LabelZoomValidationException>(
+            () => client.Convert().FromUrl("https://example.com/label.zpl").ToPrinter("p1"));
+        Assert.Equal("source", url.ParamName);
+
+        var base64 = Assert.Throws<LabelZoomValidationException>(
+            () => client.Convert().FromBase64Text(SourceFormat.Pdf, "JVBERi0=").ToPrinter("p1"));
+        Assert.Equal("source", base64.ParamName);
+    }
+
+    [Fact]
+    public async Task TypedChainSendsSourceOptionsRotationCopiesAndKey()
     {
         var handler = new StubHttpMessageHandler();
         handler.Enqueue(HttpStatusCode.OK, "{\"jobId\":\"j1\",\"status\":\"queued\",\"copies\":2}", "application/json");
@@ -75,13 +68,15 @@ public class PrintStageShapeTests
             ApiKey = "lz_test", HttpMessageHandler = handler, MaxRetries = 0,
         });
 
-        var job = await client.Print("printer-1")
+        var job = await client.Convert()
             .FromPdf(new byte[] { 0x25, 0x50, 0x44, 0x46 })
-            .WithPage(1)
-            .WithSplit(s => s.Rows(2))
-            .WithCopies(2)
-            .WithIdempotencyKey("order-42")
-            .SendAsync();
+                .WithPage(1)
+                .WithSplit(s => s.Rows(2))
+            .ToPrinter("printer-1")
+                .WithRotation(90)
+                .WithCopies(2)
+                .WithIdempotencyKey("order-42")
+            .ExecuteAsync();
 
         var request = handler.LastRequest;
         Assert.Equal("/api/v3/printers/printer-1/print", request.RequestUri.AbsolutePath);
@@ -89,12 +84,30 @@ public class PrintStageShapeTests
         Assert.Equal("2", request.QueryValue("copies"));
         Assert.Equal(1, request.Params!.Value.GetProperty("pdf").GetProperty("pageNumber").GetInt32());
         Assert.Equal(2, request.Params!.Value.GetProperty("split").GetProperty("rows").GetInt32());
+        Assert.Equal(90, request.Params!.Value.GetProperty("rotation").GetInt32());
         Assert.Equal("order-42", request.Header("idempotency-key"));
         Assert.Equal("application/pdf", request.Header("content-type"));
         Assert.Equal("j1", job.JobId);
         Assert.Equal("queued", job.Status);
         Assert.Equal(2, job.Copies);
         Assert.False(job.Idempotent);
+    }
+
+    [Fact]
+    public async Task ADesignFilePrintsAsItsOwnBytes()
+    {
+        var handler = new StubHttpMessageHandler();
+        handler.Enqueue(HttpStatusCode.OK, "{\"jobId\":\"j1\",\"status\":\"queued\"}", "application/json");
+        using var client = new LabelZoomClient(new LabelZoomClientOptions
+        {
+            ApiKey = "lz_test", HttpMessageHandler = handler, MaxRetries = 0,
+        });
+
+        await client.Convert().FromBtw(new byte[] { 0x00, 0xff, 0x10 }).ToPrinter("p1").ExecuteAsync();
+
+        Assert.Equal("btw", handler.LastRequest.QueryValue("sourceFormat"));
+        Assert.Equal("application/octet-stream", handler.LastRequest.Header("content-type"));
+        Assert.Equal(new byte[] { 0x00, 0xff, 0x10 }, handler.LastRequest.Body);
     }
 
     [Fact]
@@ -108,17 +121,18 @@ public class PrintStageShapeTests
             ApiKey = "lz_test", HttpMessageHandler = handler, MaxRetries = 0,
         });
 
-        var print = client.Print("printer-1").FromZpl("^XA^XZ");
-        await print.SendAsync();
-        await print.SendAsync();
+        var print = client.Convert().FromZpl("^XA^XZ").ToPrinter("printer-1");
+        await print.ExecuteAsync();
+        await print.ExecuteAsync();
 
         // Two calls are two prints. Only a retry within one call may reuse a key.
         Assert.NotEqual(handler.Requests[0].Header("idempotency-key"), handler.Requests[1].Header("idempotency-key"));
     }
 
-    private static IEnumerable<string> Options(Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.DeclaringType != typeof(object))
+    private static string[] PublicMethods(Type type) =>
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
-            .Distinct();
+            .Distinct()
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
 }

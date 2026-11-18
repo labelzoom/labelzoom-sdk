@@ -202,8 +202,8 @@ class _BaseClient:
     def _print_request(
         self,
         http: httpx.Client | httpx.AsyncClient,
-        printer_id: str,
         source: PrintSource,
+        printer_id: str,
         body: Body,
         options: ConversionOptions,
         copies: int | None,
@@ -220,7 +220,7 @@ class _BaseClient:
         if copies is not None:
             query["copies"] = str(validate_copies(copies))
         # An empty params would make the server convert a document already in the printer's
-        # language, so it is sent only when a source option was set (contract P2).
+        # language, so it is sent only when a source option or rotation was set (contract P2).
         params = serialize_options(options)
         if params is not None:
             query["params"] = params
@@ -244,8 +244,8 @@ class _BaseClient:
     def _print_template_request(
         self,
         http: httpx.Client | httpx.AsyncClient,
-        printer_id: str,
         template_id: str,
+        printer_id: str,
         data: DataRecord | Sequence[DataRecord] | None,
         validate: bool,
         copies: int | None,
@@ -315,7 +315,7 @@ class LabelZoomClient(_BaseClient):
         result = client.convert("zpl", "png", zpl, target_dpi=300)
         Path("label.png").write_bytes(result.content)
 
-        job = client.print(printer_id, "zpl", zpl, copies=2)  # Cloud Print
+        job = client.print("zpl", printer_id, zpl, copies=2)  # Cloud Print
     ```
     """
 
@@ -471,12 +471,13 @@ class LabelZoomClient(_BaseClient):
 
     def print(
         self,
-        printer_id: str,
         source: PrintSource,
+        printer_id: str,
         body: Body,
         *,
         copies: int | None = None,
         idempotency_key: str | None = None,
+        rotation: int | _Unset = UNSET,
         source_dpi: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
         color_mode: ColorMode | _Unset = UNSET,
@@ -502,25 +503,30 @@ class LabelZoomClient(_BaseClient):
     ) -> PrintJob:
         """Print a document on a Cloud Print printer.
 
-        There is no target format: the printer's configuration picks the output language, and
-        LabelZoom converts the document to it, so a PDF prints on a ZPL printer. Printing needs
-        an API key with the ``print`` scope. The keyword arguments after ``idempotency_key`` are
-        the source options :meth:`convert` takes, with the same meaning.
+        The same call as :meth:`convert`, with the printer in the target's place. The printer's
+        configuration picks the output language, and LabelZoom converts the document to it, so
+        a PDF prints on a ZPL printer. Printing needs an API key with the ``print`` scope. The
+        keyword arguments after ``rotation`` are the source options :meth:`convert` takes, with
+        the same meaning.
 
+        :param source: The document's format. Every source format prints except ``"url"``,
+            because print doesn't fetch.
         :param printer_id: The printer, as the LabelZoom web app shows it.
-        :param source: The document's format. Only the formats print converts are accepted;
-            convert anything else to the printer's language first.
-        :param body: The document, as ``bytes`` or ``str``.
+        :param body: The document's own bytes, as ``bytes`` or ``str``. Print takes no base64
+            text: decode it first.
         :param copies: Sends the whole job this many times, 1 to 9999. It multiplies a quantity
             in the document: ``^PQ3`` with 5 copies prints 15 labels.
         :param idempotency_key: Makes the print safe to repeat: the same key returns the
             original job instead of printing again. Without one, the SDK generates a key per
             call, so its own retries can't print twice.
+        :param rotation: Degrees clockwise, a multiple of 90. Turns the finished label, whatever
+            the printer's language: the one target option a print takes.
         :raises LabelZoomValidationError: The request was rejected locally; nothing was sent.
         :raises PrintQuotaExceededError: The daily job limit is used up. Never retried.
         :raises LabelZoomError: The API returned a non-2xx response.
         """
         options = ConversionOptions().merge(
+            rotation=rotation,
             source_dpi=source_dpi,
             scaling=scaling,
             color_mode=color_mode,
@@ -545,14 +551,14 @@ class LabelZoomClient(_BaseClient):
             label_index=label_index,
         )
         request = self._print_request(
-            self._http, printer_id, source, body, options, copies, idempotency_key
+            self._http, source, printer_id, body, options, copies, idempotency_key
         )
         return self._send(request, _print_job_from)
 
     def print_template(
         self,
-        printer_id: str,
         template_id: str,
+        printer_id: str,
         data: DataRecord | Sequence[DataRecord] | None = None,
         *,
         validate: bool = False,
@@ -561,6 +567,8 @@ class LabelZoomClient(_BaseClient):
     ) -> PrintBatch:
         """Print a published template, one label per record.
 
+        :param template_id: A template published from LabelZoom Studio or the web designer.
+        :param printer_id: The printer, as the LabelZoom web app shows it.
         :param data: One mapping of merge-field values per label. Omit it for a template with
             no merge fields.
         :param validate: Checks every record for missing merge fields before anything prints.
@@ -572,7 +580,7 @@ class LabelZoomClient(_BaseClient):
         :raises LabelZoomError: The API returned a non-2xx response.
         """
         request = self._print_template_request(
-            self._http, printer_id, template_id, data, validate, copies, idempotency_key
+            self._http, template_id, printer_id, data, validate, copies, idempotency_key
         )
         return self._send(request, _print_batch_from)
 
@@ -752,12 +760,13 @@ class AsyncLabelZoomClient(_BaseClient):
 
     async def print(
         self,
-        printer_id: str,
         source: PrintSource,
+        printer_id: str,
         body: Body,
         *,
         copies: int | None = None,
         idempotency_key: str | None = None,
+        rotation: int | _Unset = UNSET,
         source_dpi: int | _Unset = UNSET,
         scaling: float | _Unset = UNSET,
         color_mode: ColorMode | _Unset = UNSET,
@@ -783,6 +792,7 @@ class AsyncLabelZoomClient(_BaseClient):
     ) -> PrintJob:
         """Print a document. See :meth:`LabelZoomClient.print`."""
         options = ConversionOptions().merge(
+            rotation=rotation,
             source_dpi=source_dpi,
             scaling=scaling,
             color_mode=color_mode,
@@ -807,14 +817,14 @@ class AsyncLabelZoomClient(_BaseClient):
             label_index=label_index,
         )
         request = self._print_request(
-            self._http, printer_id, source, body, options, copies, idempotency_key
+            self._http, source, printer_id, body, options, copies, idempotency_key
         )
         return await self._send(request, _print_job_from)
 
     async def print_template(
         self,
-        printer_id: str,
         template_id: str,
+        printer_id: str,
         data: DataRecord | Sequence[DataRecord] | None = None,
         *,
         validate: bool = False,
@@ -823,7 +833,7 @@ class AsyncLabelZoomClient(_BaseClient):
     ) -> PrintBatch:
         """Print a published template. See :meth:`LabelZoomClient.print_template`."""
         request = self._print_template_request(
-            self._http, printer_id, template_id, data, validate, copies, idempotency_key
+            self._http, template_id, printer_id, data, validate, copies, idempotency_key
         )
         return await self._send(request, _print_batch_from)
 

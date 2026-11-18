@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"regexp"
+	"slices"
 	"sort"
 	"testing"
 	"time"
@@ -37,16 +38,15 @@ func printClient(t *testing.T, script ...scriptedResponse) (*labelzoom.Client, *
 	return client, transport
 }
 
-// TestPrintTypedPath sends one document print through the public surface, with every source
-// option set, and checks everything that goes out. The conformance suite runs a few options;
-// this is what proves PrintOptions maps every one of its fields into params.
+// TestPrintTypedPath sends one document print through the public surface, with every option
+// set, and checks everything that goes out. The conformance suite runs a few options; this is
+// what proves PrintOptions maps every one of its fields into params.
 func TestPrintTypedPath(t *testing.T) {
 	client, transport := printClient(t, acceptedJob)
 
 	job, err := client.Print(context.Background(), labelzoom.PrintRequest{
-		PrinterID: "printer/1",
-		Source:    labelzoom.SourcePDF,
-		Body:      []byte("%PDF-1.7"),
+		Source: labelzoom.SourcePDF,
+		Body:   []byte("%PDF-1.7"),
 		Options: &labelzoom.PrintOptions{
 			SourceDPI:  labelzoom.Ptr(300),
 			Scaling:    labelzoom.Ptr(50.0),
@@ -59,8 +59,10 @@ func TestPrintTypedPath(t *testing.T) {
 			ZPL:        &labelzoom.ZPLSourceOptions{CommandsToIgnore: []string{"^PQ"}},
 			Split:      &labelzoom.SplitOptions{Rows: labelzoom.Ptr(2), Columns: labelzoom.Ptr(2)},
 			LabelIndex: labelzoom.Ptr(1),
+			Rotation:   labelzoom.Ptr(90),
 			Extra:      map[string]any{"future": true},
 		},
+		PrinterID:      "printer/1",
 		Copies:         labelzoom.Ptr(2),
 		IdempotencyKey: "SO-1001",
 	})
@@ -109,7 +111,7 @@ func TestPrintTypedPath(t *testing.T) {
 		"pdf":        map[string]any{"pageNumber": 0.0},
 		"zpl":        map[string]any{"commandsToIgnore": []any{"^PQ"}},
 		"split":      map[string]any{"rows": 2.0, "columns": 2.0},
-		"labelIndex": 1.0, "future": true,
+		"labelIndex": 1.0, "rotation": 90.0, "future": true,
 	}
 	if !reflect.DeepEqual(params, want) {
 		t.Errorf("params = %#v\nwant     %#v", params, want)
@@ -125,10 +127,10 @@ func TestPrintTemplateTypedPath(t *testing.T) {
 	})
 
 	batch, err := client.PrintTemplate(context.Background(), labelzoom.TemplatePrintRequest{
-		PrinterID:  "printer-1",
 		TemplateID: "template-1",
 		Data:       []labelzoom.DataRecord{{"sku": "A-100"}, {"sku": "B-200"}},
 		Validate:   true,
+		PrinterID:  "printer-1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -166,9 +168,9 @@ func TestPrintGeneratesAKeyPerCall(t *testing.T) {
 
 	for range 2 {
 		if _, err := client.Print(context.Background(), labelzoom.PrintRequest{
-			PrinterID: "printer-1",
 			Source:    labelzoom.SourceZPL,
 			Body:      []byte("^XA^XZ"),
+			PrinterID: "printer-1",
 		}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -186,27 +188,130 @@ func TestPrintGeneratesAKeyPerCall(t *testing.T) {
 	}
 }
 
-// TestPrintOptionsAreTheSourceOptions is the Go counterpart of the chaining SDKs' stage-shape
-// test. Every Options field is classified here, so adding one fails this test until someone
-// decides whether print takes it; PrintOptions must then hold exactly the source half.
-func TestPrintOptionsAreTheSourceOptions(t *testing.T) {
+// TestEverySourcePrintsExceptURL pins P2: every source format reaches a printer, sent as its
+// own bytes under its own media type, and only a URL is refused, with parameter "source" and
+// nothing sent.
+func TestEverySourcePrintsExceptURL(t *testing.T) {
+	for _, source := range labelzoom.SourceFormats() {
+		t.Run(string(source), func(t *testing.T) {
+			client, transport := printClient(t, acceptedJob)
+			_, err := client.Print(context.Background(), labelzoom.PrintRequest{
+				Source:    source,
+				Body:      []byte("document"),
+				PrinterID: "printer-1",
+			})
+
+			if source == labelzoom.SourceURL {
+				var validation *labelzoom.ValidationError
+				if !errors.As(err, &validation) || validation.Parameter != "source" {
+					t.Fatalf("err = %#v, want a *ValidationError on source", err)
+				}
+				if transport.count() != 0 {
+					t.Errorf("requests sent = %d, want 0", transport.count())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			request, body := transport.last()
+			if got := request.URL.Query().Get("sourceFormat"); got == "" {
+				t.Error("sourceFormat is missing")
+			}
+			if string(body) != "document" {
+				t.Errorf("body = %q, want the document's own bytes", body)
+			}
+		})
+	}
+}
+
+// TestDesignFilePrintsAsItsOwnBytes pins the case the old printable list refused: a BarTender
+// file prints like any other source, as application/octet-stream.
+func TestDesignFilePrintsAsItsOwnBytes(t *testing.T) {
+	client, transport := printClient(t, acceptedJob)
+	if _, err := client.Print(context.Background(), labelzoom.PrintRequest{
+		Source:    labelzoom.SourceBTW,
+		Body:      []byte("BT-btw"),
+		PrinterID: "printer-1",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	request, body := transport.last()
+	if got := request.Header.Get("Content-Type"); got != "application/octet-stream" {
+		t.Errorf("Content-Type = %q, want application/octet-stream", got)
+	}
+	if got := request.URL.Query().Get("sourceFormat"); got != "btw" {
+		t.Errorf("sourceFormat = %q, want btw", got)
+	}
+	if query := request.URL.Query(); query.Has("params") || query.Has("copies") {
+		t.Errorf("query = %q, want neither params nor copies", request.URL.RawQuery)
+	}
+	if string(body) != "BT-btw" {
+		t.Errorf("body = %q", body)
+	}
+}
+
+// TestPrintRotationUsesTheConvertRule pins that rotation goes through the convert serializer:
+// a multiple of 90 travels in params, and anything else is refused before sending.
+func TestPrintRotationUsesTheConvertRule(t *testing.T) {
+	client, transport := printClient(t, acceptedJob)
+	if _, err := client.Print(context.Background(), labelzoom.PrintRequest{
+		Source:    labelzoom.SourceZPL,
+		Body:      []byte("^XA^XZ"),
+		Options:   &labelzoom.PrintOptions{Rotation: labelzoom.Ptr(90)},
+		PrinterID: "printer-1",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	request, _ := transport.last()
+	if got := request.URL.Query().Get("params"); got != `{"rotation":90}` {
+		t.Errorf("params = %q, want {\"rotation\":90}", got)
+	}
+
+	_, err := client.Print(context.Background(), labelzoom.PrintRequest{
+		Source:    labelzoom.SourceZPL,
+		Body:      []byte("^XA^XZ"),
+		Options:   &labelzoom.PrintOptions{Rotation: labelzoom.Ptr(45)},
+		PrinterID: "printer-1",
+	})
+	var validation *labelzoom.ValidationError
+	if !errors.As(err, &validation) || validation.Parameter != "rotation" {
+		t.Fatalf("err = %#v, want a *ValidationError on rotation", err)
+	}
+	if transport.count() != 1 {
+		t.Errorf("requests sent = %d, want 1: the invalid rotation must not be sent", transport.count())
+	}
+}
+
+// TestPrintOptionsAreTheSourceOptionsPlusRotation is the Go counterpart of the chaining SDKs'
+// stage-shape test. Every Options field is classified here, so adding one fails this test
+// until someone decides whether print takes it; PrintOptions must then hold the source half
+// plus Rotation, the one target option a printer takes.
+func TestPrintOptionsAreTheSourceOptionsPlusRotation(t *testing.T) {
 	source := []string{
 		"SourceDPI", "Scaling", "ColorMode", "Darkness", "Position", "Data", "Label", "PDF", "ZPL",
 		"Split", "LabelIndex", "Extra",
 	}
+	printerTarget := []string{"Rotation"}
 	target := []string{"TargetDPI", "Rotation", "Watermark", "Dialect", "Layout", "RawQuery"}
 
 	optionFields := fieldNames(reflect.TypeOf(labelzoom.Options{}))
 	if classified := sortedUnion(source, target); !reflect.DeepEqual(optionFields, classified) {
 		t.Errorf("Options fields %v are not all classified as source or target %v", optionFields, classified)
 	}
-	if printFields, want := fieldNames(reflect.TypeOf(labelzoom.PrintOptions{})), sortedUnion(source, nil); !reflect.DeepEqual(printFields, want) {
-		t.Errorf("PrintOptions fields = %v, want exactly the source options %v", printFields, want)
+	for _, name := range printerTarget {
+		if !slices.Contains(target, name) {
+			t.Errorf("%s is a printer target option but not a convert target option", name)
+		}
+	}
+	if printFields, want := fieldNames(reflect.TypeOf(labelzoom.PrintOptions{})), sortedUnion(source, printerTarget); !reflect.DeepEqual(printFields, want) {
+		t.Errorf("PrintOptions fields = %v, want the source options plus Rotation %v", printFields, want)
 	}
 
 	// The shared fields have the same type, so they are written by the same serializer.
 	optionsType, printType := reflect.TypeOf(labelzoom.Options{}), reflect.TypeOf(labelzoom.PrintOptions{})
-	for _, name := range source {
+	for _, name := range append(append([]string(nil), source...), printerTarget...) {
 		if name == "ZPL" {
 			continue
 		}
@@ -223,6 +328,29 @@ func TestPrintOptionsAreTheSourceOptions(t *testing.T) {
 	}
 }
 
+// TestPrintRequestsReadInPipelineOrder pins the field order of the two request structs, the
+// struct form of the chain: the source and how it is read, then the printer, then how the
+// job is sent.
+func TestPrintRequestsReadInPipelineOrder(t *testing.T) {
+	for _, tc := range []struct {
+		structType reflect.Type
+		want       []string
+	}{
+		{reflect.TypeOf(labelzoom.PrintRequest{}),
+			[]string{"Source", "Body", "Options", "PrinterID", "Copies", "IdempotencyKey"}},
+		{reflect.TypeOf(labelzoom.TemplatePrintRequest{}),
+			[]string{"TemplateID", "Data", "Validate", "PrinterID", "Copies", "IdempotencyKey"}},
+	} {
+		var got []string
+		for index := range tc.structType.NumField() {
+			got = append(got, tc.structType.Field(index).Name)
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s fields = %v, want %v", tc.structType.Name(), got, tc.want)
+		}
+	}
+}
+
 // TestPrintQuotaExceededIsARateLimit pins the error design: the daily limit is caught by a
 // *RateLimitedError handler and by an *APIError one, and carries the 429's fields.
 func TestPrintQuotaExceededIsARateLimit(t *testing.T) {
@@ -233,7 +361,7 @@ func TestPrintQuotaExceededIsARateLimit(t *testing.T) {
 	})
 
 	_, err := client.Print(context.Background(), labelzoom.PrintRequest{
-		PrinterID: "printer-1", Source: labelzoom.SourceZPL, Body: []byte("^XA^XZ"),
+		Source: labelzoom.SourceZPL, Body: []byte("^XA^XZ"), PrinterID: "printer-1",
 	})
 
 	var quota *labelzoom.PrintQuotaExceededError

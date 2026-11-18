@@ -221,24 +221,26 @@ option used to be set after `to*`. In 2.0, move the source options before it:
 
 ## Print
 
-Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
-configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
-ZPL printer. There is no target stage. Printing needs an API key with the `print` scope.
+Send a document to a printer connected through the LabelZoom Print Agent. A printer is a target,
+like `toZpl()`: the printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
 
 ```ts
 const job = await client
-  .print(printerId)
+  .convert()
   .fromPdf(pdf)
-  .withPage(0)                       // the same source options as convert()
+  .withPage(0)                       // any source options
+  .toPrinter(printerId)
   .withCopies(2)
   .withIdempotencyKey(orderNumber)
-  .send();                           // { jobId, status, copies, idempotent }
+  .execute();                        // { jobId, status, copies, idempotent }
 
 const batch = await client
-  .print(printerId)
+  .convert()
   .fromTemplate(templateId)
   .withData({ orderNumber: 'SO-1001', sku: 'A-100' })
-  .send();                           // { jobs, remaining, message }
+  .toPrinter(printerId)
+  .execute();                        // { jobs, remaining, message }
 
 const details = await client.jobs.get(job.jobId);  // queued, dispatched, printing, completed, failed
 const quota = await client.getPrintQuota();        // quota.jobsToday.remaining
@@ -247,9 +249,10 @@ const quota = await client.getPrintQuota();        // quota.jobsToday.remaining
 The one-call forms take the same fields: `client.print({ printerId, from: 'pdf', body, copies })` and
 `client.printTemplate({ printerId, templateId, data })`.
 
-- `print(printerId)` offers `from*` methods for ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL,
-  LabelZoom XML and JSON, PDF, and images. To print another format, convert it to the printer's
-  language first.
+- Every source format prints, including NiceLabel, BarTender and DYMO files. A URL and base64 text
+  can't: decode or fetch the document and print its bytes.
+- The printer target offers `withRotation`. Other target options depend on the output language, which
+  the printer sets.
 - `withCopies(n)` sends the whole job `n` times, from 1 to 9999. It multiplies a quantity in the
   document: `^PQ3` with 5 copies prints 15 labels.
 - Every print carries an `Idempotency-Key`. Set your own with `withIdempotencyKey` to make a repeated

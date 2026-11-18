@@ -24,7 +24,6 @@ import {
   UnprocessableError,
   ServerError,
   TARGET_FORMATS,
-  type PrintSourceFormat,
   type ConversionOptions,
   type ConversionResult,
   type SourceFormat,
@@ -331,26 +330,34 @@ function assertRequest(request: RecordedRequest, expect_: any): void {
 async function runPrintOperation(client: LabelZoomClient, given: any): Promise<unknown> {
   switch (given.operation) {
     case 'print': {
-      const builder = client.print(given.printerId as string).from(given.source as PrintSourceFormat, given.bodyText);
-      for (const [key, value] of Object.entries((given.options ?? {}) as Record<string, any>)) {
+      const source = given.source as SourceFormat;
+      const sourceStage = given.sourceEncoding === 'base64text'
+        ? client.convert().fromBase64Text(source, given.bodyText)
+        : client.convert().from(source, given.bodyText);
+      const options = (given.options ?? {}) as Record<string, any>;
+      for (const [key, value] of Object.entries(options)) {
         switch (key) {
-          case 'label': builder.withLabelSize(value.width, value.height); break;
-          case 'pdf': if (value.pageNumber !== undefined) builder.withPdfPage(value.pageNumber); break;
-          case 'split': builder.withSplit(value); break;
-          default: throw new Error(`The print runner has no mapping for source option '${key}'. Add one.`);
+          case 'label': sourceStage.withLabelSize(value.width, value.height); break;
+          case 'pdf': if (value.pageNumber !== undefined) sourceStage.withPdfPage(value.pageNumber); break;
+          case 'split': sourceStage.withSplit(value); break;
+          case 'rotation': break; // a target option, applied to the printer stage below
+          default: throw new Error(`The print runner has no mapping for option '${key}'. Add one.`);
         }
       }
+      const builder = sourceStage.toPrinter(given.printerId as string);
+      if (options.rotation !== undefined) builder.withRotation(options.rotation);
       if (given.copies !== undefined) builder.withCopies(given.copies);
       if (given.idempotencyKey !== undefined) builder.withIdempotencyKey(given.idempotencyKey);
-      return builder.send();
+      return builder.execute();
     }
     case 'printTemplate': {
-      const builder = client.print(given.printerId as string).fromTemplate(given.templateId);
-      if (given.data !== undefined) builder.withData(...given.data);
-      if (given.validate !== undefined) builder.withValidate(given.validate);
+      const source = client.convert().fromTemplate(given.templateId);
+      if (given.data !== undefined) source.withData(...given.data);
+      if (given.validate !== undefined) source.withValidate(given.validate);
+      const builder = source.toPrinter(given.printerId as string);
       if (given.copies !== undefined) builder.withCopies(given.copies);
       if (given.idempotencyKey !== undefined) builder.withIdempotencyKey(given.idempotencyKey);
-      return builder.send();
+      return builder.execute();
     }
     case 'getJob': return client.jobs.get(given.jobId);
     case 'getQuota': return client.getPrintQuota();

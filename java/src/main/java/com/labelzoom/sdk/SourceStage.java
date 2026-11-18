@@ -11,7 +11,8 @@ import java.util.Map;
  * <p>A conversion is built in two stages. {@code from*} picks the source and returns a source-stage
  * builder; {@code to*} picks the target and returns a target-stage builder that executes the
  * request. Each stage offers only the options that act on its side of the conversion, and a named
- * {@code from*} offers only the options for that format.
+ * {@code from*} offers only the options for that format. {@link #toPrinter(String)} is one more
+ * target: it sends the document to a Cloud Print printer instead of returning it.
  *
  * @param <S> the concrete builder, so each method returns it unchanged
  */
@@ -80,6 +81,20 @@ public abstract class SourceStage<S extends SourceStage<S>> {
     /** Selects the target format. */
     public DynamicTargetBuilder to(TargetFormat target) {
         return new DynamicTargetBuilder(draft, target);
+    }
+
+    /**
+     * Prints the document on a Cloud Print printer instead of returning it. The printer's own
+     * configuration sets the output language, and LabelZoom converts the document to it, so a PDF
+     * prints on a ZPL printer. Printing needs an API key with the {@code print} scope.
+     *
+     * @param printerId the printer's id, from the Printers page
+     * @throws LabelZoomValidationException if the source is a URL or base64 text, which can't be
+     *     printed (parameter {@code source}), or if {@code printerId} is null or blank
+     */
+    public PrinterTargetBuilder toPrinter(String printerId) {
+        return new PrinterTargetBuilder(
+                PrintWriters.requirePrintable(draft), PrintWriters.requireId(printerId, "printerId"));
     }
 
     /** Converts to ZPL. All labels are concatenated into one document. */

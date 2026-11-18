@@ -1,122 +1,114 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DynamicPrintBuilder,
   DynamicSourceBuilder,
-  ImagePrintBuilder,
   ImageSourceBuilder,
   LabelZoomClient,
-  PdfPrintBuilder,
+  LabelZoomValidationError,
   PdfSourceBuilder,
-  PrintBuilder,
-  PrinterLanguagePrintBuilder,
   PrinterLanguageSourceBuilder,
-  PrintRequestBuilder,
+  PrinterTargetBuilder,
   SourceBuilder,
-  ZplPrintBuilder,
+  TemplatePrinterTargetBuilder,
+  TemplateSourceBuilder,
   ZplSourceBuilder,
 } from '../src/index.js';
 
 /**
- * Pins the print stage against the convert source stage it mirrors (contract section 1.2). The print
- * builders can't reuse the convert ones, because those carry the `to*` transitions, so each format has
- * a twin. These tests stop the twins drifting.
+ * Pins the printer target (contract section 1 and P2): every source stage reaches a printer through
+ * `toPrinter`, and the printer stages offer only the options that apply to a printer.
  */
 
-const PRINT_ONLY = new Set(['withCopies', 'withIdempotencyKey', 'send']);
-
-/** Every public method on the class and its ancestors, excluding the constructor. */
-function methods(type: abstract new (...args: never[]) => unknown): Set<string> {
-  const names = new Set<string>();
-  for (let proto = type.prototype; proto !== Object.prototype && proto !== null; proto = Object.getPrototypeOf(proto)) {
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      if (name !== 'constructor') names.add(name);
-    }
-  }
-  return names;
+/** The public methods a class declares itself, excluding the constructor. */
+function ownMethods(type: abstract new (...args: never[]) => unknown): string[] {
+  return Object.getOwnPropertyNames(type.prototype).filter((name) => name !== 'constructor').sort();
 }
 
-const TWINS = [
-  [SourceBuilder, PrintBuilder],
-  [PrinterLanguageSourceBuilder, PrinterLanguagePrintBuilder],
-  [ZplSourceBuilder, ZplPrintBuilder],
-  [ImageSourceBuilder, ImagePrintBuilder],
-  [PdfSourceBuilder, PdfPrintBuilder],
-  [DynamicSourceBuilder, DynamicPrintBuilder],
-] as const;
+function jsonClient(requests: { url: URL; headers: Record<string, string>; body: unknown }[], responses: string[]) {
+  return new LabelZoomClient({
+    apiKey: 'lz_test',
+    maxRetries: 0,
+    fetch: (async (input: string | URL, init?: RequestInit) => {
+      requests.push({ url: new URL(String(input)), headers: init?.headers as Record<string, string>, body: init?.body });
+      return new Response(responses.shift() ?? '{"jobId":"j","status":"queued"}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch,
+  });
+}
 
-describe('print stages', () => {
-  for (const [convert, print] of TWINS) {
-    it(`${print.name} offers exactly the source options of ${convert.name}`, () => {
-      const convertOptions = [...methods(convert)].filter((name) => !/^to[A-Z(]|^to$/.test(name)).sort();
-      const printOptions = [...methods(print)].filter((name) => !PRINT_ONLY.has(name)).sort();
-      expect(printOptions).toEqual(convertOptions);
-    });
-
-    it(`${print.name} has no target stage`, () => {
-      expect([...methods(print)].filter((name) => name.startsWith('to'))).toEqual([]);
-      expect(methods(print).has('send')).toBe(true);
+describe('printer target', () => {
+  for (const stage of [SourceBuilder, PrinterLanguageSourceBuilder, ZplSourceBuilder, ImageSourceBuilder, PdfSourceBuilder, DynamicSourceBuilder]) {
+    it(`${stage.name} can target a printer`, () => {
+      expect(typeof (stage.prototype as unknown as { toPrinter?: unknown }).toPrinter).toBe('function');
     });
   }
 
-  it('offers from* methods only for the formats print converts', () => {
-    const offered = methods(PrintRequestBuilder);
-    for (const name of ['fromUrl', 'fromBase64Text', 'fromEscLabel', 'fromEzpl', 'fromTpcl', 'fromNlbl', 'fromLbl', 'fromBtw', 'fromDymo']) {
-      expect(offered.has(name), name).toBe(false);
-    }
-    for (const name of ['fromZpl', 'fromPdf', 'fromPng', 'fromFingerprint', 'fromCpcl', 'fromTemplate']) {
-      expect(offered.has(name), name).toBe(true);
+  it('offers only printer options on the printer stage', () => {
+    expect(ownMethods(PrinterTargetBuilder)).toEqual(['execute', 'withCopies', 'withIdempotencyKey', 'withRotation']);
+  });
+
+  it('gives a template merge data and only a printer target', () => {
+    expect(ownMethods(TemplateSourceBuilder)).toEqual(['toPrinter', 'withData', 'withValidate']);
+    expect(ownMethods(TemplatePrinterTargetBuilder)).toEqual(['execute', 'withCopies', 'withIdempotencyKey']);
+  });
+
+  it('refuses a URL and base64 text, which print cannot read', () => {
+    const client = new LabelZoomClient({ apiKey: 'lz_test' });
+    for (const call of [
+      () => client.convert().fromUrl('https://example.com/label.zpl').toPrinter('p1'),
+      () => client.convert().fromBase64Text('pdf', 'JVBERi0=').toPrinter('p1'),
+    ]) {
+      expect(call).toThrow(LabelZoomValidationError);
+      try { call(); } catch (error) { expect((error as LabelZoomValidationError).parameter).toBe('source'); }
     }
   });
 
-  it('sends a typed chain with its source options, copies and key', async () => {
-    const requests: { url: URL; headers: Record<string, string> }[] = [];
-    const client = new LabelZoomClient({
-      apiKey: 'lz_test',
-      maxRetries: 0,
-      fetch: (async (input: string | URL, init?: RequestInit) => {
-        requests.push({ url: new URL(String(input)), headers: init?.headers as Record<string, string> });
-        return new Response('{"jobId":"j1","status":"queued","copies":2}', {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        });
-      }) as typeof fetch,
-    });
+  it('sends a typed chain with its source options, rotation, copies and key', async () => {
+    const requests: { url: URL; headers: Record<string, string>; body: unknown }[] = [];
+    const client = jsonClient(requests, ['{"jobId":"j1","status":"queued","copies":2}']);
 
     const job = await client
-      .print('printer-1')
+      .convert()
       .fromPdf(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
       .withPage(1)
       .withSplit({ rows: 2 })
+      .toPrinter('printer-1')
+      .withRotation(90)
       .withCopies(2)
       .withIdempotencyKey('order-42')
-      .send();
+      .execute();
 
     const { url, headers } = requests[0]!;
     expect(url.pathname).toBe('/api/v3/printers/printer-1/print');
     expect(url.searchParams.get('sourceFormat')).toBe('pdf');
     expect(url.searchParams.get('copies')).toBe('2');
-    expect(JSON.parse(url.searchParams.get('params')!)).toEqual({ pdf: { pageNumber: 1 }, split: { rows: 2 } });
+    expect(JSON.parse(url.searchParams.get('params')!)).toEqual({ pdf: { pageNumber: 1 }, split: { rows: 2 }, rotation: 90 });
     expect(headers['idempotency-key']).toBe('order-42');
     expect(headers['content-type']).toBe('application/pdf');
     expect(job).toEqual({ jobId: 'j1', status: 'queued', copies: 2, idempotent: false });
   });
 
-  it('gives each call its own generated key', async () => {
-    const keys: string[] = [];
-    const client = new LabelZoomClient({
-      apiKey: 'lz_test',
-      maxRetries: 0,
-      fetch: (async (_input: string | URL, init?: RequestInit) => {
-        keys.push((init?.headers as Record<string, string>)['idempotency-key']!);
-        return new Response('{"jobId":"j","status":"queued"}', { status: 200 });
-      }) as typeof fetch,
-    });
+  it('prints a design file as its own bytes', async () => {
+    const requests: { url: URL; headers: Record<string, string>; body: unknown }[] = [];
+    const client = jsonClient(requests, []);
 
-    const print = client.print('printer-1').fromZpl('^XA^XZ');
-    await print.send();
-    await print.send();
+    await client.convert().fromBtw(new Uint8Array([0x00, 0xff, 0x10])).toPrinter('p1').execute();
+
+    expect(requests[0]!.url.searchParams.get('sourceFormat')).toBe('btw');
+    expect(requests[0]!.headers['content-type']).toBe('application/octet-stream');
+    expect([...new Uint8Array(requests[0]!.body as ArrayBuffer)]).toEqual([0x00, 0xff, 0x10]);
+  });
+
+  it('gives each call its own generated key', async () => {
+    const requests: { url: URL; headers: Record<string, string>; body: unknown }[] = [];
+    const client = jsonClient(requests, []);
+
+    const print = client.convert().fromZpl('^XA^XZ').toPrinter('printer-1');
+    await print.execute();
+    await print.execute();
 
     // Two calls are two prints. Only a retry within one call may reuse a key.
-    expect(keys[0]).not.toBe(keys[1]);
+    expect(requests[0]!.headers['idempotency-key']).not.toBe(requests[1]!.headers['idempotency-key']);
   });
 });

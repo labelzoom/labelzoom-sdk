@@ -6,7 +6,6 @@ namespace LabelZoom\Sdk\Tests;
 
 use LabelZoom\Sdk\ColorMode;
 use LabelZoom\Sdk\ConversionResult;
-use LabelZoom\Sdk\DynamicPrintBuilder;
 use LabelZoom\Sdk\DynamicSourceBuilder;
 use LabelZoom\Sdk\DynamicTargetBuilder;
 use LabelZoom\Sdk\Exception\BadRequestException;
@@ -317,17 +316,13 @@ final class ConformanceTest extends TestCase
     private const TARGET_OPTIONS = ['targetDpi', 'rotation', 'watermark', 'dialect', 'layout'];
 
     /**
-     * Applies the source options. The print twin offers the same ones under the same names, so the
-     * one mapping serves both; print has no target stage, so for it a target option is an error.
+     * Applies the source options. A convert and a print share the source stage, so the one mapping
+     * serves both; the target options are left for the target stage that follows.
      *
      * @param array<string, mixed> $options
      */
-    private static function applySourceOptions(
-        DynamicSourceBuilder|DynamicPrintBuilder $builder,
-        array $options,
-    ): void {
-        $ignored = $builder instanceof DynamicSourceBuilder ? self::TARGET_OPTIONS : [];
-
+    private static function applySourceOptions(DynamicSourceBuilder $builder, array $options): void
+    {
         foreach ($options as $key => $value) {
             match ($key) {
                 'sourceDpi' => $builder->withDpi((int) $value),
@@ -350,7 +345,7 @@ final class ConformanceTest extends TestCase
                 'labelIndex' => $builder->withLabelIndex((int) $value),
                 // Silently ignoring an unmapped option would let a new fixture pass without
                 // ever exercising what it was added to pin.
-                default => in_array($key, $ignored, true) ? null : throw new \LogicException(
+                default => in_array($key, self::TARGET_OPTIONS, true) ? null : throw new \LogicException(
                     "Fixture sets option '{$key}', which the PHP runner does not map here. "
                     . 'Add it to ConformanceTest::build() rather than skipping the case.',
                 ),
@@ -383,7 +378,7 @@ final class ConformanceTest extends TestCase
     /**
      * @param array<string, mixed> $pdf
      */
-    private static function applyPdf(DynamicSourceBuilder|DynamicPrintBuilder $builder, array $pdf): void
+    private static function applyPdf(DynamicSourceBuilder $builder, array $pdf): void
     {
         if (isset($pdf['conversionMode'])) {
             $builder->withPdfConversionMode(PdfConversionMode::from((string) $pdf['conversionMode']));
@@ -396,7 +391,7 @@ final class ConformanceTest extends TestCase
     /**
      * @param array<string, mixed> $zpl
      */
-    private static function applyZplSource(DynamicSourceBuilder|DynamicPrintBuilder $builder, array $zpl): void
+    private static function applyZplSource(DynamicSourceBuilder $builder, array $zpl): void
     {
         if (isset($zpl['commandsToIgnore'])) {
             /** @var list<string> $commands */
@@ -826,12 +821,28 @@ final class ConformanceTest extends TestCase
      */
     private static function sendDocumentPrint(LabelZoomClient $client, array $given): PrintJob
     {
-        $builder = $client->print((string) $given['printerId'])
-            ->from(SourceFormat::from((string) $given['source']), (string) $given['bodyText']);
+        $source = SourceFormat::from((string) $given['source']);
+        $body = (string) $given['bodyText'];
+        $request = $client->convert();
+        $sourceStage = ($given['sourceEncoding'] ?? null) === 'base64text'
+            ? $request->fromBase64Text($source, $body)
+            : $request->from($source, $body);
 
         /** @var array<string, mixed> $options */
         $options = $given['options'] ?? [];
-        self::applySourceOptions($builder, $options);
+        self::applySourceOptions($sourceStage, $options);
+
+        $builder = $sourceStage->toPrinter((string) $given['printerId']);
+        foreach ($options as $key => $value) {
+            match ($key) {
+                // The one target option the printer target stage offers (rule P2).
+                'rotation' => $builder->withRotation((int) $value),
+                // A printer has no other target option, so a fixture that sets one is wrong.
+                default => in_array($key, self::TARGET_OPTIONS, true) ? throw new \LogicException(
+                    "Print fixture sets target option '{$key}', which the printer target stage doesn't offer.",
+                ) : null,
+            };
+        }
 
         if (isset($given['copies'])) {
             $builder->withCopies((int) $given['copies']);
@@ -840,7 +851,7 @@ final class ConformanceTest extends TestCase
             $builder->withIdempotencyKey((string) $given['idempotencyKey']);
         }
 
-        return $builder->send();
+        return $builder->execute();
     }
 
     /**
@@ -848,14 +859,16 @@ final class ConformanceTest extends TestCase
      */
     private static function sendTemplatePrint(LabelZoomClient $client, array $given): PrintBatch
     {
-        $builder = $client->print((string) $given['printerId'])->fromTemplate((string) $given['templateId']);
+        $source = $client->convert()->fromTemplate((string) $given['templateId']);
 
         if (isset($given['data'])) {
-            $builder->withData($given['data']);
+            $source->withData($given['data']);
         }
         if (isset($given['validate'])) {
-            $builder->withValidate((bool) $given['validate']);
+            $source->withValidate((bool) $given['validate']);
         }
+
+        $builder = $source->toPrinter((string) $given['printerId']);
         if (isset($given['copies'])) {
             $builder->withCopies((int) $given['copies']);
         }
@@ -863,7 +876,7 @@ final class ConformanceTest extends TestCase
             $builder->withIdempotencyKey((string) $given['idempotencyKey']);
         }
 
-        return $builder->send();
+        return $builder->execute();
     }
 
     /**

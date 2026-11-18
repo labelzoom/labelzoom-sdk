@@ -138,29 +138,32 @@ module LabelZoom
     # Prints a document on a Cloud Print printer. Printing needs an API key with the +print+
     # scope.
     #
-    # There is no target format: the printer's configuration picks the output language, and
-    # LabelZoom converts the document to it, so a PDF prints on a ZPL printer.
+    # A printer is a target: the call mirrors {#convert} with the printer in the target's
+    # place. The printer's configuration picks the output language, and LabelZoom converts the
+    # document to it, so a PDF prints on a ZPL printer.
     #
+    # @param source [Symbol] the format of +body+: any source format except +:url+, because
+    #   print does not fetch. Design files such as +:btw+ and +:nlbl+ print as their own bytes.
     # @param printer_id [String] the printer to print on.
-    # @param source [Symbol] the format of +body+: one of {PRINT_SOURCE_FORMATS}. Print
-    #   converts only those; convert anything else to the printer's language first.
-    # @param body [String] the document.
+    # @param body [String] the document, as the format's own bytes. Base64 text is not
+    #   accepted: +base64_text: true+ raises.
     # @param copies [Integer, nil] sends the whole job this many times, 1 to 9999. It
     #   multiplies any quantity in the document: +^PQ3+ with 3 copies prints 9 labels.
     # @param idempotency_key [String, nil] makes the print safe to repeat: the same key
     #   returns the original job instead of printing again. Use something unique to the
     #   label, such as an order number. Omitted, the SDK generates one per call, so its own
     #   retries cannot print twice.
-    # @param source_options [Hash] how the document is read: the source options {#convert}
-    #   takes, in the same nested form (+label:+, +pdf:+, +split:+, +source_dpi:+, ...).
-    #   Target options such as +target_dpi:+ raise, because the printer picks the output.
+    # @param options [Hash] the source options {#convert} takes, in the same nested form
+    #   (+label:+, +pdf:+, +split:+, +source_dpi:+, ...), plus +rotation:+, the one target
+    #   option a printer takes. Any other target option, such as +target_dpi:+, raises,
+    #   because it depends on the output language the printer picks.
     #
     # @return [PrintJob]
     # @raise [ValidationError] if the request is rejected locally, before any network call.
     # @raise [APIError] on any non-2xx response.
-    def print(printer_id, source, body, copies: nil, idempotency_key: nil, **source_options)
-      printer_id = Printing.require_id!(printer_id, "printerId")
+    def print(source, printer_id, body, copies: nil, idempotency_key: nil, **options)
       source = Formats.print_source!(source)
+      printer_id = Printing.require_id!(printer_id, "printerId")
       body = body.to_s
       if body.empty?
         raise ValidationError.new("body",
@@ -170,8 +173,8 @@ module LabelZoom
       copies = Printing.copies!(copies)
       key = Printing.key_for_call(idempotency_key)
       # An empty params would make the server convert a document that is already in the
-      # printer's language, so it is sent only when a source option is set (rule P2).
-      params = Options.serialize_source(**source_options)
+      # printer's language, so it is sent only when an option is set (rule P2).
+      params = Options.serialize_print(**options)
 
       # sourceFormat on every request: the server cannot tell ZPL from EPL by Content-Type.
       query = [["sourceFormat", Formats.source_token(source)]]
@@ -184,11 +187,12 @@ module LabelZoom
       execute(:post, uri, headers, body) { |response, _| Printing.read_job(read_json(response)) }
     end
 
-    # Prints a published template, one label per record.
+    # Prints a published template, one label per record. A template is a source of its own:
+    # it takes merge data instead of source options, and the printer is its target.
     #
-    # @param printer_id [String] the printer to print on.
     # @param template_id [String] a template published from LabelZoom Studio or the web
     #   designer.
+    # @param printer_id [String] the printer to print on.
     # @param data [Hash, Array<Hash>, nil] one Hash of merge-field values per label. A single
     #   Hash is one label. Omit it for a template with no merge fields.
     # @param validate [Boolean] checks every record for missing merge fields before anything
@@ -201,10 +205,10 @@ module LabelZoom
     #   send the same request with the same key to submit the rest.
     # @raise [ValidationError] if the request is rejected locally, before any network call.
     # @raise [APIError] on any non-2xx response.
-    def print_template(printer_id, template_id, data: nil, validate: false, copies: nil,
+    def print_template(template_id, printer_id, data: nil, validate: false, copies: nil,
                        idempotency_key: nil)
-      printer_id = Printing.require_id!(printer_id, "printerId")
       template_id = Printing.require_id!(template_id, "templateId")
+      printer_id = Printing.require_id!(printer_id, "printerId")
       records = data.nil? ? [] : Options.normalize_data(data)
       copies = Printing.copies!(copies)
       key = Printing.key_for_call(idempotency_key)

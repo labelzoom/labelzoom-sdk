@@ -164,17 +164,18 @@ network call, which is a bug in the calling code rather than a server response. 
 ## Print
 
 Cloud Print sends a label to a printer that a LabelZoom Print Agent serves. Printing needs an API
-key with the `print` scope. There's no target format: the printer's configuration picks the output
-language, and LabelZoom converts the document to it, so a PDF prints on a ZPL printer.
+key with the `print` scope. A print is a conversion with a printer as the target: the printer's
+configuration picks the output language, and LabelZoom converts the document to it, so a PDF
+prints on a ZPL printer.
 
 Print a document:
 
 ```go
 job, err := client.Print(ctx, labelzoom.PrintRequest{
-    PrinterID:      printerID,
     Source:         labelzoom.SourcePDF,
     Body:           pdf,
     Options:        &labelzoom.PrintOptions{PDF: &labelzoom.PDFOptions{PageNumber: labelzoom.Ptr(0)}},
+    PrinterID:      printerID,
     Copies:         labelzoom.Ptr(2),
     IdempotencyKey: "SO-1001",
 })
@@ -183,17 +184,23 @@ if err != nil {
 }
 ```
 
-`PrintOptions` holds the source options of `Options`, which control how the document is read.
-`PrintSourceFormats()` lists the formats you can print; convert any other format to the printer's
-language first.
+The fields follow the order of the conversion: the source and how it's read, then the printer,
+then how the job is sent.
+
+- **Sources:** every source format prints except `SourceURL`. Fetch the document and print its
+  bytes. `Body` is always the format's own bytes; print takes no base64 text. A URL returns a
+  `*ValidationError` with `Parameter` set to `source`.
+- **Options:** `PrintOptions` holds the source options of `Options`, which control how the
+  document is read, plus `Rotation`. Rotation is the only target option a printer takes, because
+  the others depend on the output language, which the printer picks. It must be a multiple of 90.
 
 Print a published template, one label per record:
 
 ```go
 batch, err := client.PrintTemplate(ctx, labelzoom.TemplatePrintRequest{
-    PrinterID:  printerID,
     TemplateID: templateID,
     Data:       []labelzoom.DataRecord{{"sku": "A-100"}, {"sku": "B-200"}},
+    PrinterID:  printerID,
 })
 ```
 

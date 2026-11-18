@@ -169,9 +169,10 @@ Keyword arguments passed alongside `options` win.
 
 ## Print
 
-Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
-configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
-ZPL printer. There is no target format. Printing needs an API key with the `print` scope.
+Printing is a conversion with a printer as the target. Pass the printer where `convert()` takes
+the target format. The printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. The printer must be connected through the
+LabelZoom Print Agent, and printing needs an API key with the `print` scope.
 
 ```python
 import time
@@ -180,15 +181,17 @@ from labelzoom import LabelZoomClient
 
 with LabelZoomClient("lz_live_...") as client:
     job = client.print(
-        printer_id, "pdf", Path("label.pdf").read_bytes(),
+        "pdf", printer_id, Path("label.pdf").read_bytes(),
         pdf_page_number=0,                       # the same source options as convert()
+        rotation=90,                             # the one target option a printer takes
         copies=2,
         idempotency_key=order_number,
     )                                            # PrintJob(job_id, status, copies, idempotent)
 
     batch = client.print_template(
-        printer_id, template_id,
+        template_id, printer_id,
         [{"orderNumber": "SO-1001", "sku": "A-100"}],
+        validate=True,
     )                                            # PrintBatch(jobs, remaining, message)
 
     details = client.jobs.get(job.job_id)
@@ -201,9 +204,13 @@ with LabelZoomClient("lz_live_...") as client:
 
 `AsyncLabelZoomClient` has the same methods, awaited, and `await client.jobs.get(job_id)`.
 
-- `print` takes ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF,
-  and images, typed as `PrintSource`. To print another format, convert it to the printer's
-  language first.
+- Every source format prints, including design files such as BarTender `.btw`, except a URL and
+  base64 text. Print doesn't fetch a URL, so fetch the document and print its bytes. Print reads
+  the document's own bytes, so it has no `as_base64_text` option: decode base64 text first.
+- `print` takes the source options `convert()` takes, plus `rotation`. Rotation turns the
+  finished label whatever the printer's language; it's the only target option a printer takes.
+- `print_template` takes merge data and `validate` instead of a document and source options.
+  `validate=True` checks every record for missing merge fields before anything prints.
 - `copies` sends the whole job that many times, from 1 to 9999, so `^PQ3` with `copies=5` prints
   15 labels.
 - Every print carries an `Idempotency-Key`: set your own with `idempotency_key` to make a repeated

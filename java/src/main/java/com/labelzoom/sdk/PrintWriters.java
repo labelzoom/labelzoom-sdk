@@ -1,15 +1,13 @@
 package com.labelzoom.sdk;
 
-import java.util.EnumSet;
-import java.util.Set;
 import java.util.UUID;
 
 /**
  * The print options' validation and wire spelling, written once.
  *
- * <p>The print stages call into these the way every stage calls into {@link ParameterWriters}, so a
- * document print and a template print can't validate {@code copies} differently. Source options go
- * through {@link ParameterWriters} itself.
+ * <p>The printer target stages call into these the way every stage calls into
+ * {@link ParameterWriters}, so a document print and a template print can't validate {@code copies}
+ * differently. Source options and {@code rotation} go through {@link ParameterWriters} itself.
  */
 final class PrintWriters {
 
@@ -19,32 +17,25 @@ final class PrintWriters {
 
     static final int MAX_COPIES = 9999;
 
-    /**
-     * The sources the print endpoint converts to the printer's language (contract P2). It sends any
-     * other format to the printer as is, so the SDK refuses it.
-     */
-    private static final Set<SourceFormat> PRINTABLE = EnumSet.of(
-            SourceFormat.ZPL, SourceFormat.EPL, SourceFormat.IPL, SourceFormat.TSPL,
-            SourceFormat.DPL, SourceFormat.SBPL, SourceFormat.FINGERPRINT, SourceFormat.CPCL,
-            SourceFormat.XML, SourceFormat.JSON, SourceFormat.PDF, SourceFormat.PNG,
-            SourceFormat.BMP, SourceFormat.GIF, SourceFormat.JPEG, SourceFormat.JPG);
-
     private PrintWriters() {
     }
 
-    static SourceFormat requirePrintable(SourceFormat format) {
-        if (format == null) {
-            throw new LabelZoomValidationException("source", "Source format cannot be null.");
-        }
-        if (!PRINTABLE.contains(format)) {
+    /**
+     * Every source prints except a URL and base64 text (contract P2). Print doesn't fetch, and it
+     * reads the body as the format's own bytes.
+     */
+    static ConversionDraft requirePrintable(ConversionDraft draft) {
+        if (draft.source == SourceFormat.URL) {
             throw new LabelZoomValidationException(
-                    "source",
-                    format.wireToken() + " can't be printed directly: print converts only ZPL, EPL, IPL, "
-                            + "TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF and images. "
-                            + "Convert it to the printer's language with convert() first, then print the "
-                            + "result.");
+                    "source", "A URL can't be printed: print doesn't fetch. Fetch the document and print "
+                            + "its bytes.");
         }
-        return format;
+        if (draft.base64Text) {
+            throw new LabelZoomValidationException(
+                    "source", "Base64 text can't be printed: print reads the document's own bytes. Decode "
+                            + "it first.");
+        }
+        return draft;
     }
 
     static String requireId(String id, String parameter) {

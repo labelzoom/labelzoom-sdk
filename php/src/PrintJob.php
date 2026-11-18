@@ -7,8 +7,8 @@ namespace LabelZoom\Sdk;
 use LabelZoom\Sdk\Internal\JsonReader;
 
 /**
- * A print job the server accepted. Returned by a document print's `send()`, and one per record in
- * a {@see PrintBatch}.
+ * A print job the server accepted. Returned by {@see PrinterTargetBuilder::execute()}, and one per
+ * record in a {@see PrintBatch}.
  */
 final class PrintJob
 {

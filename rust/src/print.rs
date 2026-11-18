@@ -1,9 +1,13 @@
 //! Cloud Print: the request structs, the result types, and the print-only validation.
 //!
-//! Print is the convert pipeline with a different last step. There is no target format: the
-//! printer's own configuration picks the output language, and LabelZoom converts the
-//! document to it. So a print takes the *source* options a conversion takes, and none of the
-//! target ones.
+//! A printer is a target. A print runs the convert pipeline in the same order: the source,
+//! how it's read, then where it goes. The printer stands where a [`TargetFormat`] would, and
+//! LabelZoom converts the document to the printer's configured language. So a print takes the
+//! *source* options a conversion takes, plus rotation, which turns the finished label for
+//! every format. It takes no other target option, because the rest depend on an output
+//! language the request doesn't name.
+//!
+//! [`TargetFormat`]: crate::TargetFormat
 
 use crate::error::Error;
 use crate::formats::SourceFormat;
@@ -13,10 +17,11 @@ use serde_json::{Map, Value};
 const MIN_COPIES: u32 = 1;
 const MAX_COPIES: u32 = 9999;
 
-/// The source options a print takes: how the document is read.
+/// The options a print takes: how the document is read, and its rotation.
 ///
-/// There are no target options, because the printer's configuration picks the output. Each
-/// method here is the [`ConversionOptions`] method of the same name, applied to the same
+/// These are the source options of [`ConversionOptions`] plus [`rotation`](Self::rotation),
+/// the one target option a printer takes. The other target options depend on an output
+/// language, and the printer's configuration picks that. Each method here is the [`ConversionOptions`] method of the same name, applied to the same
 /// `?params=<JSON>` object, so a print and a conversion validate and serialize an option
 /// identically. Only the options you set are sent, and setting none sends no `params` at
 /// all, which prints a document already in the printer's language as is.
@@ -37,6 +42,13 @@ impl PrintOptions {
     #[must_use]
     pub fn source_dpi(self, dpi: i64) -> Self {
         self.with(|options| options.source_dpi(dpi))
+    }
+
+    /// Turns the finished label, in degrees clockwise. Must be a multiple of 90. This is the
+    /// printer target's one option, sent in `params` with the source options.
+    #[must_use]
+    pub fn rotation(self, degrees: i64) -> Self {
+        self.with(|options| options.rotation(degrees))
     }
 
     /// Image or PDF sources: sets the scaling percentage. Server default 100.
@@ -162,19 +174,21 @@ impl PrintOptions {
 /// One document print.
 ///
 /// Build it with [`PrintRequest::new`] and the setters, then pass it to
-/// [`LabelZoomClient::print`](crate::LabelZoomClient::print).
+/// [`LabelZoomClient::print`](crate::LabelZoomClient::print). The fields read in pipeline
+/// order, as a [`ConvertRequest`](crate::ConvertRequest) does: the source, how it's read, then
+/// the printer in the target's place.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct PrintRequest {
+    /// The format of [`body`](PrintRequest::body). Every format prints except
+    /// [`SourceFormat::Url`]; see [`is_printable`](SourceFormat::is_printable).
+    pub source: SourceFormat,
+    /// The document, as the format's own bytes. Print takes no base64 text.
+    pub body: Vec<u8>,
+    /// How the document is read, and its rotation.
+    pub options: PrintOptions,
     /// The printer's id, from the Printers page or the printers list.
     pub printer_id: String,
-    /// The format of [`body`](PrintRequest::body). Only a source whose
-    /// [`is_printable`](SourceFormat::is_printable) is true can be printed.
-    pub source: SourceFormat,
-    /// The document, as the format's own bytes.
-    pub body: Vec<u8>,
-    /// How the document is read.
-    pub options: PrintOptions,
     /// Sends the whole job this many times, 1 to 9999. It multiplies any quantity in the
     /// document: `^PQ3` with 5 copies prints 15 labels.
     pub copies: Option<u32>,
@@ -185,24 +199,24 @@ pub struct PrintRequest {
 }
 
 impl PrintRequest {
-    /// A print of `body` to `printer_id`, with nothing else set.
+    /// A print of `body`, read as `source`, to `printer_id`, with nothing else set.
     #[must_use]
     pub fn new(
-        printer_id: impl Into<String>,
         source: SourceFormat,
         body: impl Into<Vec<u8>>,
+        printer_id: impl Into<String>,
     ) -> Self {
         Self {
-            printer_id: printer_id.into(),
             source,
             body: body.into(),
             options: PrintOptions::new(),
+            printer_id: printer_id.into(),
             copies: None,
             idempotency_key: None,
         }
     }
 
-    /// Replaces the source options.
+    /// Replaces the options.
     #[must_use]
     pub fn options(mut self, options: PrintOptions) -> Self {
         self.options = options;
@@ -229,12 +243,11 @@ impl PrintRequest {
 ///
 /// Build it with [`TemplatePrintRequest::new`] and the setters, then pass it to
 /// [`LabelZoomClient::print_template`](crate::LabelZoomClient::print_template). A template is
-/// already a label, so it takes no source options.
+/// a source of its own: it is already a label, so it takes merge data instead of source
+/// options, and a printer is its only target.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct TemplatePrintRequest {
-    /// The printer's id.
-    pub printer_id: String,
     /// The published template's id.
     pub template_id: String,
     /// The merge-field values, one record per label. Leave it empty for a template with no
@@ -246,6 +259,8 @@ pub struct TemplatePrintRequest {
     pub data: Vec<Value>,
     /// Checks every record for missing merge fields before anything prints.
     pub validate: bool,
+    /// The printer's id.
+    pub printer_id: String,
     /// Sends each label this many times, 1 to 9999.
     pub copies: Option<u32>,
     /// One key for the whole batch: the server derives each record's key from it.
@@ -255,12 +270,12 @@ pub struct TemplatePrintRequest {
 impl TemplatePrintRequest {
     /// A print of `template_id` to `printer_id`, with no records.
     #[must_use]
-    pub fn new(printer_id: impl Into<String>, template_id: impl Into<String>) -> Self {
+    pub fn new(template_id: impl Into<String>, printer_id: impl Into<String>) -> Self {
         Self {
-            printer_id: printer_id.into(),
             template_id: template_id.into(),
             data: Vec::new(),
             validate: false,
+            printer_id: printer_id.into(),
             copies: None,
             idempotency_key: None,
         }
@@ -438,11 +453,8 @@ pub(crate) fn require_printable(source: SourceFormat) -> Result<(), Error> {
     }
     Err(Error::validation(
         "source",
-        format!(
-            "{source} can't be printed directly: print converts only ZPL, EPL, IPL, TSPL, DPL, \
-             SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF and images. Convert it to the \
-             printer's language first, then print the result."
-        ),
+        "A URL can't be printed, because print doesn't fetch. Fetch the document yourself and \
+         print its bytes as their own format.",
     ))
 }
 

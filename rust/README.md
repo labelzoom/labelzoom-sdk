@@ -137,9 +137,9 @@ not model yet, since unknown keys are ignored server-side.
 ## Print
 
 Cloud Print sends a document or a published template to a printer connected through the LabelZoom
-Print Agent. You choose no target format: the printer's configuration picks the output language,
-and LabelZoom converts the document to it, so a PDF prints on a ZPL printer. Printing needs an API
-key with the `print` scope.
+Print Agent. A printer is a target: you name the source and the printer, and LabelZoom converts
+the document to the printer's configured language, so a PDF prints on a ZPL printer. Printing
+needs an API key with the `print` scope.
 
 ```rust
 use labelzoom::{LabelZoomClient, PrintOptions, PrintRequest, SourceFormat, TemplatePrintRequest};
@@ -147,10 +147,10 @@ use std::time::Duration;
 
 let client = LabelZoomClient::builder().api_key("lz_live_...").build()?;
 
-// Print a document.
+// Print a document: the source, how it's read, then the printer.
 let job = client.print(
-    &PrintRequest::new("PRINTER_ID", SourceFormat::Pdf, std::fs::read("label.pdf")?)
-        .options(PrintOptions::new().pdf_page(0).label_size(4.0, 6.0))
+    &PrintRequest::new(SourceFormat::Pdf, std::fs::read("label.pdf")?, "PRINTER_ID")
+        .options(PrintOptions::new().pdf_page(0).label_size(4.0, 6.0).rotation(90))
         .copies(2)
         .idempotency_key("SO-1001"),
 )?;
@@ -160,7 +160,7 @@ let mut record = serde_json::Map::new();
 record.insert("orderNumber".into(), "SO-1001".into());
 record.insert("sku".into(), "A-100".into());
 let batch = client.print_template(
-    &TemplatePrintRequest::new("PRINTER_ID", "TEMPLATE_ID").with_data([record]),
+    &TemplatePrintRequest::new("TEMPLATE_ID", "PRINTER_ID").with_data([record]),
 )?;
 println!("{} jobs, {} records not yet submitted", batch.jobs.len(), batch.remaining);
 
@@ -174,9 +174,15 @@ loop {
 }
 ```
 
+Every source format prints except `SourceFormat::Url`, because print doesn't fetch: download the
+document and print its bytes in their own format instead. Print takes no base64 text either, so
+send the document as its own bytes. `SourceFormat::is_printable` tells you whether a format
+prints.
+
 `PrintOptions` takes the same source options as `ConversionOptions`, such as `source_dpi`,
-`label_size` and `split`, and none of the target ones. `SourceFormat::is_printable` tells you
-which formats print accepts; convert any other format to the printer's language first.
+`label_size` and `split`. Of the target options, it takes `rotation` only, which turns the
+finished label in degrees clockwise. A template takes merge data instead of source options, so
+`TemplatePrintRequest` has no options.
 
 - **Copies:** `copies` sends the whole job 1 to 9999 times, multiplying any quantity in the
   document, so `^PQ3` with 5 copies prints 15 labels.

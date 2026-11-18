@@ -4,61 +4,29 @@ declare(strict_types=1);
 
 namespace LabelZoom\Sdk;
 
-use LabelZoom\Sdk\Internal\ParameterWriters;
 use LabelZoom\Sdk\Internal\PrintWriters;
 
 /**
- * Prints a published template, one label per record. Returned by
- * {@see PrintRequestBuilder::fromTemplate()}.
- *
- * A template is already a label, so there are no source options. Each label is converted to the
- * printer's language.
+ * The printer target stage for a template, after {@see TemplateSourceBuilder::toPrinter()}.
  */
-final class TemplatePrintBuilder
+final class TemplatePrinterTargetBuilder
 {
-    /** @var list<object> */
-    private array $records = [];
-
-    private bool $validate = false;
-
     private ?int $copies = null;
 
     private ?string $idempotencyKey = null;
 
-    /** @internal */
+    /**
+     * @internal
+     *
+     * @param list<object> $records
+     */
     public function __construct(
         private readonly LabelZoomClient $client,
-        private readonly string $printerId,
         private readonly string $templateId,
+        private readonly string $printerId,
+        private readonly array $records,
+        private readonly bool $validate,
     ) {
-    }
-
-    /**
-     * The merge-field values: one record per label, whose keys are the template's merge fields. A
-     * template with no merge fields needs none. A batch is limited by the plan's
-     * {@see PrintQuotaLimits::getMaxBatchSize()}.
-     *
-     * A single record may be passed on its own; it is wrapped into a one-element array rather than
-     * rejected (rule C3).
-     *
-     * @param array<string, mixed>|list<array<string, mixed>> $records
-     */
-    public function withData(array $records): self
-    {
-        $this->records = ParameterWriters::records($records);
-
-        return $this;
-    }
-
-    /**
-     * Checks every record for missing merge fields before anything prints. A missing field fails
-     * the whole request with an {@see Exception\UnprocessableException}.
-     */
-    public function withValidate(bool $validate = true): self
-    {
-        $this->validate = $validate;
-
-        return $this;
     }
 
     /** Sends each label to the printer this many times, from 1 to 9999. */
@@ -89,7 +57,7 @@ final class TemplatePrintBuilder
      * @throws Exception\LabelZoomException if the API returns a non-2xx response
      * @throws Exception\TransportException if no response was ever produced
      */
-    public function send(): PrintBatch
+    public function execute(): PrintBatch
     {
         $query = [];
         if ($this->copies !== null) {

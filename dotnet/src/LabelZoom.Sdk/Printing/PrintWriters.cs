@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace LabelZoom.Sdk.Printing
 {
@@ -7,7 +6,7 @@ namespace LabelZoom.Sdk.Printing
     /// The print options' validation and wire spelling, written once.
     /// </summary>
     /// <remarks>
-    /// The print stage classes call into these the way the convert stages call into
+    /// The printer target stages call into these the way the convert stages call into
     /// <c>ParameterWriters</c>, so a document print and a template print can't validate
     /// <c>copies</c> differently. Source options go through <c>ParameterWriters</c> itself.
     /// </remarks>
@@ -20,29 +19,24 @@ namespace LabelZoom.Sdk.Printing
         internal const int MaxCopies = 9999;
 
         /// <summary>
-        /// The sources the print endpoint converts to the printer's language (contract P2). The
-        /// endpoint sends any other format to the printer as is, so the SDK refuses it.
+        /// Every source prints except a URL and base64 text (contract P2). Print doesn't fetch, and it
+        /// reads the body as the format's own bytes.
         /// </summary>
-        private static readonly HashSet<SourceFormat> Printable = new HashSet<SourceFormat>
+        internal static Conversion.ConversionDraft RequirePrintable(Conversion.ConversionDraft draft)
         {
-            SourceFormat.Zpl, SourceFormat.Epl, SourceFormat.Ipl, SourceFormat.Tspl,
-            SourceFormat.Dpl, SourceFormat.Sbpl, SourceFormat.Fingerprint, SourceFormat.Cpcl,
-            SourceFormat.Xml, SourceFormat.Json, SourceFormat.Pdf, SourceFormat.Png,
-            SourceFormat.Bmp, SourceFormat.Gif, SourceFormat.Jpeg, SourceFormat.Jpg,
-        };
-
-        internal static SourceFormat RequirePrintable(SourceFormat format)
-        {
-            if (!Printable.Contains(format))
+            if (draft.Source == SourceFormat.Url)
             {
                 throw new LabelZoomValidationException(
-                    "source",
-                    $"{format.ToWireToken()} can't be printed directly: the print endpoint converts only " +
-                    "ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF and " +
-                    "images. Convert it to the printer's language with Convert() first, then print the result.");
+                    "source", "A URL can't be printed: print doesn't fetch. Fetch the document and print its bytes.");
             }
 
-            return format;
+            if (draft.IsBase64Text)
+            {
+                throw new LabelZoomValidationException(
+                    "source", "Base64 text can't be printed: print reads the document's own bytes. Decode it first.");
+            }
+
+            return draft;
         }
 
         internal static string RequireId(string? id, string parameter)

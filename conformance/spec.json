@@ -17,7 +17,7 @@
     "Unprocessable",
     "PrintQuotaExceeded"
   ],
-  "caseCount": 138,
+  "caseCount": 140,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -128,9 +128,11 @@
     "validation/rotation-not-multiple-of-90",
     "print/document-caller-idempotency-key",
     "print/document-copies",
+    "print/document-design-file-binary",
     "print/document-jpg-sent-as-jpeg",
     "print/document-pdf-media-type",
     "print/document-replayed-job",
+    "print/document-rotation",
     "print/document-source-options",
     "print/document-unknown-status-kept",
     "print/document-zpl",
@@ -148,13 +150,13 @@
     "print/template-one-record",
     "print/template-partial-batch",
     "print/template-validate-and-copies",
+    "print/validation-base64-text-not-printable",
     "print/validation-blank-idempotency-key",
     "print/validation-copies-too-large",
     "print/validation-copies-zero",
     "print/validation-empty-body",
     "print/validation-empty-job-id",
     "print/validation-empty-printer-id",
-    "print/validation-source-not-printable",
     "print/validation-template-data-not-an-object",
     "print/validation-url-not-printable"
   ]

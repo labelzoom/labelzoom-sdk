@@ -19,6 +19,9 @@ final class ConversionDraft {
     final Map<String, Object> params = new LinkedHashMap<>();
     final Map<String, String> rawQuery = new LinkedHashMap<>();
 
+    /** True when the body is the document base64-encoded as text, which can't be printed. */
+    boolean base64Text;
+
     ConversionDraft(LabelZoomClient client, SourceFormat source, byte[] body, String contentType) {
         this.client = client;
         this.source = source;

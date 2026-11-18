@@ -56,16 +56,9 @@ export {
 } from './errors.js';
 
 export {
-  PrintRequestBuilder,
-  PrintStage,
-  PrintBuilder,
-  PrinterLanguagePrintBuilder,
-  ZplPrintBuilder,
-  ImagePrintBuilder,
-  PdfPrintBuilder,
-  DynamicPrintBuilder,
-  TemplatePrintBuilder,
-  PRINT_SOURCE_FORMATS,
+  PrinterTargetBuilder,
+  TemplateSourceBuilder,
+  TemplatePrinterTargetBuilder,
   type PrintSourceFormat,
   type PrintOptions,
   type PrintRequest,

@@ -255,11 +255,18 @@ class ConformanceTest {
         String operation = given.get("operation").asText();
         switch (operation) {
             case "print" -> {
-                DynamicPrintBuilder builder = client.print(given.get("printerId").asText())
-                        .from(SourceFormat.fromToken(given.get("source").asText()),
-                                given.get("bodyText").asText());
-                if (given.has("options")) {
-                    applySourceOptions(sourceOptions(builder), given.get("options"), false);
+                SourceFormat source = SourceFormat.fromToken(given.get("source").asText());
+                String body = given.get("bodyText").asText();
+                boolean base64Text = given.has("sourceEncoding")
+                        && "base64text".equals(given.get("sourceEncoding").asText());
+                DynamicSourceBuilder sourceStage = base64Text
+                        ? client.convert().fromBase64Text(source, body)
+                        : client.convert().from(source, body);
+                JsonNode options = given.has("options") ? given.get("options") : MAPPER.createObjectNode();
+                applySourceOptions(sourceStage, options, PRINTER_TARGET_OPTIONS);
+                PrinterTargetBuilder builder = sourceStage.toPrinter(given.get("printerId").asText());
+                if (options.has("rotation")) {
+                    builder.withRotation(options.get("rotation").asInt());
                 }
                 if (given.has("copies")) {
                     builder.withCopies(given.get("copies").asInt());
@@ -267,27 +274,27 @@ class ConformanceTest {
                 if (given.has("idempotencyKey")) {
                     builder.withIdempotencyKey(given.get("idempotencyKey").asText());
                 }
-                return project(builder.send());
+                return project(builder.execute());
             }
             case "printTemplate" -> {
-                TemplatePrintBuilder builder = client.print(given.get("printerId").asText())
-                        .fromTemplate(given.get("templateId").asText());
+                TemplateSourceBuilder source = client.convert().fromTemplate(given.get("templateId").asText());
                 if (given.has("data")) {
                     List<Object> records = new ArrayList<>();
                     given.get("data").forEach(n ->
                             records.add(n.isObject() ? toMap(n) : MAPPER.convertValue(n, Object.class)));
-                    builder.withData(erased(records));
+                    source.withData(erased(records));
                 }
                 if (given.has("validate")) {
-                    builder.withValidate(given.get("validate").asBoolean());
+                    source.withValidate(given.get("validate").asBoolean());
                 }
+                TemplatePrinterTargetBuilder builder = source.toPrinter(given.get("printerId").asText());
                 if (given.has("copies")) {
                     builder.withCopies(given.get("copies").asInt());
                 }
                 if (given.has("idempotencyKey")) {
                     builder.withIdempotencyKey(given.get("idempotencyKey").asText());
                 }
-                PrintBatch batch = builder.send();
+                PrintBatch batch = builder.execute();
                 Map<String, Object> out = new LinkedHashMap<>();
                 out.put("jobs", batch.jobs().stream().map(ConformanceTest::project).collect(Collectors.toList()));
                 out.put("remaining", batch.remaining());
@@ -567,7 +574,7 @@ class ConformanceTest {
                 : client.convert().from(source, body);
 
         JsonNode options = given.has("options") ? given.get("options") : MAPPER.createObjectNode();
-        applySourceOptions(sourceOptions(sourceStage), options, true);
+        applySourceOptions(sourceStage, options, TARGET_OPTIONS);
         DynamicTargetBuilder targetStage = sourceStage.to(target);
         applyTargetOptions(targetStage, options);
         return targetStage;
@@ -576,64 +583,16 @@ class ConformanceTest {
     private static final Set<String> TARGET_OPTIONS =
             Set.of("targetDpi", "rotation", "watermark", "dialect", "layout");
 
-    /**
-     * The source options both dynamic source stages offer: the convert one and its print twin. One
-     * mapping from the fixture's wire shape drives both, so a print case applies its options exactly
-     * the way a request case does.
-     */
-    private interface SourceOptions {
-        void withDpi(int dpi);
-
-        void withLabelSize(float width, float height);
-
-        void withPdfConversionMode(PdfConversionMode mode);
-
-        void withPdfPage(int page);
-
-        void withZplCommandsToIgnore(String... commands);
-
-        void withSplit(java.util.function.Consumer<SplitOptions> configure);
-
-        void withRaster(java.util.function.Consumer<RasterOptions> configure);
-
-        void withLabelIndex(int index);
-
-        void withData(List<Map<String, Object>> records);
-    }
-
-    private static SourceOptions sourceOptions(DynamicSourceBuilder b) {
-        return new SourceOptions() {
-            public void withDpi(int dpi) { b.withDpi(dpi); }
-            public void withLabelSize(float w, float h) { b.withLabelSize(w, h); }
-            public void withPdfConversionMode(PdfConversionMode m) { b.withPdfConversionMode(m); }
-            public void withPdfPage(int page) { b.withPdfPage(page); }
-            public void withZplCommandsToIgnore(String... c) { b.withZplCommandsToIgnore(c); }
-            public void withSplit(java.util.function.Consumer<SplitOptions> c) { b.withSplit(c); }
-            public void withRaster(java.util.function.Consumer<RasterOptions> c) { b.withRaster(c); }
-            public void withLabelIndex(int index) { b.withLabelIndex(index); }
-            public void withData(List<Map<String, Object>> records) { b.withData(records); }
-        };
-    }
-
-    private static SourceOptions sourceOptions(DynamicPrintBuilder b) {
-        return new SourceOptions() {
-            public void withDpi(int dpi) { b.withDpi(dpi); }
-            public void withLabelSize(float w, float h) { b.withLabelSize(w, h); }
-            public void withPdfConversionMode(PdfConversionMode m) { b.withPdfConversionMode(m); }
-            public void withPdfPage(int page) { b.withPdfPage(page); }
-            public void withZplCommandsToIgnore(String... c) { b.withZplCommandsToIgnore(c); }
-            public void withSplit(java.util.function.Consumer<SplitOptions> c) { b.withSplit(c); }
-            public void withRaster(java.util.function.Consumer<RasterOptions> c) { b.withRaster(c); }
-            public void withLabelIndex(int index) { b.withLabelIndex(index); }
-            public void withData(List<Map<String, Object>> records) { b.withData(records); }
-        };
-    }
+    /** The one target option the printer target stage takes (contract P2). */
+    private static final Set<String> PRINTER_TARGET_OPTIONS = Set.of("rotation");
 
     /**
-     * @param allowTargetOptions true for a request case, whose options mix both stages; false for a
-     *     print case, which has no target stage, so a target option there is a fixture error
+     * @param targetOptions the target options the case's target stage takes, which this skips: all
+     *     of them for a request case, whose options mix both stages, and only {@code rotation} for a
+     *     print case, so any other target option there is a fixture error
      */
-    private static void applySourceOptions(SourceOptions builder, JsonNode options, boolean allowTargetOptions) {
+    private static void applySourceOptions(
+            DynamicSourceBuilder builder, JsonNode options, Set<String> targetOptions) {
         Iterator<Map.Entry<String, JsonNode>> it = options.properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> option = it.next();
@@ -695,7 +654,7 @@ class ConformanceTest {
                     builder.withData(records);
                 }
                 default -> {
-                    if (!allowTargetOptions || !TARGET_OPTIONS.contains(option.getKey())) {
+                    if (!targetOptions.contains(option.getKey())) {
                         throw new IllegalStateException(
                                 "Fixture sets option '" + option.getKey() + "', which the Java runner "
                                         + "does not map. Add it to buildRequest rather than skipping the case.");

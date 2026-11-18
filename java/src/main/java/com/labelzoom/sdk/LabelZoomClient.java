@@ -83,23 +83,12 @@ public final class LabelZoomClient implements AutoCloseable {
         return credential != null;
     }
 
-    /** Starts building a conversion. */
+    /**
+     * Starts building a conversion. A conversion ends in a target format, or on a Cloud Print
+     * printer through {@link SourceStage#toPrinter(String)}.
+     */
     public ConversionRequestBuilder convert() {
         return new ConversionRequestBuilder(this);
-    }
-
-    /**
-     * Starts a print to a Cloud Print printer. Choose a document with a {@code from*} method, or a
-     * published template with {@link PrintRequestBuilder#fromTemplate(String)}.
-     *
-     * <p>There is no target stage: the printer's own configuration picks the output language, and
-     * LabelZoom converts the document to it. Printing needs an API key with the {@code print} scope.
-     *
-     * @param printerId the printer's id, from the Printers page or the printers list
-     * @throws LabelZoomValidationException if {@code printerId} is null or blank
-     */
-    public PrintRequestBuilder print(String printerId) {
-        return new PrintRequestBuilder(this, PrintWriters.requireId(printerId, "printerId"));
     }
 
     /** Print jobs: look one up by id to follow it to completion. */

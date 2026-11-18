@@ -331,9 +331,10 @@ impl LabelZoomClient {
 
     /// Sends a document to a Cloud Print printer.
     ///
-    /// There is no target format: the printer's own configuration picks the output language,
-    /// and LabelZoom converts the document to it, so a PDF prints on a ZPL printer. Printing
-    /// needs an API key with the `print` scope.
+    /// A printer is a target, in the place a [`TargetFormat`](crate::TargetFormat) takes in
+    /// [`convert`](Self::convert): LabelZoom converts the document to the printer's configured
+    /// language, so a PDF prints on a ZPL printer. Every source format prints except a URL.
+    /// Printing needs an API key with the `print` scope.
     ///
     /// Every print carries an `Idempotency-Key`: the request's own, or one generated for this
     /// call and reused on each of its retries, so a retry after a lost response can't print
@@ -341,9 +342,9 @@ impl LabelZoomClient {
     ///
     /// # Errors
     ///
-    /// [`Error::Validation`] for an empty printer id or document, a source that
-    /// [can't be printed](crate::SourceFormat::is_printable), copies outside 1 to 9999, a blank
-    /// idempotency key, or invalid options; [`Error::Api`] for any non-2xx response,
+    /// [`Error::Validation`] for an empty printer id or document, a
+    /// [`Url`](crate::SourceFormat::Url) source, which can't be printed, copies outside 1 to
+    /// 9999, a blank idempotency key, or invalid options; [`Error::Api`] for any non-2xx response,
     /// including [`ApiErrorKind::PrintQuotaExceeded`], which is never retried;
     /// [`Error::Transport`] when no response arrived, or the response was not JSON.
     pub fn print(&self, request: &PrintRequest) -> Result<PrintJob, Error> {

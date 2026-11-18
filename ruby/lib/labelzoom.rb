@@ -23,7 +23,7 @@ require_relative "labelzoom/client"
 #
 # Cloud Print sends a document, or a published template, to a printer:
 #
-#     job = client.print(printer_id, :zpl, zpl, copies: 2)
+#     job = client.print(:zpl, printer_id, zpl, copies: 2)
 #     client.jobs.get(job.job_id).status
 #
 # The behavior of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by

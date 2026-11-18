@@ -51,26 +51,30 @@ client.convert("esclabel", "zpl", body, source_dpi=600)
 client.convert("btw", "pdf", body)
 client.convert("zpl", "cpcl", body)
 
-# Print takes only the formats it converts (contract rule P2). The others reach the printer
-# unconverted, so they are type errors here, not just local validation errors at run time.
-client.print("printer-1", "url", "https://example.com/label.zpl")  # type: ignore[arg-type]
-client.print("printer-1", "btw", b"BT")  # type: ignore[arg-type]
-client.print("printer-1", "esclabel", body)  # type: ignore[arg-type]
+# Print takes every source format except 'url' (contract rule P2): print doesn't fetch, so a
+# URL is a type error here, not just a local validation error at run time.
+client.print("url", "printer-1", "https://example.com/label.zpl")  # type: ignore[arg-type]
 
 
-# A value typed as any SourceFormat is not a PrintSource, even when the member is printable. A
-# parameter, because mypy narrows a variable to the literal assigned to it.
+# A value typed as any SourceFormat is not a PrintSource, because SourceFormat includes 'url'.
+# A parameter, because mypy narrows a variable to the literal assigned to it.
 def print_any(source: SourceFormat) -> None:
-    client.print("printer-1", source, body)  # type: ignore[arg-type]
+    client.print(source, "printer-1", body)  # type: ignore[arg-type]
 
 
-# Print has no target stage, so a target option is not a keyword it takes.
-client.print("printer-1", "zpl", body, target_dpi=300)  # type: ignore[call-arg]
+# The printer is the target, so convert's other target options aren't keywords print takes.
+client.print("zpl", "printer-1", body, target_dpi=300)  # type: ignore[call-arg]
+# Print reads the document's own bytes, so there is no base64-text flag.
+client.print("pdf", "printer-1", "JVBERi0=", as_base64_text=True)  # type: ignore[call-arg]
 
-# Positive controls for print.
-client.print("printer-1", "zpl", body, copies=2, idempotency_key="SO-1001")
-client.print("printer-1", "jpg", b"\xff\xd8", source_dpi=300, label_width=4.0)
-client.print("printer-1", "pdf", b"%PDF", pdf_page_number=0, split_rows=2)
-client.print_template("printer-1", "template-1", [{"sku": "A-100"}], validate=True)
+# Positive controls for print. Design files and the ZPL dialects print like any other source,
+# and rotation is the one target option the printer takes.
+client.print("zpl", "printer-1", body, copies=2, idempotency_key="SO-1001")
+client.print("jpg", "printer-1", b"\xff\xd8", source_dpi=300, label_width=4.0)
+client.print("pdf", "printer-1", b"%PDF", pdf_page_number=0, split_rows=2)
+client.print("btw", "printer-1", b"BT")
+client.print("esclabel", "printer-1", body, source_dpi=600)
+client.print("zpl", "printer-1", body, rotation=90)
+client.print_template("template-1", "printer-1", [{"sku": "A-100"}], validate=True)
 client.jobs.get("job-1")
 client.get_print_quota()

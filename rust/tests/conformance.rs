@@ -816,14 +816,23 @@ fn run_print_operation(
         "print" => {
             let source = SourceFormat::from_name(&text("source"))
                 .ok_or_else(|| format!("unknown source '{}'", given["source"]))?;
-            let mut request = PrintRequest::new(text("printerId"), source, text("bodyText"))
+            // Print takes no base64 text, so a fixture that gives one can't be written here;
+            // skips/rust.json declares that case. Any other encoding would be dropped silently.
+            if let Some(encoding) = given.get("sourceEncoding") {
+                return Err(format!(
+                    "Fixture gives sourceEncoding {encoding}, which a Rust print can't express. \
+                     Declare the case in skips/rust.json with the reason."
+                )
+                .into());
+            }
+            let mut request = PrintRequest::new(source, text("bodyText"), text("printerId"))
                 .options(build_print_options(given)?);
             request.copies = copies;
             request.idempotency_key = key;
             client.print(&request).map(|job| project_job(&job))
         }
         "printTemplate" => {
-            let mut request = TemplatePrintRequest::new(text("printerId"), text("templateId"));
+            let mut request = TemplatePrintRequest::new(text("templateId"), text("printerId"));
             // Set as raw values, not through with_data: a non-object record has to reach
             // the client for validation-template-data-not-an-object to mean anything.
             request.data = array(given, "data");
@@ -889,8 +898,8 @@ fn project_job(job: &labelzoom::PrintJob) -> Value {
     })
 }
 
-/// Translates the fixture's wire-shaped source options onto `PrintOptions`, through its
-/// public setters. Like `build_options`, an unmapped option fails the case rather than
+/// Translates the fixture's wire-shaped source options and `rotation` onto `PrintOptions`,
+/// through its public setters. Like `build_options`, an unmapped option fails the case rather than
 /// being dropped.
 fn build_print_options(given: &Value) -> Result<PrintOptions, Failed> {
     let mut options = PrintOptions::new();
@@ -903,6 +912,7 @@ fn build_print_options(given: &Value) -> Result<PrintOptions, Failed> {
         let whole = |name: &str| value.get(name).and_then(Value::as_i64);
         options = match key.as_str() {
             "sourceDpi" => options.source_dpi(value.as_i64().unwrap_or_default()),
+            "rotation" => options.rotation(value.as_i64().unwrap_or_default()),
             "labelIndex" => options.label_index(value.as_i64().unwrap_or_default()),
             "label" => options.label_size(
                 number("width").ok_or("label.width is missing")?,

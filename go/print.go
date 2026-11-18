@@ -25,20 +25,22 @@ const (
 
 // PrintRequest describes one document print.
 //
-// A print has no target format: the printer's own configuration picks the output language,
-// and LabelZoom converts the document to it, so a PDF prints on a ZPL printer. Printing needs
-// an API key with the print scope.
+// A print is a conversion with a printer as the target: the fields read in pipeline order,
+// the source and how it is read, then the printer, then how the job is sent. The printer's own
+// configuration picks the output language, and LabelZoom converts the document to it, so a
+// PDF prints on a ZPL printer. Printing needs an API key with the print scope.
 type PrintRequest struct {
+	// Source is the format of Body. Every format prints except [SourceURL], because print
+	// doesn't fetch: fetch the document and print its bytes.
+	Source SourceFormat
+	// Body is the document, as the format's own bytes. Print takes no base64 text.
+	Body []byte
+	// Options are the source options, which control how the document is read, plus the
+	// rotation of the finished label. Nil sends none, and the document goes to the printer as
+	// is when it is already in the printer's language.
+	Options *PrintOptions
 	// PrinterID is the Cloud Print printer to send the document to.
 	PrinterID string
-	// Source is the format of Body. Only the formats in [PrintSourceFormats] can be printed;
-	// convert anything else to the printer's language first, then print the result.
-	Source SourceFormat
-	// Body is the document, as the format's own bytes.
-	Body []byte
-	// Options are the source options: how the document is read. Nil sends none, and the
-	// document goes to the printer as is when it is already in the printer's language.
-	Options *PrintOptions
 	// Copies sends the whole job this many times, 1 to 9999. It multiplies any quantity the
 	// document sets itself: ^PQ3 with 3 copies prints 9 labels. Nil leaves it to the document.
 	Copies *int
@@ -50,9 +52,10 @@ type PrintRequest struct {
 
 // TemplatePrintRequest describes one template print: a template published from LabelZoom
 // Studio or the web designer, filled with one record per label.
+//
+// A template is a source of its own: it takes merge data rather than source options, and its
+// only target is a printer.
 type TemplatePrintRequest struct {
-	// PrinterID is the Cloud Print printer to send the labels to.
-	PrinterID string
 	// TemplateID is the published template.
 	TemplateID string
 	// Data holds the merge-field values: a [DataRecord] for one label, a []DataRecord for
@@ -60,6 +63,8 @@ type TemplatePrintRequest struct {
 	Data any
 	// Validate checks every record for missing merge fields before anything prints.
 	Validate bool
+	// PrinterID is the Cloud Print printer to send the labels to.
+	PrinterID string
 	// Copies prints each label this many times, 1 to 9999. Nil prints one of each.
 	Copies *int
 	// IdempotencyKey is one key for the whole batch; the server derives each record's key
@@ -67,13 +72,15 @@ type TemplatePrintRequest struct {
 	IdempotencyKey string
 }
 
-// PrintOptions are the source options of a print: how the document is read.
+// PrintOptions are the options of a print: the source options, which control how the
+// document is read, and Rotation, the one target option a printer takes.
 //
-// They are the source half of [Options], with the same meaning, the same validation and the
-// same wire shape. There are no target options, because the printer picks the output.
+// They are the source half of [Options] plus Rotation, with the same meaning, the same
+// validation and the same wire shape. The other target options depend on an output language
+// the request doesn't name, because the printer picks it.
 type PrintOptions struct {
 	// SourceDPI is the resolution the document was made for. Server default 203. Not for
-	// PDF or LabelZoom XML/JSON sources, which have no dots.
+	// PDF, NiceLabel, BarTender or LabelZoom XML/JSON sources, which have no dots.
 	SourceDPI *int
 	// Scaling is a percentage, for an image or PDF source. Server default 100.
 	Scaling *float64
@@ -96,8 +103,11 @@ type PrintOptions struct {
 	Split *SplitOptions
 	// LabelIndex is the ZERO-BASED index of the one label to print.
 	LabelIndex *int
-	// Extra carries source options this SDK does not model yet. Its keys are merged at the
-	// top level of the params object and override the fields above.
+	// Rotation turns the finished label, in degrees clockwise, and must be a multiple of 90.
+	// Server default 0.
+	Rotation *int
+	// Extra carries options this SDK does not model yet. Its keys are merged at the top
+	// level of the params object and override the fields above.
 	Extra map[string]any
 }
 
@@ -125,6 +135,7 @@ func (o *PrintOptions) options() *Options {
 		PDF:        o.PDF,
 		Split:      o.Split,
 		LabelIndex: o.LabelIndex,
+		Rotation:   o.Rotation,
 		Extra:      o.Extra,
 	}
 	if o.ZPL != nil {
@@ -210,27 +221,10 @@ type PrintQuotaLimits struct {
 	MaxBatchSize int
 }
 
-// printableSources are the formats the print endpoint converts to the printer's language
-// (contract P2). It sends any other format to the printer as is, so the SDK refuses them.
-var printableSources = map[SourceFormat]bool{
-	SourceZPL: true, SourceEPL: true, SourceIPL: true, SourceTSPL: true, SourceDPL: true,
-	SourceSBPL: true, SourceFingerprint: true, SourceCPCL: true, SourceXML: true,
-	SourceJSON: true, SourcePDF: true, SourcePNG: true, SourceBMP: true, SourceGIF: true,
-	SourceJPEG: true, SourceJPG: true,
-}
-
-// PrintSourceFormats lists the sources [Client.Print] accepts, in the contract's order.
-func PrintSourceFormats() []SourceFormat {
-	var formats []SourceFormat
-	for _, format := range SourceFormats() {
-		if printableSources[format] {
-			formats = append(formats, format)
-		}
-	}
-	return formats
-}
-
 // Print sends a document to a Cloud Print printer.
+//
+// Every source format prints except [SourceURL]; a URL returns a [ValidationError] with
+// parameter "source" before anything is sent.
 //
 // It returns the same typed errors as [Client.Convert], plus [UnprocessableError] and
 // [PrintQuotaExceededError]. A request rejected before it leaves the process returns a
@@ -240,13 +234,12 @@ func (c *Client) Print(ctx context.Context, request PrintRequest) (*PrintJob, er
 	if err != nil {
 		return nil, err
 	}
-	if !printableSources[request.Source] {
+	// Contract P2: the print endpoint converts every source format, but it doesn't fetch, so
+	// a URL would reach the printer as the URL's own text.
+	if request.Source == SourceURL {
 		return nil, &ValidationError{
 			Parameter: "source",
-			Message: fmt.Sprintf("%q can't be printed directly: the print endpoint converts only ZPL, "+
-				"EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF and images. "+
-				"Convert it to the printer's language with Convert first, then print the result.",
-				string(request.Source)),
+			Message:   "A URL can't be printed: print doesn't fetch. Fetch the document and print its bytes.",
 		}
 	}
 	if len(request.Body) == 0 {
@@ -268,7 +261,8 @@ func (c *Client) Print(ctx context.Context, request PrintRequest) (*PrintJob, er
 		return nil, err
 	}
 	// An empty params would make the server convert a document already in the printer's
-	// language, so it is sent only when a source option was set (contract P2).
+	// language, so it is sent only when an option was set (contract P2). Rotation is
+	// validated and written by the convert serializer, like every other option.
 	params, err := request.Options.options().serialize()
 	if err != nil {
 		return nil, err

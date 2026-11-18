@@ -42,27 +42,34 @@ result = client.convert()
              .execute()
       -> ConversionResult { bytes, text, contentType, status, requestId }
 
-job = client.print(printerId)
-             .from(<printable SourceFormat>, <body>)            ── print source stage
-                 (the source options above, unchanged)
+job = client.convert()
+             .from(<SourceFormat>, <body>)                      ── source stage, unchanged
+                 (the source options above)
+             .toPrinter(printerId)                              ── printer target stage
+                 .withRotation(int)
                  .withCopies(1..9999) .withIdempotencyKey(string)
-             .send()
+             .execute()
       -> PrintJob { jobId, status, copies, idempotent }
 
-batch = client.print(printerId)
-             .fromTemplate(templateId)
+batch = client.convert()
+             .fromTemplate(templateId)                          ── template source stage
                  .withData([{...}, ...]) .withValidate(bool)
+             .toPrinter(printerId)                              ── template printer stage
                  .withCopies(1..9999) .withIdempotencyKey(string)
-             .send()
+             .execute()
       -> PrintBatch { jobs: [PrintJob], remaining, message }
 
 details = client.jobs.get(jobId)      -> PrintJobDetails
 quota   = client.getPrintQuota()      -> PrintQuota
 ```
 
-Print is the same pipeline with a different last step. It has **no target stage**: the printer's
-own configuration picks the output language, so `print(...).from(...)` offers the source options
-and then the print options. See **P** in §2.
+**A printer is a target.** Printing runs the same pipeline in the same order: the source, how it
+is read, then where it goes. `toPrinter(printerId)` stands where `toZpl()` would, and the server converts the
+document to the printer's configured language. The printer target stage offers `withRotation`,
+because rotation turns the finished label for every format; it offers no other target option,
+because the rest depend on an output language the request doesn't name. A published template is a
+source of its own: it takes merge data instead of source options, and for now its only target is a
+printer. See **P** in §2.
 
 The chain has two stages. **Source options**, which change how the source document is read, are
 set after `from` and before `to`. **Target options**, which change the output, are set after `to`.
@@ -167,12 +174,11 @@ outer method: the exit methods multiply with every level.
 >   by every fixture. Each SDK also has a test that sends one request through the typed
 >   builders and checks its `params`.
 >
-> **The print source stage mirrors the convert source stage.** In the languages that chain, the
-> convert source-stage classes carry the `to*` transitions, so print can't reuse them without
-> offering a target stage it doesn't have. Each convert source stage has a print twin
-> (`PdfSourceBuilder` and `PdfPrintBuilder`) whose format options are the same one-line calls into
-> the same shared writers. A stage-shape test asserts that each twin offers exactly its convert
-> counterpart's source options, so a source option added to one and not the other fails the build.
+> **Print adds targets, not source stages.** `toPrinter` is one more transition on the base source
+> stage, so every source stage, and every source option, reaches a printer with no print-specific
+> source classes. The template source stage is the one new source class, because a template takes
+> merge data rather than a document. Both printer stages write `rotation` through the same shared
+> writer the convert target stage uses.
 
 ### 1.3 Format metadata table
 
@@ -422,15 +428,15 @@ answers its print calls with 401.
   - `sourceFormat`, the source's wire token (**A2**), on every request. The server can't tell ZPL
     from EPL by `Content-Type`, and without it the document goes to the printer unconverted.
   - `copies`, only when the caller sets it.
-  - `params`, built exactly as for convert (**C1**–**C4**) from the source options, and only when one
-    is set. An empty `params` would make the server convert a document that's already in the
-    printer's language.
+  - `params`, built exactly as for convert (**C1**–**C4**) from the source options and `rotation`,
+    and only when one is set. An empty `params` would make the server convert a document that's
+    already in the printer's language.
 
-  Print converts only these sources: `zpl` `epl` `ipl` `tspl` `dpl` `sbpl` `fingerprint` `cpcl`
-  `xml` `json` `pdf` `png` `bmp` `gif` `jpeg` `jpg`. The print endpoint doesn't convert any other
-  format, so it would reach the printer as is; the SDK rejects it locally, with parameter `source`. That includes `url`,
-  because print doesn't fetch, and base64 text, because print reads the body as the format's own
-  bytes. In the languages with typed `from*` methods, the print stage offers none for the others.
+  Every source format prints except two, which the SDK rejects locally with parameter `source`
+  when the printer target is chosen: `url`, because print doesn't fetch, and base64 text, because
+  print reads the body as the format's own bytes. Both are reachable only through the run-time
+  builders (`from(SourceFormat, ...)`, `fromUrl`, `fromBase64Text`), so the check is a run-time one
+  in every language.
 - **P3** A template print sends `Content-Type: application/json` and a JSON body built from the
   records: one record is sent as that object, several as an array, and none as `{}`. Query
   parameters: `copies` and `validate=true`, each only when set. It takes no source options:
@@ -644,7 +650,7 @@ Approved, deliberate departures from the canonical shape. Anything not listed he
 | **Ruby** | Keyword arguments with **nested hashes** (`label: { width: 4 }`), not Python's flattening. | Nested hash literals are idiomatic Ruby in a way `label_width` is not. |
 | **TypeScript** | Adds a one-shot form `client.convert({ from, to, body, options })` alongside the chain. | The object-literal call is what most TS users reach for; the chain remains for parity. |
 | **Java** | Errors extend `RuntimeException`, not a checked exception. | A checked exception on every `execute()` is hostile inside a fluent chain. |
-| **Print, every language without a chain** (Python, Ruby, Go, Rust) | Print follows the language's convert form: one call with keyword arguments or a request struct (`client.print(printer_id, source, body, copies=2)`, `client.Print(ctx, PrintRequest{...})`), and a separate template call (`print_template`, `PrintTemplate`) instead of `fromTemplate`. Getting a job is `jobs.get` in Python and Ruby and `GetPrintJob` / `get_print_job` in Go and Rust. The printable-source rule (**P2**) is checked when the call runs, parameter `source`. | The same reasons as each language's convert row. Without per-format stages there is no twin to mirror, so each has a test that sorts every convert option into source or target and asserts print takes exactly the source half. |
+| **Print, every language without a chain** (Python, Ruby, Go, Rust) | Print follows the language's convert form, with the printer in the target's place: `client.print(source, printer_id, body, copies=2)` beside `client.convert(source, target, body)`, and `client.print_template(template_id, printer_id, data=...)`; `client.Print(ctx, PrintRequest{...})` and `PrintTemplate` in Go, and the request structs in Rust. Getting a job is `jobs.get` in Python and Ruby and `GetPrintJob` / `get_print_job` in Go and Rust. | The same reasons as each language's convert row. Each has a test that sorts every convert option into source or target and asserts print takes the source half plus `rotation`. |
 | **Rust** | `PrintQuotaExceeded` is a sibling `ApiErrorKind` variant, not a subtype; `ApiError::is_rate_limited()` is true for both. Job and quota timestamps are RFC 3339 strings. | No inheritance (see the Rust row above). The crate has no date-time dependency, and adding one for four read-only fields isn't worth it. |
 | **Go** | Optional strings are `""`, not null: `Code`, `Message`, `Error` and the job ids. `IdempotencyKey: ""` means "generate one". `PrintQuotaExceededError` embeds `RateLimitedError`, so `errors.As` matches it as either. | The SDK already reports an absent `RequestID` as `""`. |
 | **PHP** | The error code is `getErrorCode()`. | `\Exception::getCode()` is final and returns an int. |

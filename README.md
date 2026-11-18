@@ -88,16 +88,17 @@ await File.WriteAllBytesAsync("label.png", result.Bytes);
 
 Set `LABELZOOM_API_KEY` and every SDK picks it up automatically.
 
-**Printing** uses the same source stage and sends the result to a printer connected through the
-LabelZoom Print Agent. The printer's own configuration picks the output language, so there is no
-target stage. Printing needs an API key with the `print` scope.
+**Printing** is the same pipeline with a printer as the target. The printer's own configuration
+picks the output language, and LabelZoom converts the document to it. Printing needs an API key with
+the `print` scope.
 
 ```csharp
-var job = await client.Print(printerId)
+var job = await client.Convert()
     .FromPdf(pdf).WithPage(0)
-    .WithCopies(2)
-    .WithIdempotencyKey(orderNumber)   // a repeated call returns this job instead of printing again
-    .SendAsync();
+    .ToPrinter(printerId)
+        .WithCopies(2)
+        .WithIdempotencyKey(orderNumber)   // a repeated call returns this job instead of printing again
+    .ExecuteAsync();
 ```
 
 Every print carries an `Idempotency-Key`, so an SDK retry after a lost response can't print the

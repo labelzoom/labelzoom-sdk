@@ -6,6 +6,7 @@ namespace LabelZoom\Sdk;
 
 use LabelZoom\Sdk\Internal\ConversionDraft;
 use LabelZoom\Sdk\Internal\ParameterWriters;
+use LabelZoom\Sdk\Internal\PrintWriters;
 
 /**
  * The source stage: options that change how the source document is **read**, followed by the
@@ -14,7 +15,7 @@ use LabelZoom\Sdk\Internal\ParameterWriters;
  * A conversion is built in two stages. `from*` picks the source and returns a source-stage builder;
  * `to*` picks the target and returns a target-stage builder that executes the request. Each stage
  * offers only the options that act on its side, and a named `from*` offers only the options for
- * that format.
+ * that format. {@see self::toPrinter()} sends the document to a printer instead.
  */
 abstract class SourceStage
 {
@@ -66,6 +67,24 @@ abstract class SourceStage
     public function to(TargetFormat $target): DynamicTargetBuilder
     {
         return new DynamicTargetBuilder($this->draft, $target);
+    }
+
+    /**
+     * Prints the document on a Cloud Print printer instead of returning it. The printer's own
+     * configuration sets the output language, and LabelZoom converts the document to it, so a PDF
+     * prints on a ZPL printer. Printing needs an API key with the `print` scope.
+     *
+     * @param string $printerId the printer's id, from the Printers page
+     *
+     * @throws Exception\ValidationException if the source is a URL or base64 text, which can't be
+     *                                        printed, or the printer id is empty
+     */
+    public function toPrinter(string $printerId): PrinterTargetBuilder
+    {
+        return new PrinterTargetBuilder(
+            PrintWriters::requirePrintable($this->draft),
+            PrintWriters::requireId($printerId, 'printerId'),
+        );
     }
 
     /** Converts to ZPL. All labels are concatenated into one document. */

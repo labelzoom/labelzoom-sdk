@@ -75,11 +75,11 @@ TargetFormat = Literal[
     "jpeg",
 ]
 
-#: The formats print converts to the printer's language: a subset of :data:`SourceFormat`.
+#: The formats print accepts: every :data:`SourceFormat` except ``url``.
 #:
-#: The print endpoint sends any other format to the printer as is, so the SDK doesn't offer it,
-#: and ``mypy`` rejects it. That includes ``url``, because print doesn't fetch. Convert another
-#: format to the printer's language first, then print the result.
+#: The printer's configuration picks the output language, and LabelZoom converts the document
+#: to it, so a PDF or a BarTender file prints on a ZPL printer. ``url`` is absent because print
+#: doesn't fetch, and ``mypy`` rejects it. Fetch the document and print its bytes instead.
 PrintSource = Literal[
     "zpl",
     "epl",
@@ -87,8 +87,15 @@ PrintSource = Literal[
     "tspl",
     "dpl",
     "sbpl",
+    "esclabel",
     "fingerprint",
+    "ezpl",
     "cpcl",
+    "tpcl",
+    "nlbl",
+    "lbl",
+    "btw",
+    "dymo",
     "xml",
     "json",
     "pdf",
@@ -195,15 +202,21 @@ def validate_formats(source: str, target: str) -> None:
 
 
 def validate_print_source(source: str) -> None:
-    """Reject a format print doesn't convert, locally (contract rule P2).
+    """Reject a source print can't send, locally (contract rule P2).
 
-    The print endpoint would send it to the printer unconverted, so this is never a round trip
-    worth making.
+    Every source format prints except ``url``, because print doesn't fetch. The check runs when
+    the call does, so it also catches a ``url`` that reached the call without a type check.
     """
+    if source == "url":
+        raise LabelZoomValidationError(
+            "source",
+            "A URL can't be printed: print doesn't fetch. Fetch the document and print its "
+            "bytes.",
+        )
     if source not in PRINT_SOURCES:
         raise LabelZoomValidationError(
             "source",
-            f"{source!r} can't be printed directly: print converts only "
+            f"{source!r} is not a source format print takes. Valid values: "
             + ", ".join(repr(f) for f in PRINT_SOURCES)
-            + ". Convert it to the printer's language first, then print the result.",
+            + ".",
         )

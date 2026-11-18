@@ -202,19 +202,20 @@ server default reaches you without an SDK upgrade.
 
 ## Print
 
-Send a label to a [Cloud Print](https://docs.labelzoom.com) printer. Printing needs an API key with
-the `print` scope. There is no target stage: the printer's own configuration picks its language, and
-LabelZoom converts the document to it, so a PDF prints on a ZPL printer.
+Send a label to a [Cloud Print](https://docs.labelzoom.com) printer. A printer is a target, like
+`toZpl()`: the printer's own configuration sets its language, and LabelZoom converts the document
+to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
 
 Print a document:
 
 ```java
-PrintJob job = client.print(printerId)
+PrintJob job = client.convert()
         .fromPdf(Files.readAllBytes(Path.of("shipping-label.pdf")))
-            .withPage(0)                        // the same source options as convert()
+            .withPage(0)                        // any source options
+        .toPrinter(printerId)
             .withCopies(2)
             .withIdempotencyKey("SO-1001")
-        .send();
+        .execute();
 
 System.out.println(job.jobId() + " " + job.status());   // "queued" or "dispatched"
 ```
@@ -222,13 +223,14 @@ System.out.println(job.jobId() + " " + job.status());   // "queued" or "dispatch
 Print a published template, one label per record:
 
 ```java
-PrintBatch batch = client.print(printerId)
+PrintBatch batch = client.convert()
         .fromTemplate(templateId)
             .withData(
                     Map.of("orderNumber", "SO-1001", "sku", "A-100"),
                     Map.of("orderNumber", "SO-1002", "sku", "B-200"))
             .withValidate(true)                 // reject missing merge fields before printing
-        .send();
+        .toPrinter(printerId)
+        .execute();
 ```
 
 Follow a job to completion:
@@ -240,17 +242,18 @@ if (details.status().equals("failed")) {
 }
 ```
 
-`print(printerId)` offers a `from*` method only for the formats print converts: ZPL, EPL, IPL,
-TSPL, DPL, SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF, and images. Convert any other
-format to the printer's language with `convert()` first.
-
+- **Sources.** Every source format prints, including NiceLabel, BarTender and DYMO files, except a
+  URL and base64 text. For those, `toPrinter` throws a `LabelZoomValidationException` with parameter
+  `source`: fetch or decode the document and print its bytes.
+- **Rotation.** The printer target offers `withRotation(degrees)`, a multiple of 90, and no other
+  target option, because the rest depend on the output language, which the printer sets.
 - **Copies.** `withCopies(n)` sends the whole job to the printer `n` times, from 1 to 9999, and
   multiplies any quantity in the document itself.
 - **Idempotency keys.** Every print carries an `Idempotency-Key`. Set your own with
   `withIdempotencyKey`, such as an order number, so that repeating the call returns the original
   job instead of printing again; without one, the SDK generates a key per call and reuses it on
   that call's retries.
-- **Daily limit.** When the account's daily job limit is used up, `send()` throws
+- **Daily limit.** When the account's daily job limit is used up, `execute()` throws
   `LabelZoomPrintQuotaExceededException`, a `LabelZoomRateLimitedException` that the SDK doesn't
   retry, because the limit resets at 00:00 UTC; check `client.getPrintQuota()` to see what remains.
 

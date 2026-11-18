@@ -49,7 +49,17 @@ use Psr\Http\Message\StreamFactoryInterface;
  * $result->save('label.png');
  * ```
  *
- * Printing goes through {@see self::print()} and needs an API key with the `print` scope.
+ * Printing is the same chain with a printer as the target, through {@see SourceStage::toPrinter()},
+ * and needs an API key with the `print` scope:
+ *
+ * ```php
+ * $job = $client->convert()
+ *     ->fromPdf($pdf)
+ *         ->withPage(0)
+ *     ->toPrinter($printerId)
+ *         ->withCopies(2)
+ *     ->execute();
+ * ```
  */
 final class LabelZoomClient
 {
@@ -165,34 +175,13 @@ final class LabelZoomClient
         return $this->credential !== null;
     }
 
-    /** Starts building a conversion. */
+    /**
+     * Starts building a conversion or a print: the source first, then a target format, or a printer
+     * with {@see SourceStage::toPrinter()}.
+     */
     public function convert(): ConversionRequestBuilder
     {
         return new ConversionRequestBuilder($this);
-    }
-
-    /**
-     * Starts a print to a Cloud Print printer. Choose a document with a `from*` method, or a
-     * published template with {@see PrintRequestBuilder::fromTemplate()}.
-     *
-     * There is no target stage: the printer's own configuration picks the output language, and
-     * LabelZoom converts the document to it. Printing needs an API key with the `print` scope.
-     *
-     * ```php
-     * $job = $client->print($printerId)
-     *     ->fromPdf($pdf)
-     *         ->withPage(0)
-     *     ->withCopies(2)
-     *     ->send();
-     * ```
-     *
-     * @param string $printerId the printer's id, from the Printers page or the printers list
-     *
-     * @throws Exception\ValidationException if the printer id is empty
-     */
-    public function print(string $printerId): PrintRequestBuilder
-    {
-        return new PrintRequestBuilder($this, PrintWriters::requireId($printerId, 'printerId'));
     }
 
     /** Print jobs: look one up by id to follow it to completion. */
@@ -254,7 +243,7 @@ final class LabelZoomClient
     }
 
     /**
-     * Sends a print API request and decodes its JSON response. Called by the print stages.
+     * Sends a print API request and decodes its JSON response. Called by the printer target stages.
      *
      * Every print call accepts `application/json`, because every success response is JSON (rule
      * P1). Headers given here, such as the Idempotency-Key, are set once, so every retry of the

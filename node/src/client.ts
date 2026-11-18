@@ -16,7 +16,6 @@ import {
 import { normalizeData, serializeOptions, type ConversionOptions } from './options.js';
 import { ConversionRequestBuilder } from './builders.js';
 import {
-  PrintRequestBuilder,
   printWriters,
   readPrintBatch,
   readPrintJob,
@@ -190,32 +189,16 @@ export class LabelZoomClient {
   }
 
   /**
-   * Prints a document in one call. Use `client.print(printerId)` for the chain.
+   * Prints a document in one call: the one-call form of `convert().from*(...).toPrinter(printerId)`.
+   * The printer's configuration picks the output language. Printing needs an API key with the `print` scope.
    *
    * ```ts
    * const job = await client.print({ printerId, from: 'pdf', body: pdf, copies: 2 });
    * ```
    */
-  print(request: PrintRequest): Promise<PrintJob>;
-  /**
-   * Starts a print to a Cloud Print printer. There is no target stage: the printer's configuration
-   * picks the output language. Printing needs an API key with the `print` scope.
-   *
-   * ```ts
-   * const job = await client.print(printerId).fromPdf(pdf).withPage(0).withCopies(2).send();
-   * ```
-   */
-  print(printerId: string): PrintRequestBuilder;
-  print(request: string | PrintRequest): PrintRequestBuilder | Promise<PrintJob> {
-    if (typeof request === 'string') {
-      return new PrintRequestBuilder(this, printWriters.requireId(request, 'printerId'));
-    }
-    return this.#printDocument(request);
-  }
-
-  async #printDocument(request: PrintRequest): Promise<PrintJob> {
+  async print(request: PrintRequest): Promise<PrintJob> {
     const printerId = printWriters.requireId(request.printerId, 'printerId');
-    const source = printWriters.requirePrintable(request.from);
+    const source = printWriters.requirePrintable({ source: request.from as SourceFormat, asBase64Text: false }).source;
     const body = toBytes(request.body);
     if (body.byteLength === 0) {
       throw new LabelZoomValidationError('body', 'The document cannot be empty; the API rejects an empty print request.');

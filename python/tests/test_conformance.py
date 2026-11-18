@@ -424,18 +424,24 @@ def _call_print_operation(client: Any, given: dict[str, Any]) -> Any:
     key = given.get("idempotencyKey")
 
     if operation == "print":
+        # The printer stands where convert's target does. `options` holds the source options
+        # plus rotation, which _convert_kwargs maps exactly as it does for convert.
+        kwargs = _convert_kwargs(given)
+        # Print takes no base64-text input, so a case giving one can't be written; it is
+        # declared skipped in conformance/skips/python.json.
+        assert "as_base64_text" not in kwargs, "print takes no base64-text input"
         return client.print(
-            given["printerId"],
             given["source"],
+            given["printerId"],
             given["bodyText"],
             copies=copies,
             idempotency_key=key,
-            **_convert_kwargs(given),
+            **kwargs,
         )
     if operation == "printTemplate":
         return client.print_template(
-            given["printerId"],
             given["templateId"],
+            given["printerId"],
             given.get("data"),
             validate=given.get("validate", False),
             copies=copies,

@@ -7,6 +7,7 @@ import type {
   ZplImageCompression,
 } from './formats.js';
 import type { ConversionOptions, DataRecord } from './options.js';
+import { PrinterTargetBuilder, TemplateSourceBuilder, printWriters } from './print.js';
 
 /** Cuts each page into a grid of labels. Every length is in **inches**. */
 export type SplitOptions = NonNullable<ConversionOptions['split']>;
@@ -109,6 +110,14 @@ export class ConversionRequestBuilder {
    */
   fromUrl(url: string): DynamicSourceBuilder { return this.from('url', url); }
 
+  /**
+   * A template published from LabelZoom Studio or the web designer. Supply its merge-field values with
+   * `withData`, then print it with `toPrinter`.
+   */
+  fromTemplate(templateId: string): TemplateSourceBuilder {
+    return new TemplateSourceBuilder(this.#client, printWriters.requireId(templateId, 'templateId'));
+  }
+
   #draft(source: SourceFormat, body: ConversionBody, asBase64Text = false): Draft {
     return { client: this.#client, source, body, asBase64Text, options: {} };
   }
@@ -151,6 +160,15 @@ export abstract class SourceStage {
 
   /** Selects the target format at run time. Every target option is available. */
   to(target: TargetFormat): DynamicTargetBuilder { return new DynamicTargetBuilder(this.draft, target); }
+
+  /**
+   * Prints the document on a Cloud Print printer instead of returning it. The printer's configuration
+   * sets the output language, and LabelZoom converts the document to it, so a PDF prints on a ZPL
+   * printer. Printing needs an API key with the `print` scope. A URL or base64 text can't be printed.
+   */
+  toPrinter(printerId: string): PrinterTargetBuilder {
+    return new PrinterTargetBuilder(printWriters.requirePrintable(this.draft), printWriters.requireId(printerId, 'printerId'));
+  }
 
   toZpl(): ZplTargetBuilder { return new ZplTargetBuilder(this.draft); }
   /** EPL output can inline raw binary (`GW`); prefer `result.bytes` over `result.text`. */
@@ -463,24 +481,20 @@ export class DynamicTargetBuilder extends TargetStage {
 // Nested groups are merged, never replaced (contract §4.1): `zpl` holds both a source option
 // (`commandsToIgnore`) and target options, and `split`/`layout` can be set in more than one call.
 
-/** @internal Shared with the print stage. */
-export function setPdf(draft: { options: ConversionOptions }, pdf: NonNullable<ConversionOptions['pdf']>): void {
+function setPdf(draft: Draft, pdf: NonNullable<ConversionOptions['pdf']>): void {
   draft.options.pdf = { ...draft.options.pdf, ...pdf };
 }
 
-/** @internal Shared with the print stage. */
-export function setZpl(draft: { options: ConversionOptions }, zpl: NonNullable<ConversionOptions['zpl']>): void {
+function setZpl(draft: Draft, zpl: NonNullable<ConversionOptions['zpl']>): void {
   draft.options.zpl = { ...draft.options.zpl, ...zpl };
 }
 
-/** @internal Shared with the print stage. */
-export function setSplit(draft: { options: ConversionOptions }, split: SplitOptions): void {
+function setSplit(draft: Draft, split: SplitOptions): void {
   draft.options.split = { ...draft.options.split, ...split };
 }
 
 /** Raster options are top-level keys on the wire; only the ones given are written. */
-/** @internal Shared with the print stage. */
-export function setRaster(draft: { options: ConversionOptions }, raster: RasterOptions): void {
+function setRaster(draft: Draft, raster: RasterOptions): void {
   if (raster.scaling !== undefined) draft.options.scaling = raster.scaling;
   if (raster.position !== undefined) draft.options.position = raster.position;
   if (raster.darkness !== undefined) draft.options.darkness = raster.darkness;

@@ -1,14 +1,16 @@
 //! The print surface through its public types, beyond what the conformance fixtures pin:
-//! one request built with the typed setters, and the per-call key generation.
+//! one request built with the typed setters, the printable sources, the per-call key
+//! generation, and the shape test that keeps print's options in step with convert's.
 
 #[allow(dead_code)]
 mod support;
 
 use labelzoom::{
-    HttpRequest, LabelZoomClient, PrintOptions, PrintRequest, SourceFormat, TemplatePrintRequest,
+    Error, HttpRequest, LabelZoomClient, PrintOptions, PrintRequest, SourceFormat,
+    TemplatePrintRequest,
 };
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 use support::RecordingTransport;
 
@@ -72,14 +74,15 @@ fn only_request(transport: &RecordingTransport) -> HttpRequest {
 }
 
 #[test]
-fn a_typed_print_sends_its_source_options_copies_and_key() {
+fn a_typed_print_sends_its_source_options_rotation_copies_and_key() {
     let transport = RecordingTransport::new(vec![accepted()]);
-    let request = PrintRequest::new("printer 7", SourceFormat::Pdf, b"%PDF-1.4".to_vec())
+    let request = PrintRequest::new(SourceFormat::Pdf, b"%PDF-1.4".to_vec(), "printer 7")
         .options(
             PrintOptions::new()
                 .pdf_page(0)
                 .label_size(4.0, 6.0)
-                .split(2, 2),
+                .split(2, 2)
+                .rotation(90),
         )
         .copies(3)
         .idempotency_key("SO-1001");
@@ -103,7 +106,8 @@ fn a_typed_print_sends_its_source_options_copies_and_key() {
         json!({
             "pdf": { "pageNumber": 0 },
             "label": { "width": 4.0, "height": 6.0 },
-            "split": { "rows": 2, "columns": 2 }
+            "split": { "rows": 2, "columns": 2 },
+            "rotation": 90
         })
     );
     assert_eq!(sent.header("content-type"), Some("application/pdf"));
@@ -120,12 +124,12 @@ fn a_typed_print_sends_its_source_options_copies_and_key() {
 fn two_calls_generate_two_different_keys() {
     let transport = RecordingTransport::new(vec![accepted(), accepted(), accepted()]);
     let client = client(&transport);
-    let request = PrintRequest::new("printer-1", SourceFormat::Zpl, "^XA^XZ");
+    let request = PrintRequest::new(SourceFormat::Zpl, "^XA^XZ", "printer-1");
 
     client.print(&request).expect("the first print succeeds");
     client.print(&request).expect("the second print succeeds");
     client
-        .print_template(&TemplatePrintRequest::new("printer-1", "template-1"))
+        .print_template(&TemplatePrintRequest::new("template-1", "printer-1"))
         .expect("the template print succeeds");
 
     let keys: Vec<String> = transport
@@ -154,9 +158,9 @@ fn a_print_with_no_options_sends_no_params() {
     let transport = RecordingTransport::new(vec![accepted()]);
     client(&transport)
         .print(&PrintRequest::new(
-            "printer-1",
             SourceFormat::Jpg,
             b"\xFF\xD8".to_vec(),
+            "printer-1",
         ))
         .expect("the print succeeds");
 
@@ -166,4 +170,171 @@ fn a_print_with_no_options_sends_no_params() {
     assert!(!query.contains_key("params"));
     assert!(!query.contains_key("copies"));
     assert_eq!(sent.header("content-type"), Some("image/jpeg"));
+}
+
+#[test]
+fn every_source_prints_except_a_url() {
+    for &source in SourceFormat::ALL {
+        assert_eq!(
+            source.is_printable(),
+            source != SourceFormat::Url,
+            "{source} printable"
+        );
+    }
+}
+
+#[test]
+fn a_url_is_refused_before_anything_is_sent() {
+    let transport = RecordingTransport::new(vec![]);
+    let result = client(&transport).print(&PrintRequest::new(
+        SourceFormat::Url,
+        "https://example.com/label.zpl",
+        "printer-1",
+    ));
+
+    match result {
+        Err(Error::Validation(error)) => assert_eq!(error.parameter, "source"),
+        other => panic!("expected a validation error, got {other:?}"),
+    }
+    assert!(transport.requests.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_design_file_prints_as_its_own_bytes() {
+    let transport = RecordingTransport::new(vec![accepted()]);
+    client(&transport)
+        .print(&PrintRequest::new(
+            SourceFormat::Btw,
+            vec![0x00, 0xFF, 0x10],
+            "printer-1",
+        ))
+        .expect("the print succeeds");
+
+    let sent = only_request(&transport);
+    let (_, query) = split_url(&sent.url);
+    assert_eq!(query.get("sourceFormat").map(String::as_str), Some("btw"));
+    assert!(!query.contains_key("params"));
+    assert_eq!(
+        sent.header("content-type"),
+        Some("application/octet-stream")
+    );
+    assert_eq!(sent.body, [0x00, 0xFF, 0x10]);
+}
+
+#[test]
+fn a_bad_rotation_is_refused_like_a_conversion_one() {
+    let transport = RecordingTransport::new(vec![]);
+    let result = client(&transport).print(
+        &PrintRequest::new(SourceFormat::Zpl, "^XA^XZ", "printer-1")
+            .options(PrintOptions::new().rotation(45)),
+    );
+
+    match result {
+        Err(Error::Validation(error)) => assert_eq!(error.parameter, "rotation"),
+        other => panic!("expected a validation error, got {other:?}"),
+    }
+    assert!(transport.requests.lock().unwrap().is_empty());
+}
+
+// --------------------------------------------------------------------------- shape
+//
+// The Rust form of the stage-shape test (contract section 1.2). Rust has no reflection, so
+// it reads the public setters out of the source. Every `ConversionOptions` setter is sorted
+// into a source or a target option below: a setter added to convert and not sorted fails
+// here, as does a source option missing from print or a target option other than rotation
+// leaking into it.
+
+/// How the document is read. Print takes every one of these.
+const SOURCE_OPTIONS: &[&str] = &[
+    "color_mode",
+    "darkness",
+    "extra",
+    "label_index",
+    "label_size",
+    "pdf_conversion_mode",
+    "pdf_page",
+    "position",
+    "scaling",
+    "source_dpi",
+    "split",
+    "split_gaps",
+    "split_label_size",
+    "split_margins",
+    "split_skip_blank",
+    "with_data",
+    "zpl_commands_to_ignore",
+];
+
+/// What changes the output. Print takes only `rotation` of these.
+const TARGET_OPTIONS: &[&str] = &[
+    "dialect",
+    "layout",
+    "layout_fill",
+    "rotation",
+    "target_dpi",
+    "watermark",
+    "zpl_collapse_copies",
+    "zpl_image_compression",
+];
+
+/// The `pub fn` names declared directly in `impl <type> {` in one source file.
+fn public_methods(file: &str, type_name: &str) -> BTreeSet<String> {
+    let path = format!("{}/src/{file}", env!("CARGO_MANIFEST_DIR"));
+    // Normalized, so a checkout with CRLF line endings reads the same.
+    let source = std::fs::read_to_string(&path)
+        .expect("the source file reads")
+        .replace("\r\n", "\n");
+    let header = format!("\nimpl {type_name} {{\n");
+    let start = source
+        .find(&header)
+        .unwrap_or_else(|| panic!("no `impl {type_name}` block in {file}"));
+    let block = &source[start + header.len()..];
+    let block = &block[..block.find("\n}\n").expect("the impl block closes")];
+    block
+        .lines()
+        .filter_map(|line| line.strip_prefix("    pub fn "))
+        .map(|rest| rest.split(['(', '<']).next().unwrap_or_default().to_owned())
+        .collect()
+}
+
+fn names(lists: &[&[&str]]) -> BTreeSet<String> {
+    lists
+        .iter()
+        .flat_map(|list| list.iter().map(|name| (*name).to_owned()))
+        .collect()
+}
+
+#[test]
+fn every_conversion_option_is_sorted_into_source_or_target() {
+    let source = names(&[SOURCE_OPTIONS]);
+    let target = names(&[TARGET_OPTIONS]);
+    assert!(source.is_disjoint(&target));
+    assert_eq!(
+        public_methods("options.rs", "ConversionOptions"),
+        names(&[SOURCE_OPTIONS, TARGET_OPTIONS, &["new"]])
+    );
+}
+
+#[test]
+fn print_options_are_the_source_options_plus_rotation() {
+    assert_eq!(
+        public_methods("print.rs", "PrintOptions"),
+        names(&[
+            SOURCE_OPTIONS,
+            &["rotation", "new", "as_conversion_options"]
+        ])
+    );
+}
+
+#[test]
+fn the_printer_target_offers_options_copies_and_a_key_only() {
+    // No base64-text setter: print reads the body as the format's own bytes.
+    assert_eq!(
+        public_methods("print.rs", "PrintRequest"),
+        names(&[&["new", "options", "copies", "idempotency_key"]])
+    );
+    assert_eq!(
+        public_methods("print.rs", "TemplatePrintRequest"),
+        names(&[&["new", "with_data", "validate", "copies", "idempotency_key"]])
+    );
 }

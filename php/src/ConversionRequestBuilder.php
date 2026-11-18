@@ -6,6 +6,7 @@ namespace LabelZoom\Sdk;
 
 use LabelZoom\Sdk\Exception\ValidationException;
 use LabelZoom\Sdk\Internal\ConversionDraft;
+use LabelZoom\Sdk\Internal\PrintWriters;
 
 /**
  * Chooses the source document. Returned by `LabelZoomClient::convert()`.
@@ -94,7 +95,23 @@ final class ConversionRequestBuilder
             throw new ValidationException('body', 'Base64 body cannot be empty.');
         }
 
-        return new DynamicSourceBuilder(new ConversionDraft($this->client, $format, $base64, 'text/plain'));
+        return new DynamicSourceBuilder(
+            new ConversionDraft($this->client, $format, $base64, 'text/plain', isBase64Text: true),
+        );
+    }
+
+    /**
+     * Uses a template published from LabelZoom Studio or the web designer as the source. Supply its
+     * merge-field values with {@see TemplateSourceBuilder::withData()}, then print it with
+     * {@see TemplateSourceBuilder::toPrinter()}.
+     *
+     * @param string $templateId the template's id, from the Print templates page
+     *
+     * @throws ValidationException if the template id is empty
+     */
+    public function fromTemplate(string $templateId): TemplateSourceBuilder
+    {
+        return new TemplateSourceBuilder($this->client, PrintWriters::requireId($templateId, 'templateId'));
     }
 
     /** Converts from ZPL. */

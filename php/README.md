@@ -230,25 +230,27 @@ $result->save('out.pdf');
 
 ## Print
 
-Send a document to a printer connected through the LabelZoom Print Agent. The printer's own
-configuration sets its language, and LabelZoom converts the document to it, so a PDF prints on a
-ZPL printer. There is no target stage. Printing needs an API key with the `print` scope.
+To print, use the same chain with a printer as the target. Call `toPrinter()` where you would
+call `toZpl()`. The printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
 
 ```php
-$job = $client->print($printerId)
+$job = $client->convert()
     ->fromPdf($pdf)
-        ->withPage(0)                  // the same source options as convert()
-    ->withCopies(2)
-    ->withIdempotencyKey($orderNumber)
-    ->send();                          // PrintJob: getJobId(), getStatus(), getCopies(), isIdempotent()
+        ->withPage(0)                  // the same source options as any conversion
+    ->toPrinter($printerId)
+        ->withCopies(2)
+        ->withIdempotencyKey($orderNumber)
+    ->execute();                       // PrintJob: getJobId(), getStatus(), getCopies(), isIdempotent()
 
-$batch = $client->print($printerId)
+$batch = $client->convert()
     ->fromTemplate($templateId)
-    ->withData([
-        ['orderNumber' => 'SO-1001', 'sku' => 'A-100'],
-        ['orderNumber' => 'SO-1002', 'sku' => 'B-200'],
-    ])
-    ->send();                          // PrintBatch: getJobs(), getRemaining(), getMessage()
+        ->withData([
+            ['orderNumber' => 'SO-1001', 'sku' => 'A-100'],
+            ['orderNumber' => 'SO-1002', 'sku' => 'B-200'],
+        ])
+    ->toPrinter($printerId)
+    ->execute();                       // PrintBatch: getJobs(), getRemaining(), getMessage()
 
 $details = $client->jobs()->get($job->getJobId());
 echo $details->getStatus();            // queued, dispatched, printing, completed or failed
@@ -257,15 +259,18 @@ $quota = $client->getPrintQuota();
 echo $quota->getJobsToday()->getRemaining();
 ```
 
-- `print($printerId)` offers `from*` methods for ZPL, EPL, IPL, TSPL, DPL, SBPL, Fingerprint, CPCL,
-  LabelZoom XML and JSON, PDF, and images. To print another format, convert it to the printer's
-  language first. `from(SourceFormat, $body)` throws a `ValidationException` for a format print
-  doesn't convert.
+- Every source format prints except a URL and base64 text. `toPrinter()` throws a
+  `ValidationException` for a source from `fromUrl()` or `fromBase64Text()`, because print doesn't
+  fetch and reads the document's own bytes.
+- The printer target offers one target option, `withRotation()`, which turns the finished label.
+  The other target options depend on the output language, which the printer sets.
+- `fromTemplate($templateId)` prints a template published from LabelZoom Studio or the web
+  designer. It takes `withData()` and `withValidate()` instead of source options.
 - `withCopies($n)` sends the whole job `$n` times, from 1 to 9999. It multiplies a quantity in the
   document: `^PQ3` with 5 copies prints 15 labels.
 - Every print carries an `Idempotency-Key`. Set your own with `withIdempotencyKey()` to make a
-  repeated call return the original job instead of printing again; without one, the SDK generates a
-  key for each `send()`, so its own retries can't print twice.
+  repeated call return the original job instead of printing again. Without one, the SDK generates a
+  key for each `execute()`, so its own retries can't print twice.
 - A template batch that runs out of time returns a nonzero `getRemaining()`, the number of records
   not yet submitted. Send the same request with the same key to submit them.
 - The daily job limit throws a `PrintQuotaExceededException`, which is never retried, because the

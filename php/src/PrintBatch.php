@@ -8,7 +8,7 @@ use LabelZoom\Sdk\Internal\JsonReader;
 
 /**
  * The jobs a template print created: one per record. Returned by
- * {@see TemplatePrintBuilder::send()}, whatever the number of records.
+ * {@see TemplatePrinterTargetBuilder::execute()}, whatever the number of records.
  */
 final class PrintBatch
 {

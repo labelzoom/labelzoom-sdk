@@ -83,14 +83,16 @@ One kind covers every print call, because each one mixes what the other kinds te
 
 | `operation` | Call | Extra `given` fields |
 |---|---|---|
-| `print` | print a document | `printerId`, `source`, `bodyText`, `options`, `copies`, `idempotencyKey` |
+| `print` | print a document | `printerId`, `source`, `bodyText`, `sourceEncoding`, `options`, `copies`, `idempotencyKey` |
 | `printTemplate` | print a template | `printerId`, `templateId`, `data`, `validate`, `copies`, `idempotencyKey` |
 | `getJob` | get a job | `jobId` |
 | `getQuota` | read the print quota | — |
 
 `given.responses[]` is the scripted response sequence, as in `retry` cases, and is empty for a
-validation case. `given.maxRetries` defaults to 0. `options` holds source options only, in the
-wire shape, applied the way a `request` case applies them.
+validation case. `given.maxRetries` defaults to 0. `options` holds source options, plus
+`rotation`, the one target option the printer target stage takes, in the wire shape, applied the
+way a `request` case applies them. `sourceEncoding: "base64text"` means the document is given as
+base64 text, as in a `request` case.
 
 `expect` may hold:
 
@@ -162,7 +164,15 @@ Skips live in `conformance/skips/<lang>.json` and **require a non-empty `reason`
 }
 ```
 
-The only legitimate skips today are `typecheck/*` in Python and Ruby. **PHP does not skip
+The legitimate skips today are of two kinds:
+
+- **`print/validation-base64-text-not-printable` in Go, Python and Rust.** Their print call takes no
+  base64-text input, so the call the case describes can't be written. Don't add a base64 input to
+  print just to reject it. The languages whose print reaches a base64 builder or flag (C#, Java,
+  TypeScript, PHP, Ruby) run the case.
+- **`typecheck/*` in Python and Ruby.**
+
+**PHP does not skip
 them**: it has no compile step either, but `SourceFormat` and `TargetFormat` are real enums, so
 its runner shells out to PHPStan and asserts each snippet is rejected. A dynamically executed
 language with a static analyzer in its dev dependencies should run these, not declare them away.

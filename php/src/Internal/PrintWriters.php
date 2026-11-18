@@ -10,9 +10,9 @@ use LabelZoom\Sdk\SourceFormat;
 /**
  * The print options' validation and wire spelling, written once.
  *
- * The print stages call into these the way the convert stages call into {@see ParameterWriters},
- * so a document print and a template print can't validate `copies` differently. Source options go
- * through {@see ParameterWriters} itself.
+ * The printer target stages call into these the way the convert stages call into
+ * {@see ParameterWriters}, so a document print and a template print can't validate `copies`
+ * differently. Source options and `rotation` go through {@see ParameterWriters} itself.
  *
  * @internal
  */
@@ -25,40 +25,25 @@ final class PrintWriters
     public const MAX_COPIES = 9999;
 
     /**
-     * The sources the print endpoint converts to the printer's language (contract P2). It sends
-     * any other format to the printer as is, so the SDK refuses it.
+     * Every source prints except a URL and base64 text (contract P2): print doesn't fetch, and it
+     * reads the body as the format's own bytes.
      */
-    private const PRINTABLE = [
-        SourceFormat::Zpl,
-        SourceFormat::Epl,
-        SourceFormat::Ipl,
-        SourceFormat::Tspl,
-        SourceFormat::Dpl,
-        SourceFormat::Sbpl,
-        SourceFormat::Fingerprint,
-        SourceFormat::Cpcl,
-        SourceFormat::Xml,
-        SourceFormat::Json,
-        SourceFormat::Pdf,
-        SourceFormat::Png,
-        SourceFormat::Bmp,
-        SourceFormat::Gif,
-        SourceFormat::Jpeg,
-        SourceFormat::Jpg,
-    ];
-
-    public static function requirePrintable(SourceFormat $format): SourceFormat
+    public static function requirePrintable(ConversionDraft $draft): ConversionDraft
     {
-        if (!in_array($format, self::PRINTABLE, true)) {
+        if ($draft->source === SourceFormat::Url) {
             throw new ValidationException(
                 'source',
-                "{$format->value} can't be printed directly: print converts only ZPL, EPL, IPL, TSPL, DPL, "
-                . 'SBPL, Fingerprint, CPCL, LabelZoom XML and JSON, PDF and images. Convert it to the '
-                . "printer's language with convert() first, then print the result.",
+                "A URL can't be printed: print doesn't fetch. Fetch the document and print its bytes.",
+            );
+        }
+        if ($draft->isBase64Text) {
+            throw new ValidationException(
+                'source',
+                "Base64 text can't be printed: print reads the document's own bytes. Decode it first.",
             );
         }
 
-        return $format;
+        return $draft;
     }
 
     /** An id that goes into the path. An empty one would address a different endpoint. */

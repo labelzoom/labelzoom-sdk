@@ -119,21 +119,6 @@ namespace LabelZoom.Sdk
             return new ConversionRequestBuilder(this);
         }
 
-        /// <summary>
-        /// Starts a print to a Cloud Print printer. Choose a document with a <c>From*</c> method, or a
-        /// published template with <see cref="PrintRequestBuilder.FromTemplate"/>.
-        /// </summary>
-        /// <remarks>
-        /// There is no target stage: the printer's own configuration picks the output language, and
-        /// LabelZoom converts the document to it. Printing needs an API key with the <c>print</c> scope.
-        /// </remarks>
-        /// <param name="printerId">The printer's id, from the Printers page or the printers list.</param>
-        public PrintRequestBuilder Print(string printerId)
-        {
-            ThrowIfDisposed();
-            return new PrintRequestBuilder(this, PrintWriters.RequireId(printerId, nameof(printerId)));
-        }
-
         /// <summary>Print jobs: look one up by id to follow it to completion.</summary>
         public PrintJobsClient Jobs
         {

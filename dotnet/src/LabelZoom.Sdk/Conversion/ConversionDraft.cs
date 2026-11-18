@@ -28,5 +28,8 @@ namespace LabelZoom.Sdk.Conversion
         internal string ContentType { get; }
 
         internal ConversionParameters Parameters { get; } = new ConversionParameters();
+
+        /// <summary>True when the body is the document base64-encoded as text, which can't be printed.</summary>
+        internal bool IsBase64Text { get; set; }
     }
 }

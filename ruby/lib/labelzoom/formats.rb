@@ -30,13 +30,9 @@ module LabelZoom
     # writes graphics as hex, so its output is plain text.
     TARGET_FORMATS = %i[zpl epl ipl tspl dpl sbpl cpcl xml json pdf png bmp gif jpeg].freeze
 
-    # The sources print converts to the printer's language (contract P2). The print endpoint
-    # sends any other format to the printer as is, so the SDK rejects it: +:url+ because print
-    # does not fetch, and the rest because print does not convert them.
-    PRINT_SOURCE_FORMATS = %i[
-      zpl epl ipl tspl dpl sbpl fingerprint cpcl
-      xml json pdf png bmp gif jpeg jpg
-    ].freeze
+    # The sources print takes (contract P2): every source but +:url+, because print does not
+    # fetch. LabelZoom converts each one to the printer's language, design files included.
+    PRINT_SOURCE_FORMATS = (SOURCE_FORMATS - %i[url]).freeze
 
     MEDIA_TYPES = {
       zpl: "text/plain",
@@ -102,15 +98,15 @@ module LabelZoom
     end
 
     # @return [Symbol] the validated print source.
-    # @raise [ValidationError] if print does not convert it.
+    # @raise [ValidationError] named +source+, if it is not a source format at all, or if it is
+    #   +:url+, which print cannot take.
     def print_source!(format)
-      symbol = format.to_s.downcase.to_sym
+      symbol = source!(format)
       return symbol if PRINT_SOURCE_FORMATS.include?(symbol)
 
       raise ValidationError.new("source",
-                                "#{format.inspect} can't be printed directly: print converts " \
-                                "only #{PRINT_SOURCE_FORMATS.join(", ")}. Convert it to the " \
-                                "printer's language first, then print the result.")
+                                "A URL can't be printed: print doesn't fetch. Download the " \
+                                "document and print its bytes.")
     end
 
     # The path segment for a source. +:jpg+ normalizes to "jpeg" (rule A2).

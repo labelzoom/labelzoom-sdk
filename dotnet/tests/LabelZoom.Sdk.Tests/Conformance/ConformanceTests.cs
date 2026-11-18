@@ -262,11 +262,21 @@ public sealed class ConformanceTests
         {
             case "print":
             {
-                var builder = client.Print(given.GetProperty("printerId").GetString()!)
-                    .From(ParseSource(given.GetProperty("source").GetString()!), given.GetProperty("bodyText").GetString()!);
-                if (given.TryGetProperty("options", out var options))
+                var source = ParseSource(given.GetProperty("source").GetString()!);
+                var body = given.GetProperty("bodyText").GetString()!;
+                var sourceStage = given.TryGetProperty("sourceEncoding", out var encoding) && encoding.GetString() == "base64text"
+                    ? client.Convert().FromBase64Text(source, body)
+                    : client.Convert().From(source, body);
+                var hasOptions = given.TryGetProperty("options", out var options);
+                if (hasOptions)
                 {
-                    ApplyPrintSourceOptions(builder, options);
+                    ApplyPrintSourceOptions(sourceStage, options);
+                }
+
+                var builder = sourceStage.ToPrinter(given.GetProperty("printerId").GetString()!);
+                if (hasOptions && options.TryGetProperty("rotation", out var rotation))
+                {
+                    builder.WithRotation(rotation.GetInt32());
                 }
 
                 if (given.TryGetProperty("copies", out var copies))
@@ -279,16 +289,15 @@ public sealed class ConformanceTests
                     builder.WithIdempotencyKey(key.GetString()!);
                 }
 
-                return Project(await builder.SendAsync());
+                return Project(await builder.ExecuteAsync());
             }
 
             case "printTemplate":
             {
-                var builder = client.Print(given.GetProperty("printerId").GetString()!)
-                    .FromTemplate(given.GetProperty("templateId").GetString()!);
+                var source = client.Convert().FromTemplate(given.GetProperty("templateId").GetString()!);
                 if (given.TryGetProperty("data", out var data))
                 {
-                    builder.WithData(data.EnumerateArray()
+                    source.WithData(data.EnumerateArray()
                         .Select(record => record.ValueKind == JsonValueKind.String
                             ? (object?)record.GetString()
                             : record.Clone())
@@ -297,9 +306,10 @@ public sealed class ConformanceTests
 
                 if (given.TryGetProperty("validate", out var validate))
                 {
-                    builder.WithValidate(validate.GetBoolean());
+                    source.WithValidate(validate.GetBoolean());
                 }
 
+                var builder = source.ToPrinter(given.GetProperty("printerId").GetString()!);
                 if (given.TryGetProperty("copies", out var copies))
                 {
                     builder.WithCopies(copies.GetInt32());
@@ -310,7 +320,7 @@ public sealed class ConformanceTests
                     builder.WithIdempotencyKey(key.GetString()!);
                 }
 
-                var batch = await builder.SendAsync();
+                var batch = await builder.ExecuteAsync();
                 return new Dictionary<string, object?>
                 {
                     ["jobs"] = batch.Jobs.Select(Project).ToList(),
@@ -382,7 +392,7 @@ public sealed class ConformanceTests
         ["idempotent"] = job.Idempotent,
     };
 
-    private static void ApplyPrintSourceOptions(DynamicPrintBuilder builder, JsonElement options)
+    private static void ApplyPrintSourceOptions(DynamicSourceBuilder builder, JsonElement options)
     {
         foreach (var option in options.EnumerateObject())
         {
@@ -413,6 +423,9 @@ public sealed class ConformanceTests
                             split.Columns(columns.GetInt32());
                         }
                     });
+                    break;
+                case "rotation":
+                    // A target option: applied to the printer target stage.
                     break;
                 default:
                     throw new InvalidOperationException(
