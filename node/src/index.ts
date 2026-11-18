@@ -50,5 +50,23 @@ export {
   NotFoundError,
   PayloadTooLargeError,
   RateLimitedError,
+  PrintQuotaExceededError,
+  UnprocessableError,
   ServerError,
 } from './errors.js';
+
+export {
+  PrinterTargetBuilder,
+  TemplateSourceBuilder,
+  TemplatePrinterTargetBuilder,
+  type PrintSourceFormat,
+  type PrintOptions,
+  type PrintRequest,
+  type PrintTemplateRequest,
+  type PrintJob,
+  type PrintBatch,
+  type PrintJobDetails,
+  type PrintJobsClient,
+  type PrintQuota,
+  type PrintQuotaCounter,
+} from './print.js';

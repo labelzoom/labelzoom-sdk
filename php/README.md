@@ -3,8 +3,9 @@
 # LabelZoom PHP SDK
 
 Official PHP client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
-ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and sends labels to
+printers through LabelZoom Cloud Print.
 
 PHP 8.1+. PSR-18 / PSR-17 throughout, so it drops into Guzzle, Symfony HttpClient, or the bundled
 cURL client with no adapter.
@@ -227,6 +228,54 @@ $result->getRequestId();    // X-LZ-Request-Id — quote it to support
 $result->save('out.pdf');
 ```
 
+## Print
+
+To print, use the same chain with a printer as the target. Call `toPrinter()` where you would
+call `toZpl()`. The printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
+
+```php
+$job = $client->convert()
+    ->fromPdf($pdf)
+        ->withPage(0)                  // the same source options as any conversion
+    ->toPrinter($printerId)
+        ->withCopies(2)
+        ->withIdempotencyKey($orderNumber)
+    ->execute();                       // PrintJob: getJobId(), getStatus(), getCopies(), isIdempotent()
+
+$batch = $client->convert()
+    ->fromTemplate($templateId)
+        ->withData([
+            ['orderNumber' => 'SO-1001', 'sku' => 'A-100'],
+            ['orderNumber' => 'SO-1002', 'sku' => 'B-200'],
+        ])
+    ->toPrinter($printerId)
+    ->execute();                       // PrintBatch: getJobs(), getRemaining(), getMessage()
+
+$details = $client->jobs()->get($job->getJobId());
+echo $details->getStatus();            // queued, dispatched, printing, completed or failed
+
+$quota = $client->getPrintQuota();
+echo $quota->getJobsToday()->getRemaining();
+```
+
+- Every source format prints except a URL and base64 text. `toPrinter()` throws a
+  `ValidationException` for a source from `fromUrl()` or `fromBase64Text()`, because print doesn't
+  fetch and reads the document's own bytes.
+- The printer target offers one target option, `withRotation()`, which turns the finished label.
+  The other target options depend on the output language, which the printer sets.
+- `fromTemplate($templateId)` prints a template published from LabelZoom Studio or the web
+  designer. It takes `withData()` and `withValidate()` instead of source options.
+- `withCopies($n)` sends the whole job `$n` times, from 1 to 9999. It multiplies a quantity in the
+  document: `^PQ3` with 5 copies prints 15 labels.
+- Every print carries an `Idempotency-Key`. Set your own with `withIdempotencyKey()` to make a
+  repeated call return the original job instead of printing again. Without one, the SDK generates a
+  key for each `execute()`, so its own retries can't print twice.
+- A template batch that runs out of time returns a nonzero `getRemaining()`, the number of records
+  not yet submitted. Send the same request with the same key to submit them.
+- The daily job limit throws a `PrintQuotaExceededException`, which is never retried, because the
+  limit resets at 00:00 UTC.
+
 ## Errors
 
 Every non-2xx throws a typed exception carrying the server's own message, the raw body, and the
@@ -250,8 +299,14 @@ try {
 ```
 
 `BadRequestException`, `UnauthorizedException`, `ForbiddenException`, `NotFoundException`,
-`PayloadTooLargeException`, `RateLimitedException` and `ServerErrorException` all extend
-`LabelZoomException`, which extends `RuntimeException`.
+`PayloadTooLargeException`, `UnprocessableException` (422), `RateLimitedException` and
+`ServerErrorException` all extend `LabelZoomException`, which extends `RuntimeException`.
+`PrintQuotaExceededException` extends `RateLimitedException`, so a handler for rate limits catches
+it too.
+
+Each one carries `getErrorCode()`, the error's stable code such as `agent_update_required`, or
+`null` when the response has none. Branch on it rather than on the message. It isn't `getCode()`,
+because `RuntimeException` already defines that as an integer.
 
 Two exceptions deliberately do **not** extend it, because neither has a status, a body or a
 request id to carry, and a handler written for server failures should not swallow them:
@@ -264,8 +319,10 @@ request id to carry, and a handler written for server failures should not swallo
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honoring a longer `Retry-After` on any retryable status. Other 4xx responses throw immediately —
-a malformed request will not become valid on a second attempt.
+honoring a longer `Retry-After` on any retryable status. The daily print limit is the exception:
+its 429 throws at once. Other 4xx responses throw immediately — a malformed request will not
+become valid on a second attempt. A print's retries all send the same `Idempotency-Key`, so a
+retry can't print twice.
 
 ```php
 $client = new LabelZoomClient(maxRetries: 0, timeout: 30.0);

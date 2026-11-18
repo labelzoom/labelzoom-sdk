@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import dataclasses
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +32,14 @@ from labelzoom import (
     LabelZoomValidationError,
     NotFoundError,
     PayloadTooLargeError,
+    PrintQuotaExceededError,
     RateLimitedError,
     ServerError,
     UnauthorizedError,
+    UnprocessableError,
 )
 from labelzoom.options import UNSET
+from labelzoom.printing import _instant
 
 LANGUAGE = "python"
 
@@ -74,6 +79,8 @@ ERROR_KINDS: dict[str, type[LabelZoomError]] = {
     "PayloadTooLarge": PayloadTooLargeError,
     "RateLimited": RateLimitedError,
     "ServerError": ServerError,
+    "Unprocessable": UnprocessableError,
+    "PrintQuotaExceeded": PrintQuotaExceededError,
 }
 
 OK_RESPONSE: dict[str, Any] = {
@@ -276,6 +283,11 @@ def _assert_error(expected: dict[str, Any], actual: BaseException | None) -> Non
 
     if "kind" in expected:
         assert isinstance(actual, ERROR_KINDS[expected["kind"]])
+        if expected["kind"] == "RateLimited":
+            # The subtype is the narrower claim; a plain 429 must not be mistaken for it.
+            assert not isinstance(actual, PrintQuotaExceededError)
+    if "code" in expected:
+        assert actual.code == expected["code"]
     if "status" in expected:
         assert actual.status == expected["status"]
     if "message" in expected:
@@ -303,8 +315,11 @@ def _run_request_case(is_async: bool, given: dict[str, Any], expect: dict[str, A
     _result, error, stub, _sleeps = _run(is_async, given, [OK_RESPONSE])
     assert error is None, f"unexpected error: {error!r}"
 
-    request = stub.requests[-1]
+    _assert_request(stub.requests[-1], expect)
 
+
+def _assert_request(request: httpx.Request, expect: dict[str, Any]) -> None:
+    """The request vocabulary (CONFORMANCE.md section 2), shared by request and print cases."""
     if "method" in expect:
         assert request.method == expect["method"]
     if "url" in expect:
@@ -331,6 +346,9 @@ def _run_request_case(is_async: bool, given: dict[str, Any], expect: dict[str, A
         # differs per stdlib, so comparing encoded strings would be flake by construction.
         assert json.loads(raw) == expected_json
 
+    for name, value in expect.get("query", {}).items():
+        assert request.url.params.get(name) == value, f"query parameter {name}"
+
     for name in expect.get("queryAbsent", []):
         assert name not in request.url.params, f"query parameter {name}"
 
@@ -341,6 +359,8 @@ def _run_request_case(is_async: bool, given: dict[str, Any], expect: dict[str, A
 
     if "bodyText" in expect:
         assert request.content.decode("utf-8") == expect["bodyText"]
+    if "bodyJson" in expect:
+        assert json.loads(request.content) == expect["bodyJson"]
 
 
 def _run_response_case(is_async: bool, given: dict[str, Any], expect: dict[str, Any]) -> None:
@@ -394,6 +414,140 @@ def _run_validation_case(is_async: bool, given: dict[str, Any], expect: dict[str
     assert len(stub.requests) == expect["requestsSent"], "requests sent"
 
 
+# ------------------------------------------------------------------------ print
+
+
+def _call_print_operation(client: Any, given: dict[str, Any]) -> Any:
+    """Make the fixture's print call. Returns a coroutine for the async client."""
+    operation = given["operation"]
+    copies = given.get("copies")
+    key = given.get("idempotencyKey")
+
+    if operation == "print":
+        # The printer stands where convert's target does. `options` holds the source options
+        # plus rotation, which _convert_kwargs maps exactly as it does for convert.
+        kwargs = _convert_kwargs(given)
+        # Print takes no base64-text input, so a case giving one can't be written; it is
+        # declared skipped in conformance/skips/python.json.
+        assert "as_base64_text" not in kwargs, "print takes no base64-text input"
+        return client.print(
+            given["source"],
+            given["printerId"],
+            given["bodyText"],
+            copies=copies,
+            idempotency_key=key,
+            **kwargs,
+        )
+    if operation == "printTemplate":
+        return client.print_template(
+            given["templateId"],
+            given["printerId"],
+            given.get("data"),
+            validate=given.get("validate", False),
+            copies=copies,
+            idempotency_key=key,
+        )
+    if operation == "getJob":
+        return client.jobs.get(given["jobId"])
+    if operation == "getQuota":
+        return client.get_print_quota()
+    raise AssertionError(f"Unknown print operation '{operation}'.")
+
+
+def _run_print(
+    is_async: bool,
+    given: dict[str, Any],
+) -> tuple[Any, BaseException | None, _Stub, list[float]]:
+    """`_run`, for a print operation. Both branches stay literally parallel, as there."""
+    stub = _Stub(given["responses"])
+    sleeps: list[float] = []
+    kwargs = _client_kwargs(given, 0)
+
+    result: Any = None
+    error: BaseException | None = None
+
+    if is_async:
+
+        async def go() -> Any:
+            async def record(seconds: float) -> None:
+                sleeps.append(seconds)
+
+            async with AsyncLabelZoomClient(
+                transport=httpx.MockTransport(stub), sleep=record, **kwargs
+            ) as client:
+                return await _call_print_operation(client, given)
+
+        try:
+            result = asyncio.run(go())
+        except (LabelZoomError, LabelZoomValidationError, httpx.TransportError) as exc:
+            error = exc
+    else:
+        with LabelZoomClient(
+            transport=httpx.MockTransport(stub), sleep=sleeps.append, **kwargs
+        ) as client:
+            try:
+                result = _call_print_operation(client, given)
+            except (LabelZoomError, LabelZoomValidationError, httpx.TransportError) as exc:
+                error = exc
+
+    return result, error, stub, sleeps
+
+
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def _assert_subset(expected: Any, actual: Any, path: str) -> None:
+    """Assert every member the fixture gives, and only those. Timestamps compare as instants."""
+    if isinstance(expected, dict):
+        assert dataclasses.is_dataclass(actual), f"{path} is {actual!r}"
+        for key, value in expected.items():
+            attribute = _snake(key)
+            assert hasattr(actual, attribute), f"{path}.{attribute} is missing"
+            _assert_subset(value, getattr(actual, attribute), f"{path}.{attribute}")
+    elif isinstance(expected, list):
+        assert isinstance(actual, list | tuple), f"{path} is {actual!r}"
+        assert len(actual) == len(expected), f"{path} length"
+        for index, item in enumerate(expected):
+            _assert_subset(item, actual[index], f"{path}[{index}]")
+    elif isinstance(expected, str) and re.match(r"^\d{4}-\d{2}-\d{2}T", expected):
+        assert isinstance(actual, datetime), f"{path} is {actual!r}"
+        assert actual == _instant({"value": expected}, "value"), path
+    else:
+        # `null` means no value; numbers compare numerically, so 4 matches 4.0.
+        assert actual == expected, f"{path}: {actual!r} != {expected!r}"
+
+
+def _run_print_case(is_async: bool, given: dict[str, Any], expect: dict[str, Any]) -> None:
+    result, error, stub, sleeps = _run_print(is_async, given)
+
+    if "validationError" in expect:
+        assert isinstance(error, LabelZoomValidationError), (
+            f"expected a validation error, got {error!r}"
+        )
+        assert error.parameter == expect["validationError"]["parameter"]
+        assert len(stub.requests) == expect["requestsSent"], "requests sent"
+        return
+
+    if "error" in expect:
+        _assert_error(expect["error"], error)
+    else:
+        assert error is None, f"unexpected error: {error!r}"
+        ((name, expected_result),) = expect["result"].items()
+        _assert_subset(expected_result, result, name)
+
+    if "request" in expect:
+        _assert_request(stub.requests[0], expect["request"])
+    if "attempts" in expect:
+        assert len(stub.requests) == expect["attempts"], "attempts"
+    if "sleepsSeconds" in expect:
+        assert sleeps == expect["sleepsSeconds"]
+    for name in expect.get("sameHeaderAcrossAttempts", []):
+        values = {request.headers.get(name) for request in stub.requests}
+        assert None not in values, f"header {name}"
+        assert len(values) == 1, f"header {name} must be identical on every attempt"
+
+
 # -------------------------------------------------------------------- the suite
 
 
@@ -418,6 +572,8 @@ def test_conformance(case_id: str, is_async: bool, monkeypatch: pytest.MonkeyPat
         _run_retry_case(is_async, given, expect)
     elif kind == "validation":
         _run_validation_case(is_async, given, expect)
+    elif kind == "print":
+        _run_print_case(is_async, given, expect)
     else:
         raise AssertionError(f"Unknown case kind for '{case_id}'.")
 

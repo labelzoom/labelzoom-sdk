@@ -59,6 +59,21 @@ final class ParameterWriters
      */
     public static function data(ConversionDraft $draft, array $records): void
     {
+        $draft->params['data'] = self::records($records);
+    }
+
+    /**
+     * Validates data records and puts them in their wire shape: a list of JSON objects.
+     *
+     * Shared by the source stages' `withData()` and the template print's, so a record that is
+     * rejected in one is rejected in the other (rule C3).
+     *
+     * @param array<string, mixed>|list<array<string, mixed>> $records
+     *
+     * @return list<object>
+     */
+    public static function records(array $records): array
+    {
         if ($records === []) {
             throw new ValidationException('data', 'Provide at least one data record, or omit this call entirely.');
         }
@@ -80,7 +95,7 @@ final class ParameterWriters
             $normalized[] = (object) $record;
         }
 
-        $draft->params['data'] = $normalized;
+        return $normalized;
     }
 
     public static function pdfPage(ConversionDraft $draft, int $zeroBasedPageNumber): void

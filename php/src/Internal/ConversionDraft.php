@@ -28,6 +28,8 @@ final class ConversionDraft
         public readonly SourceFormat $source,
         public readonly string $body,
         public readonly string $contentType,
+        /** True when the body is the document base64-encoded as text, which can't be printed. */
+        public readonly bool $isBase64Text = false,
     ) {
     }
 

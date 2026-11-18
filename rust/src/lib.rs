@@ -30,6 +30,10 @@
 //! # }
 //! ```
 //!
+//! The same client sends documents and published templates to Cloud Print printers: see
+//! [`LabelZoomClient::print`], [`LabelZoomClient::print_template`],
+//! [`LabelZoomClient::get_print_job`] and [`LabelZoomClient::get_print_quota`].
+//!
 //! The behavior of every LabelZoom SDK is specified in `docs/API_CONTRACT.md` and checked
 //! by the shared fixtures in `conformance/`, which this crate's test suite executes.
 
@@ -50,6 +54,7 @@ mod client;
 mod error;
 mod formats;
 mod options;
+mod print;
 mod result;
 mod transport;
 
@@ -59,6 +64,10 @@ pub use formats::{SourceFormat, TargetFormat};
 pub use options::{
     ColorMode, ConversionOptions, ConvertRequest, LabelSize, LayoutFill, LayoutOptions,
     PdfConversionMode, PdfOptions, Position, SplitOptions, ZplImageCompression, ZplOptions,
+};
+pub use print::{
+    PrintBatch, PrintJob, PrintJobDetails, PrintOptions, PrintQuota, PrintQuotaCounter,
+    PrintQuotaLimits, PrintRequest, TemplatePrintRequest,
 };
 pub use result::ConversionResult;
 pub use transport::{HttpRequest, HttpResponse, Sleeper, ThreadSleeper, Transport};

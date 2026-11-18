@@ -17,12 +17,14 @@ public class LabelZoomException extends RuntimeException {
     private final int statusCode;
     private final String requestId;
     private final String rawBody;
+    private final String code;
 
-    LabelZoomException(int statusCode, String message, String requestId, String rawBody) {
+    LabelZoomException(int statusCode, String message, String requestId, String rawBody, String code) {
         super(message);
         this.statusCode = statusCode;
         this.requestId = requestId;
         this.rawBody = rawBody;
+        this.code = code;
     }
 
     /** The HTTP status code the API returned. */
@@ -44,5 +46,13 @@ public class LabelZoomException extends RuntimeException {
      */
     public Optional<String> rawBody() {
         return Optional.ofNullable(rawBody);
+    }
+
+    /**
+     * The error body's top-level {@code code}, such as {@code agent_update_required}, or empty when
+     * the body has none. Codes are stable, so branch on this rather than on {@link #getMessage()}.
+     */
+    public Optional<String> code() {
+        return Optional.ofNullable(code);
     }
 }

@@ -7,6 +7,7 @@ import type {
   ZplImageCompression,
 } from './formats.js';
 import type { ConversionOptions, DataRecord } from './options.js';
+import { PrinterTargetBuilder, TemplateSourceBuilder, printWriters } from './print.js';
 
 /** Cuts each page into a grid of labels. Every length is in **inches**. */
 export type SplitOptions = NonNullable<ConversionOptions['split']>;
@@ -109,6 +110,14 @@ export class ConversionRequestBuilder {
    */
   fromUrl(url: string): DynamicSourceBuilder { return this.from('url', url); }
 
+  /**
+   * A template published from LabelZoom Studio or the web designer. Supply its merge-field values with
+   * `withData`, then print it with `toPrinter`.
+   */
+  fromTemplate(templateId: string): TemplateSourceBuilder {
+    return new TemplateSourceBuilder(this.#client, printWriters.requireId(templateId, 'templateId'));
+  }
+
   #draft(source: SourceFormat, body: ConversionBody, asBase64Text = false): Draft {
     return { client: this.#client, source, body, asBase64Text, options: {} };
   }
@@ -151,6 +160,15 @@ export abstract class SourceStage {
 
   /** Selects the target format at run time. Every target option is available. */
   to(target: TargetFormat): DynamicTargetBuilder { return new DynamicTargetBuilder(this.draft, target); }
+
+  /**
+   * Prints the document on a Cloud Print printer instead of returning it. The printer's configuration
+   * sets the output language, and LabelZoom converts the document to it, so a PDF prints on a ZPL
+   * printer. Printing needs an API key with the `print` scope. A URL or base64 text can't be printed.
+   */
+  toPrinter(printerId: string): PrinterTargetBuilder {
+    return new PrinterTargetBuilder(printWriters.requirePrintable(this.draft), printWriters.requireId(printerId, 'printerId'));
+  }
 
   toZpl(): ZplTargetBuilder { return new ZplTargetBuilder(this.draft); }
   /** EPL output can inline raw binary (`GW`); prefer `result.bytes` over `result.text`. */

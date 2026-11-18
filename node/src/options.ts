@@ -167,7 +167,8 @@ export function serializeOptions(options: ConversionOptions | undefined): string
  * `data` is always an array — one entry produces one label. A caller passing a single record
  * means "one label", so a bare object is wrapped rather than rejected.
  */
-function normalizeData(value: unknown): DataRecord[] {
+/** @internal Shared with template print. */
+export function normalizeData(value: unknown): DataRecord[] {
   const records = Array.isArray(value) ? value : [value];
 
   return records.map((record, index) => {

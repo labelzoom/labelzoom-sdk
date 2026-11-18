@@ -152,16 +152,81 @@ if errors.As(err, &apiErr) {
 ```
 
 `*BadRequestError`, `*UnauthorizedError`, `*ForbiddenError`, `*NotFoundError`,
-`*PayloadTooLargeError`, `*RateLimitedError` and `*ServerError` all unwrap to `*APIError`, so one
-`errors.As` catches the lot.
+`*PayloadTooLargeError`, `*UnprocessableError` (422), `*RateLimitedError` and `*ServerError` all
+unwrap to `*APIError`, so one `errors.As` catches the lot. `*PrintQuotaExceededError` unwraps to
+`*RateLimitedError`. `APIError.Code` is the error body's `code`, such as `agent_update_required`,
+or empty when there is none; branch on it rather than on `Message`.
 
 `*ValidationError` deliberately does **not**: it reports a request rejected locally, before any
 network call, which is a bug in the calling code rather than a server response. Catching
 `*APIError` to implement a fallback will not swallow it.
 
+## Print
+
+Cloud Print sends a label to a printer that a LabelZoom Print Agent serves. Printing needs an API
+key with the `print` scope. A print is a conversion with a printer as the target: the printer's
+configuration picks the output language, and LabelZoom converts the document to it, so a PDF
+prints on a ZPL printer.
+
+Print a document:
+
+```go
+job, err := client.Print(ctx, labelzoom.PrintRequest{
+    Source:         labelzoom.SourcePDF,
+    Body:           pdf,
+    Options:        &labelzoom.PrintOptions{PDF: &labelzoom.PDFOptions{PageNumber: labelzoom.Ptr(0)}},
+    PrinterID:      printerID,
+    Copies:         labelzoom.Ptr(2),
+    IdempotencyKey: "SO-1001",
+})
+if err != nil {
+    return err
+}
+```
+
+The fields follow the order of the conversion: the source and how it's read, then the printer,
+then how the job is sent.
+
+- **Sources:** every source format prints except `SourceURL`. Fetch the document and print its
+  bytes. `Body` is always the format's own bytes; print takes no base64 text. A URL returns a
+  `*ValidationError` with `Parameter` set to `source`.
+- **Options:** `PrintOptions` holds the source options of `Options`, which control how the
+  document is read, plus `Rotation`. Rotation is the only target option a printer takes, because
+  the others depend on the output language, which the printer picks. It must be a multiple of 90.
+
+Print a published template, one label per record:
+
+```go
+batch, err := client.PrintTemplate(ctx, labelzoom.TemplatePrintRequest{
+    TemplateID: templateID,
+    Data:       []labelzoom.DataRecord{{"sku": "A-100"}, {"sku": "B-200"}},
+    PrinterID:  printerID,
+})
+```
+
+Follow a job, and check the account's limits:
+
+```go
+details, err := client.GetPrintJob(ctx, job.JobID)
+if err != nil {
+    return err
+}
+log.Printf("job %s is %s", details.ID, details.Status)
+
+quota, err := client.GetPrintQuota(ctx)
+```
+
+- **Copies:** `Copies` sends the whole job 1 to 9999 times, multiplying any quantity the document
+  sets itself.
+- **Idempotency keys:** the same `IdempotencyKey` returns the original job instead of printing
+  again; leave it empty and the SDK generates one per call, which its own retries reuse.
+- **Daily limit:** when the account's daily job limit is used up, the call returns a
+  `*PrintQuotaExceededError`, which also matches `*RateLimitedError`, and the client doesn't retry
+  it, because the limit resets at 00:00 UTC.
+
 ## Retries
 
-429s, 5xx responses and transport failures are retried automatically — twice by default, for
+429s (except the daily print limit), 5xx responses and transport failures are retried automatically — twice by default, for
 three attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honored
 on any retryable status when it asks for longer than the backoff would wait. No other 4xx is
 ever retried.

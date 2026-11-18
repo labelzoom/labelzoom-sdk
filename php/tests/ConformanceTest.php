@@ -13,15 +13,20 @@ use LabelZoom\Sdk\Exception\ForbiddenException;
 use LabelZoom\Sdk\Exception\LabelZoomException;
 use LabelZoom\Sdk\Exception\NotFoundException;
 use LabelZoom\Sdk\Exception\PayloadTooLargeException;
+use LabelZoom\Sdk\Exception\PrintQuotaExceededException;
 use LabelZoom\Sdk\Exception\RateLimitedException;
 use LabelZoom\Sdk\Exception\ServerErrorException;
 use LabelZoom\Sdk\Exception\TransportException;
 use LabelZoom\Sdk\Exception\UnauthorizedException;
+use LabelZoom\Sdk\Exception\UnprocessableException;
 use LabelZoom\Sdk\Exception\ValidationException;
 use LabelZoom\Sdk\LabelZoomClient;
 use LabelZoom\Sdk\LayoutFill;
 use LabelZoom\Sdk\LayoutOptions;
 use LabelZoom\Sdk\PdfConversionMode;
+use LabelZoom\Sdk\PrintBatch;
+use LabelZoom\Sdk\PrintJob;
+use LabelZoom\Sdk\PrintQuotaCounter;
 use LabelZoom\Sdk\RasterOptions;
 use LabelZoom\Sdk\SourceFormat;
 use LabelZoom\Sdk\SplitOptions;
@@ -70,7 +75,9 @@ final class ConformanceTest extends TestCase
         'Forbidden' => ForbiddenException::class,
         'NotFound' => NotFoundException::class,
         'PayloadTooLarge' => PayloadTooLargeException::class,
+        'Unprocessable' => UnprocessableException::class,
         'RateLimited' => RateLimitedException::class,
+        'PrintQuotaExceeded' => PrintQuotaExceededException::class,
         'ServerError' => ServerErrorException::class,
     ];
 
@@ -171,7 +178,7 @@ final class ConformanceTest extends TestCase
     }
 
     /**
-     * The request/response/retry/validation cases, one PHPUnit case each.
+     * The request/response/retry/validation/print cases, one PHPUnit case each.
      *
      * `typecheck/*` is excluded here and asserted by its own test — it needs a static analyzer,
      * not a client call.
@@ -192,13 +199,20 @@ final class ConformanceTest extends TestCase
     /**
      * Builds the client for one case and runs it, returning everything the assertions need.
      *
-     * @param array<string, mixed>       $given
-     * @param list<array<string, mixed>> $script
+     * The call defaults to the fixture's conversion; a print case passes its own.
      *
-     * @return array{ConversionResult|null, \Throwable|null, MockHttpClient, list<float>}
+     * @param array<string, mixed>                  $given
+     * @param list<array<string, mixed>>            $script
+     * @param (callable(LabelZoomClient): mixed)|null $call
+     *
+     * @return array{mixed, \Throwable|null, MockHttpClient, list<float>}
      */
-    private function runCase(array $given, array $script, ?int $defaultMaxRetries = null): array
-    {
+    private function runCase(
+        array $given,
+        array $script,
+        ?int $defaultMaxRetries = null,
+        ?callable $call = null,
+    ): array {
         $http = new MockHttpClient();
         foreach ($script as $scripted) {
             if (isset($scripted['transportError'])) {
@@ -259,7 +273,7 @@ final class ConformanceTest extends TestCase
         $error = null;
 
         try {
-            $result = $this->build($client, $given)->execute();
+            $result = $call === null ? $this->build($client, $given)->execute() : $call($client);
         } catch (LabelZoomException | ValidationException | TransportException $caught) {
             $error = $caught;
         }
@@ -302,6 +316,9 @@ final class ConformanceTest extends TestCase
     private const TARGET_OPTIONS = ['targetDpi', 'rotation', 'watermark', 'dialect', 'layout'];
 
     /**
+     * Applies the source options. A convert and a print share the source stage, so the one mapping
+     * serves both; the target options are left for the target stage that follows.
+     *
      * @param array<string, mixed> $options
      */
     private static function applySourceOptions(DynamicSourceBuilder $builder, array $options): void
@@ -329,7 +346,7 @@ final class ConformanceTest extends TestCase
                 // Silently ignoring an unmapped option would let a new fixture pass without
                 // ever exercising what it was added to pin.
                 default => in_array($key, self::TARGET_OPTIONS, true) ? null : throw new \LogicException(
-                    "Fixture sets option '{$key}', which the PHP runner does not map. "
+                    "Fixture sets option '{$key}', which the PHP runner does not map here. "
                     . 'Add it to ConformanceTest::build() rather than skipping the case.',
                 ),
             };
@@ -476,6 +493,7 @@ final class ConformanceTest extends TestCase
             'response' => $this->assertResponseCase($given, $expect),
             'retry' => $this->assertRetryCase($given, $expect),
             'validation' => $this->assertValidationCase($given, $expect),
+            'print' => $this->assertPrintCase($caseId, $given, $expect),
             default => throw new \LogicException("Unknown case kind for '{$caseId}'."),
         };
 
@@ -491,7 +509,21 @@ final class ConformanceTest extends TestCase
         [, $error, $http] = $this->runCase($given, [self::OK_RESPONSE]);
         self::assertNull($error, 'unexpected error: ' . ($error?->getMessage() ?? ''));
 
-        $request = $http->lastRequest();
+        $this->assertRequest($http->lastRequest(), $expect);
+    }
+
+    /**
+     * Asserts one recorded request against the `request` vocabulary (CONFORMANCE.md section 2),
+     * plus the print kind's `query` and `bodyJson`.
+     *
+     * `bodyJson` is compared against `$expectedBodyJson`, the same member decoded with JSON objects
+     * kept as objects: decoded to PHP arrays, `{}` and `[]` are both `[]`, and telling them apart
+     * is the whole point of `print/template-no-data`.
+     *
+     * @param array<string, mixed> $expect
+     */
+    private function assertRequest(RequestInterface $request, array $expect, mixed $expectedBodyJson = null): void
+    {
         $uri = $request->getUri();
 
         if (isset($expect['method'])) {
@@ -541,6 +573,22 @@ final class ConformanceTest extends TestCase
 
         if (isset($expect['bodyText'])) {
             self::assertSame($expect['bodyText'], (string) $request->getBody());
+        }
+
+        /** @var array<string, string> $exactQuery */
+        $exactQuery = $expect['query'] ?? [];
+        foreach ($exactQuery as $name => $value) {
+            self::assertArrayHasKey($name, $query, "query parameter {$name}");
+            self::assertSame($value, $query[$name], "query parameter {$name}");
+        }
+
+        if (array_key_exists('bodyJson', $expect)) {
+            $actualBodyJson = json_decode((string) $request->getBody(), false, 512, JSON_THROW_ON_ERROR);
+            self::assertEquals(
+                self::canonicalizeObjects($expectedBodyJson),
+                self::canonicalizeObjects($actualBodyJson),
+                'request body JSON',
+            );
         }
     }
 
@@ -674,6 +722,306 @@ final class ConformanceTest extends TestCase
     }
 
     /**
+     * A print call: its first request, its result or error, its retries, or its local validation
+     * error, whichever the fixture gives (CONFORMANCE.md, the `print` kind).
+     *
+     * @param array<string, mixed> $given
+     * @param array<string, mixed> $expect
+     */
+    private function assertPrintCase(string $caseId, array $given, array $expect): void
+    {
+        /** @var list<array<string, mixed>> $responses */
+        $responses = $given['responses'] ?? [];
+        [$result, $error, $http, $sleeps] = $this->runCase(
+            $given,
+            $responses,
+            // The print kind's maxRetries defaults to 0, unlike retry/*.
+            0,
+            static fn (LabelZoomClient $client): array => self::runPrintOperation($client, $given),
+        );
+
+        if (isset($expect['validationError'])) {
+            self::assertInstanceOf(
+                ValidationException::class,
+                $error,
+                'expected a local validation error, got ' . get_debug_type($error),
+            );
+            self::assertSame($expect['validationError']['parameter'], $error->getParameter());
+            self::assertCount($expect['requestsSent'], $http->requests, 'requests sent');
+
+            return;
+        }
+
+        if (isset($expect['error'])) {
+            /** @var array<string, mixed> $expectedError */
+            $expectedError = $expect['error'];
+            $this->assertError($expectedError, $error);
+        } else {
+            self::assertNull($error, 'unexpected error: ' . ($error?->getMessage() ?? ''));
+            /** @var array<string, mixed> $expectedResult */
+            $expectedResult = $expect['result'];
+            self::assertCount(1, $expectedResult, 'expect.result names exactly one result');
+            $name = (string) array_key_first($expectedResult);
+            self::assertIsArray($result);
+            self::assertArrayHasKey($name, $result, "the {$given['operation']} operation yields no {$name}");
+            self::assertSubset($expectedResult[$name], $result[$name], "result.{$name}");
+        }
+
+        if (isset($expect['request'])) {
+            self::assertNotSame([], $http->requests, 'no request was sent');
+            /** @var array<string, mixed> $expectedRequest */
+            $expectedRequest = $expect['request'];
+            $this->assertRequest(
+                $http->requests[0],
+                $expectedRequest,
+                self::fixtureObjects($caseId)->expect->request->bodyJson ?? null,
+            );
+        }
+
+        if (array_key_exists('attempts', $expect)) {
+            self::assertCount($expect['attempts'], $http->requests, 'attempts');
+        }
+        if (array_key_exists('sleepsSeconds', $expect)) {
+            self::assertEquals($expect['sleepsSeconds'], $sleeps, 'recorded sleeps');
+        }
+
+        /** @var list<string> $sameHeaders */
+        $sameHeaders = $expect['sameHeaderAcrossAttempts'] ?? [];
+        foreach ($sameHeaders as $header) {
+            self::assertNotSame([], $http->requests, 'no request was sent');
+            $first = $http->requests[0]->getHeaderLine($header);
+            self::assertNotSame('', $first, "header {$header} on the first attempt");
+            foreach ($http->requests as $index => $request) {
+                self::assertSame($first, $request->getHeaderLine($header), "header {$header}, attempt {$index}");
+            }
+        }
+    }
+
+    /**
+     * Runs the fixture's print call and projects its result into the fixture's naming, keyed by the
+     * `expect.result` member it answers.
+     *
+     * @param array<string, mixed> $given
+     *
+     * @return array<string, mixed>
+     */
+    private static function runPrintOperation(LabelZoomClient $client, array $given): array
+    {
+        return match ($given['operation']) {
+            'print' => ['printJob' => self::projectJob(self::sendDocumentPrint($client, $given))],
+            'printTemplate' => ['printBatch' => self::projectBatch(self::sendTemplatePrint($client, $given))],
+            'getJob' => ['job' => self::getJob($client, (string) $given['jobId'])],
+            'getQuota' => ['quota' => self::getQuota($client)],
+            default => throw new \LogicException("Unknown print operation '{$given['operation']}'."),
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $given
+     */
+    private static function sendDocumentPrint(LabelZoomClient $client, array $given): PrintJob
+    {
+        $source = SourceFormat::from((string) $given['source']);
+        $body = (string) $given['bodyText'];
+        $request = $client->convert();
+        $sourceStage = ($given['sourceEncoding'] ?? null) === 'base64text'
+            ? $request->fromBase64Text($source, $body)
+            : $request->from($source, $body);
+
+        /** @var array<string, mixed> $options */
+        $options = $given['options'] ?? [];
+        self::applySourceOptions($sourceStage, $options);
+
+        $builder = $sourceStage->toPrinter((string) $given['printerId']);
+        foreach ($options as $key => $value) {
+            match ($key) {
+                // The one target option the printer target stage offers (rule P2).
+                'rotation' => $builder->withRotation((int) $value),
+                // A printer has no other target option, so a fixture that sets one is wrong.
+                default => in_array($key, self::TARGET_OPTIONS, true) ? throw new \LogicException(
+                    "Print fixture sets target option '{$key}', which the printer target stage doesn't offer.",
+                ) : null,
+            };
+        }
+
+        if (isset($given['copies'])) {
+            $builder->withCopies((int) $given['copies']);
+        }
+        if (isset($given['idempotencyKey'])) {
+            $builder->withIdempotencyKey((string) $given['idempotencyKey']);
+        }
+
+        return $builder->execute();
+    }
+
+    /**
+     * @param array<string, mixed> $given
+     */
+    private static function sendTemplatePrint(LabelZoomClient $client, array $given): PrintBatch
+    {
+        $source = $client->convert()->fromTemplate((string) $given['templateId']);
+
+        if (isset($given['data'])) {
+            $source->withData($given['data']);
+        }
+        if (isset($given['validate'])) {
+            $source->withValidate((bool) $given['validate']);
+        }
+
+        $builder = $source->toPrinter((string) $given['printerId']);
+        if (isset($given['copies'])) {
+            $builder->withCopies((int) $given['copies']);
+        }
+        if (isset($given['idempotencyKey'])) {
+            $builder->withIdempotencyKey((string) $given['idempotencyKey']);
+        }
+
+        return $builder->execute();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function projectJob(PrintJob $job): array
+    {
+        return [
+            'jobId' => $job->getJobId(),
+            'status' => $job->getStatus(),
+            'copies' => $job->getCopies(),
+            'idempotent' => $job->isIdempotent(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function projectBatch(PrintBatch $batch): array
+    {
+        return [
+            'jobs' => array_map(self::projectJob(...), $batch->getJobs()),
+            'remaining' => $batch->getRemaining(),
+            'message' => $batch->getMessage(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function getJob(LabelZoomClient $client, string $jobId): array
+    {
+        $job = $client->jobs()->get($jobId);
+
+        return [
+            'id' => $job->getId(),
+            'printerId' => $job->getPrinterId(),
+            'agentId' => $job->getAgentId(),
+            'sourceFormat' => $job->getSourceFormat(),
+            'copies' => $job->getCopies(),
+            'status' => $job->getStatus(),
+            'error' => $job->getError(),
+            'retryCount' => $job->getRetryCount(),
+            'createdDate' => $job->getCreatedDate(),
+            'dispatchedDate' => $job->getDispatchedDate(),
+            'completedDate' => $job->getCompletedDate(),
+            'retriedDate' => $job->getRetriedDate(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function getQuota(LabelZoomClient $client): array
+    {
+        $quota = $client->getPrintQuota();
+        $counter = static fn (PrintQuotaCounter $c): array => [
+            'used' => $c->getUsed(),
+            'limit' => $c->getLimit(),
+            'remaining' => $c->getRemaining(),
+            'pending' => $c->getPending(),
+            'resetAt' => $c->getResetAt(),
+        ];
+        $limits = $quota->getLimits();
+
+        return [
+            'plan' => $quota->getPlan(),
+            'agents' => $counter($quota->getAgents()),
+            'printers' => $counter($quota->getPrinters()),
+            'jobsToday' => $counter($quota->getJobsToday()),
+            'limits' => [
+                'maxPayloadBytes' => $limits->getMaxPayloadBytes(),
+                'maxStoredPayloadBytes' => $limits->getMaxStoredPayloadBytes(),
+                'maxBatchSize' => $limits->getMaxBatchSize(),
+            ],
+        ];
+    }
+
+    /**
+     * Asserts every member the fixture gives, and only those. `null` means the SDK reports no
+     * value, and a timestamp compares as an instant, so `...15:00:00.000Z` matches `...15:00:00Z`.
+     */
+    private static function assertSubset(mixed $expected, mixed $actual, string $path): void
+    {
+        if (is_array($expected) && !array_is_list($expected)) {
+            self::assertIsArray($actual, "{$path}: expected an object");
+            foreach ($expected as $key => $value) {
+                self::assertArrayHasKey($key, $actual, "{$path}.{$key} is missing");
+                self::assertSubset($value, $actual[$key], "{$path}.{$key}");
+            }
+
+            return;
+        }
+
+        if (is_array($expected)) {
+            self::assertIsArray($actual, "{$path}: expected a list");
+            self::assertCount(count($expected), $actual, "{$path}: list length");
+            foreach ($expected as $index => $value) {
+                self::assertSubset($value, $actual[$index], "{$path}[{$index}]");
+            }
+
+            return;
+        }
+
+        if ($expected === null) {
+            self::assertNull($actual, "{$path}: expected no value");
+
+            return;
+        }
+
+        if (is_string($expected) && preg_match('/^\d{4}-\d{2}-\d{2}T/', $expected) === 1) {
+            self::assertInstanceOf(\DateTimeInterface::class, $actual, "{$path}: expected a timestamp");
+            self::assertSame(
+                (new \DateTimeImmutable($expected))->format('U.u'),
+                $actual->format('U.u'),
+                "{$path}: instant",
+            );
+
+            return;
+        }
+
+        if (is_int($expected) || is_float($expected)) {
+            self::assertTrue(is_int($actual) || is_float($actual), "{$path}: expected a number");
+            self::assertEquals((float) $expected, (float) $actual, "{$path}");
+
+            return;
+        }
+
+        self::assertSame($expected, $actual, $path);
+    }
+
+    /**
+     * The fixture decoded with JSON objects kept as `stdClass`, for the one assertion that has to
+     * tell `{}` from `[]`.
+     */
+    private static function fixtureObjects(string $caseId): \stdClass
+    {
+        $raw = (string) file_get_contents(self::conformanceRoot() . "/cases/{$caseId}.json");
+        $decoded = json_decode($raw, false, 512, JSON_THROW_ON_ERROR);
+        self::assertInstanceOf(\stdClass::class, $decoded);
+
+        return $decoded;
+    }
+
+    /**
      * @param array<string, mixed> $expected
      */
     private function assertError(array $expected, ?\Throwable $actual): void
@@ -715,6 +1063,10 @@ final class ConformanceTest extends TestCase
         if (array_key_exists('retryAfterSeconds', $expected)) {
             self::assertInstanceOf(RateLimitedException::class, $actual);
             self::assertSame($expected['retryAfterSeconds'], $actual->getRetryAfterSeconds());
+        }
+        if (array_key_exists('code', $expected)) {
+            // `code` rather than getCode(): that is \Exception's own integer code.
+            self::assertSame($expected['code'], $actual->getErrorCode(), 'error code');
         }
     }
 
@@ -940,6 +1292,25 @@ final class ConformanceTest extends TestCase
             }
 
             return $canonical;
+        }
+
+        return is_int($value) ? (float) $value : $value;
+    }
+
+    /**
+     * {@see self::canonicalize()} for JSON decoded with objects kept as `stdClass`: an object
+     * becomes a sorted map under a marker key, so `{}` and `[]` stay different.
+     */
+    private static function canonicalizeObjects(mixed $value): mixed
+    {
+        if ($value instanceof \stdClass) {
+            $members = array_map(self::canonicalizeObjects(...), get_object_vars($value));
+            ksort($members);
+
+            return ['{object}' => $members];
+        }
+        if (is_array($value)) {
+            return array_map(self::canonicalizeObjects(...), $value);
         }
 
         return is_int($value) ? (float) $value : $value;

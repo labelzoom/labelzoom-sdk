@@ -7,7 +7,7 @@ require "time"
 require "uri"
 
 module LabelZoom
-  # Converts labels through the LabelZoom API.
+  # Converts labels through the LabelZoom API, and prints them through Cloud Print.
   #
   # Authentication is optional. Without a credential the API serves a free tier:
   # watermarked output, the first label only, a 1 MB request cap, and no multi-page,
@@ -28,6 +28,13 @@ module LabelZoom
     # E2 caps the derived message here. APIError#raw_body keeps the whole body.
     MAX_MESSAGE_LENGTH = 512
 
+    # Every print call's Accept, and a template print's Content-Type: every print success
+    # response is JSON, so convert's */* (rule B2) does not apply.
+    JSON_MEDIA_TYPE = "application/json"
+
+    # The 429 code that makes a {PrintQuotaExceededError} (rule E4), which is never retried.
+    DAILY_JOB_LIMIT_CODE = "daily_job_limit_reached"
+
     # Statuses worth retrying. Rule F1: nothing else, ever.
     RETRYABLE_STATUSES = ->(status) { status == 429 || status >= 500 }
 
@@ -35,7 +42,8 @@ module LabelZoom
     # not always surface a phrase, so this is derived from a table rather than the wire.
     REASON_PHRASES = {
       400 => "Bad Request", 401 => "Unauthorized", 403 => "Forbidden", 404 => "Not Found",
-      406 => "Not Acceptable", 413 => "Payload Too Large", 429 => "Too Many Requests",
+      406 => "Not Acceptable", 413 => "Payload Too Large", 422 => "Unprocessable Content",
+      429 => "Too Many Requests",
       500 => "Internal Server Error", 502 => "Bad Gateway", 503 => "Service Unavailable",
       504 => "Gateway Timeout"
     }.freeze
@@ -117,24 +125,157 @@ module LabelZoom
 
       params = Options.serialize(**options)
       uri = build_uri(source, target, params)
-      headers = build_headers(source, base64_text)
+      # Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
+      # image/jpeg, so naming the target's exact media type yields a 406 from content
+      # negotiation before the handler ever runs.
+      headers = request_headers(
+        "*/*", "Content-Type" => base64_text ? "text/plain" : Formats.media_type(source)
+      )
 
-      execute(uri, headers, body)
+      execute(:post, uri, headers, body) { |response, status| build_result(response, status) }
+    end
+
+    # Prints a document on a Cloud Print printer. Printing needs an API key with the +print+
+    # scope.
+    #
+    # A printer is a target: the call mirrors {#convert} with the printer in the target's
+    # place. The printer's configuration picks the output language, and LabelZoom converts the
+    # document to it, so a PDF prints on a ZPL printer.
+    #
+    # @param source [Symbol] the format of +body+: any source format except +:url+, because
+    #   print does not fetch. Design files such as +:btw+ and +:nlbl+ print as their own bytes.
+    # @param printer_id [String] the printer to print on.
+    # @param body [String] the document, as the format's own bytes. Base64 text is not
+    #   accepted: +base64_text: true+ raises.
+    # @param copies [Integer, nil] sends the whole job this many times, 1 to 9999. It
+    #   multiplies any quantity in the document: +^PQ3+ with 3 copies prints 9 labels.
+    # @param idempotency_key [String, nil] makes the print safe to repeat: the same key
+    #   returns the original job instead of printing again. Use something unique to the
+    #   label, such as an order number. Omitted, the SDK generates one per call, so its own
+    #   retries cannot print twice.
+    # @param options [Hash] the source options {#convert} takes, in the same nested form
+    #   (+label:+, +pdf:+, +split:+, +source_dpi:+, ...), plus +rotation:+, the one target
+    #   option a printer takes. Any other target option, such as +target_dpi:+, raises,
+    #   because it depends on the output language the printer picks.
+    #
+    # @return [PrintJob]
+    # @raise [ValidationError] if the request is rejected locally, before any network call.
+    # @raise [APIError] on any non-2xx response.
+    def print(source, printer_id, body, copies: nil, idempotency_key: nil, **options)
+      source = Formats.print_source!(source)
+      printer_id = Printing.require_id!(printer_id, "printerId")
+      body = body.to_s
+      if body.empty?
+        raise ValidationError.new("body",
+                                  "The document cannot be empty; the API rejects an empty print " \
+                                  "request.")
+      end
+      copies = Printing.copies!(copies)
+      key = Printing.key_for_call(idempotency_key)
+      # An empty params would make the server convert a document that is already in the
+      # printer's language, so it is sent only when an option is set (rule P2).
+      params = Options.serialize_print(**options)
+
+      # sourceFormat on every request: the server cannot tell ZPL from EPL by Content-Type.
+      query = [["sourceFormat", Formats.source_token(source)]]
+      query << ["copies", copies] unless copies.nil?
+      query << ["params", params] unless params.nil?
+      uri = api_uri("/api/v3/printers/#{encode_segment(printer_id)}/print", query)
+      headers = request_headers(JSON_MEDIA_TYPE, "Content-Type" => Formats.media_type(source),
+                                                 "Idempotency-Key" => key)
+
+      execute(:post, uri, headers, body) { |response, _| Printing.read_job(read_json(response)) }
+    end
+
+    # Prints a published template, one label per record. A template is a source of its own:
+    # it takes merge data instead of source options, and the printer is its target.
+    #
+    # @param template_id [String] a template published from LabelZoom Studio or the web
+    #   designer.
+    # @param printer_id [String] the printer to print on.
+    # @param data [Hash, Array<Hash>, nil] one Hash of merge-field values per label. A single
+    #   Hash is one label. Omit it for a template with no merge fields.
+    # @param validate [Boolean] checks every record for missing merge fields before anything
+    #   prints.
+    # @param copies [Integer, nil] sends each label this many times, 1 to 9999.
+    # @param idempotency_key [String, nil] one key for the whole batch; the server derives
+    #   each record's key from it.
+    #
+    # @return [PrintBatch] a batch whatever the number of records. If +remaining+ is not 0,
+    #   send the same request with the same key to submit the rest.
+    # @raise [ValidationError] if the request is rejected locally, before any network call.
+    # @raise [APIError] on any non-2xx response.
+    def print_template(template_id, printer_id, data: nil, validate: false, copies: nil,
+                       idempotency_key: nil)
+      template_id = Printing.require_id!(template_id, "templateId")
+      printer_id = Printing.require_id!(printer_id, "printerId")
+      records = data.nil? ? [] : Options.normalize_data(data)
+      copies = Printing.copies!(copies)
+      key = Printing.key_for_call(idempotency_key)
+
+      query = []
+      query << ["copies", copies] unless copies.nil?
+      query << %w[validate true] if validate
+      uri = api_uri("/api/v3/printers/#{encode_segment(printer_id)}/templates/" \
+                    "#{encode_segment(template_id)}/print", query)
+      headers = request_headers(JSON_MEDIA_TYPE, "Content-Type" => JSON_MEDIA_TYPE,
+                                                 "Idempotency-Key" => key)
+
+      execute(:post, uri, headers, Printing.template_body(records)) do |response, _|
+        Printing.read_batch(read_json(response))
+      end
+    end
+
+    # Print jobs: +client.jobs.get(job_id)+ follows one to completion.
+    #
+    # @return [PrintJobs]
+    def jobs
+      @jobs ||= PrintJobs.new(->(job_id) { fetch_job(job_id) })
+    end
+
+    # The account's Cloud Print limits and today's usage. Check it to stop before the daily
+    # job limit's {PrintQuotaExceededError}.
+    #
+    # @return [PrintQuota]
+    # @raise [APIError] on any non-2xx response.
+    def print_quota
+      execute(:get, api_uri("/api/v3/print/quota"), request_headers(JSON_MEDIA_TYPE), nil) do |r, _|
+        Printing.read_quota(read_json(r))
+      end
     end
 
     # The URL a given conversion would be posted to. Exposed because it is the first thing
     # anyone debugging a proxy or a base-URL override wants to see.
     def build_uri(source, target, params = nil)
-      # Concatenated, not resolved: a base URL carrying a path prefix
-      # (https://proxy.example.com/labelzoom) must keep it, which URI.join would discard.
-      url = "#{@base_url}/api/v2/convert/#{Formats.source_token(source)}/to/" \
-            "#{Formats.target_token(target)}"
-      # Rule C7: no options means a bare URL, not an empty query string.
-      url += "?#{URI.encode_www_form("params" => params)}" unless params.nil?
-      URI.parse(url)
+      api_uri("/api/v2/convert/#{Formats.source_token(source)}/to/" \
+              "#{Formats.target_token(target)}",
+              params.nil? ? [] : [["params", params]])
     end
 
     private
+
+    # Concatenated, not resolved: a base URL carrying a path prefix
+    # (https://proxy.example.com/labelzoom) must keep it, which URI.join would discard.
+    # Rule C7: no query parameters means a bare URL, not an empty query string.
+    def api_uri(path, query = [])
+      url = "#{@base_url}#{path}"
+      url += "?#{URI.encode_www_form(query)}" unless query.empty?
+      URI.parse(url)
+    end
+
+    # Percent-encodes an id as one path segment (rule P1): everything but RFC 3986's
+    # unreserved characters, byte by byte.
+    def encode_segment(value)
+      value.b.gsub(/[^A-Za-z0-9\-._~]/n) { |byte| format("%%%02X", byte.ord) }
+    end
+
+    def fetch_job(job_id)
+      job_id = Printing.require_id!(job_id, "jobId")
+      uri = api_uri("/api/v3/jobs/#{encode_segment(job_id)}")
+      execute(:get, uri, request_headers(JSON_MEDIA_TYPE), nil) do |response, _|
+        Printing.read_job_details(read_json(response))
+      end
+    end
 
     def resolve_credential(api_key, env)
       if UNSET.equal?(api_key)
@@ -146,25 +287,22 @@ module LabelZoom
       api_key.nil? || api_key.empty? ? nil : api_key
     end
 
-    def build_headers(source, base64_text)
-      headers = {
-        "Content-Type" => base64_text ? "text/plain" : Formats.media_type(source),
-        # Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
-        # image/jpeg, so naming the target's exact media type yields a 406 from content
-        # negotiation before the handler ever runs.
-        "Accept" => "*/*",
-        "User-Agent" => @user_agent
-      }
+    def request_headers(accept, extra = {})
+      headers = extra.merge("Accept" => accept, "User-Agent" => @user_agent)
       headers["Authorization"] = "Bearer #{@credential}" unless @credential.nil?
       headers
     end
 
-    def execute(uri, headers, body)
+    # Sends one request under the retry policy (rule F) and yields the 2xx response to the
+    # block, whose value is returned. Every call goes through here, convert and print alike.
+    # The headers, Idempotency-Key included, are fixed before the first attempt, so every
+    # retry sends the same ones.
+    def execute(method, uri, headers, body)
       attempts = @max_retries + 1
 
       (1..).each do |attempt|
         begin
-          response = perform(uri, headers, body)
+          response = perform(method, uri, headers, body)
         rescue *transport_exceptions => e
           if attempt >= attempts
             raise TransportError, "labelzoom: request to #{uri} failed: #{e.message}"
@@ -175,26 +313,31 @@ module LabelZoom
         end
 
         status = response.code.to_i
-        return build_result(response, status) if status.between?(200, 299)
+        return yield(response, status) if status.between?(200, 299)
 
         retry_after = retry_after_seconds(response)
-        if attempt >= attempts || !RETRYABLE_STATUSES.call(status)
-          raise error_for(response, status, retry_after)
+        error = error_for(response, status, retry_after)
+        # Rule F5: the daily print limit's Retry-After is the 00:00 UTC reset, hours away, and
+        # honoring it would hang the call.
+        if attempt >= attempts || !RETRYABLE_STATUSES.call(status) ||
+           error.is_a?(PrintQuotaExceededError)
+          raise error
         end
 
         delay(attempt, retry_after)
       end
     end
 
-    def perform(uri, headers, body)
+    def perform(method, uri, headers, body)
       http = @http_builder&.call(uri) || Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = uri.scheme == "https"
       http.open_timeout = @timeout
       http.read_timeout = @timeout
 
-      request = Net::HTTP::Post.new(uri)
+      request = (method == :get ? Net::HTTP::Get : Net::HTTP::Post).new(uri)
       headers.each { |name, value| request[name] = value }
-      request.body = body
+      # The GETs send no body, and so no Content-Type (rule P1).
+      request.body = body unless body.nil?
 
       http.start { |session| session.request(request) }
     end
@@ -213,10 +356,20 @@ module LabelZoom
       )
     end
 
+    # Every print success response is a JSON object.
+    def read_json(response)
+      parsed = JSON.parse((response.body || "").dup.force_encoding(Encoding::UTF_8))
+      parsed.is_a?(Hash) ? parsed : {}
+    rescue JSON::ParserError => e
+      raise Error, "labelzoom: the API returned a success response that is not JSON: #{e.message}"
+    end
+
     def error_for(response, status, retry_after)
       raw_body = (response.body || "").dup.force_encoding(Encoding::BINARY)
       message = extract_message(raw_body, REASON_PHRASES[status])
-      common = { status: status, request_id: response[REQUEST_ID_HEADER], raw_body: raw_body }
+      code = extract_code(raw_body)
+      common = { status: status, request_id: response[REQUEST_ID_HEADER], raw_body: raw_body,
+                 code: code }
 
       case status
       when 400 then BadRequestError.new(message, **common)
@@ -225,7 +378,10 @@ module LabelZoom
         ForbiddenError.new(message, paid_feature: message.match?(/paid feature/i), **common)
       when 404 then NotFoundError.new(message, **common)
       when 413 then PayloadTooLargeError.new(message, **common)
-      when 429 then RateLimitedError.new(message, retry_after_seconds: retry_after, **common)
+      when 422 then UnprocessableError.new(message, **common)
+      when 429
+        type = code == DAILY_JOB_LIMIT_CODE ? PrintQuotaExceededError : RateLimitedError
+        type.new(message, retry_after_seconds: retry_after, **common)
       when 500.. then ServerError.new(message, **common)
       else
         # Anything else non-2xx still becomes a typed error rather than being swallowed --
@@ -255,6 +411,15 @@ module LabelZoom
       return reason_phrase if reason_phrase && !reason_phrase.strip.empty?
 
       "The LabelZoom API returned an error with no response body."
+    end
+
+    # Rule E3: the body's top-level "code" string, else nil. Never a reason to fail.
+    def extract_code(raw_body)
+      parsed = JSON.parse(raw_body.dup.force_encoding(Encoding::UTF_8).scrub)
+      code = parsed["code"] if parsed.is_a?(Hash)
+      code.is_a?(String) ? code : nil
+    rescue JSON::ParserError
+      nil
     end
 
     def truncate(value)

@@ -5,6 +5,7 @@ require_relative "labelzoom/errors"
 require_relative "labelzoom/formats"
 require_relative "labelzoom/options"
 require_relative "labelzoom/conversion_result"
+require_relative "labelzoom/printing"
 require_relative "labelzoom/client"
 
 # Official Ruby client for the LabelZoom API.
@@ -19,6 +20,11 @@ require_relative "labelzoom/client"
 #     result = client.convert(:zpl, :png, "^XA^FO20,20^A0N,28^FDhello^FS^XZ",
 #                             label: { width: 4, height: 6 })
 #     result.save("label.png")
+#
+# Cloud Print sends a document, or a published template, to a printer:
+#
+#     job = client.print(:zpl, printer_id, zpl, copies: 2)
+#     client.jobs.get(job.job_id).status
 #
 # The behavior of every LabelZoom SDK is specified in docs/API_CONTRACT.md and checked by
 # the shared fixtures in conformance/, which this gem's spec suite executes.

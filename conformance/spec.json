@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "contract": "../docs/API_CONTRACT.md",
   "defaults": {
     "baseUrl": "https://api.labelzoom.com",
@@ -13,9 +13,11 @@
     "NotFound",
     "PayloadTooLarge",
     "RateLimited",
-    "ServerError"
+    "ServerError",
+    "Unprocessable",
+    "PrintQuotaExceeded"
   ],
-  "caseCount": 107,
+  "caseCount": 140,
   "cases": [
     "request/auth-absent",
     "request/auth-empty-string-forces-anonymous",
@@ -123,6 +125,39 @@
     "typecheck/url-is-not-a-target",
     "validation/data-element-not-an-object",
     "validation/empty-body-rejected-locally",
-    "validation/rotation-not-multiple-of-90"
+    "validation/rotation-not-multiple-of-90",
+    "print/document-caller-idempotency-key",
+    "print/document-copies",
+    "print/document-design-file-binary",
+    "print/document-jpg-sent-as-jpeg",
+    "print/document-pdf-media-type",
+    "print/document-replayed-job",
+    "print/document-rotation",
+    "print/document-source-options",
+    "print/document-unknown-status-kept",
+    "print/document-zpl",
+    "print/error-agent-update-required",
+    "print/error-daily-limit-not-retried",
+    "print/error-idempotency-key-reused",
+    "print/error-not-found-has-no-code",
+    "print/error-rate-limited-retried-with-same-key",
+    "print/error-server-error-retried-with-same-key",
+    "print/get-job",
+    "print/get-job-failed",
+    "print/get-quota",
+    "print/template-batch",
+    "print/template-no-data",
+    "print/template-one-record",
+    "print/template-partial-batch",
+    "print/template-validate-and-copies",
+    "print/validation-base64-text-not-printable",
+    "print/validation-blank-idempotency-key",
+    "print/validation-copies-too-large",
+    "print/validation-copies-zero",
+    "print/validation-empty-body",
+    "print/validation-empty-job-id",
+    "print/validation-empty-printer-id",
+    "print/validation-template-data-not-an-object",
+    "print/validation-url-not-printable"
   ]
 }

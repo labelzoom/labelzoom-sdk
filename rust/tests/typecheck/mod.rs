@@ -1,7 +1,7 @@
 //! Runs the two `typecheck/*` fixtures for real.
 //!
-//! Rust compiles, so `conformance/skips/rust.json` is empty and these cases have to be
-//! executed rather than declared away. Each builds a snippet from `snippets/` in a
+//! Rust compiles, so `conformance/skips/rust.json` declares neither of them away: these
+//! cases have to be executed. Each builds a snippet from `snippets/` in a
 //! throwaway crate and asserts `cargo` rejects it.
 //!
 //! ## Why not `trybuild`

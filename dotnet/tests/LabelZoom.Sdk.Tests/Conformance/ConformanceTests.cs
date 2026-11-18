@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using LabelZoom.Sdk.Conversion;
+using LabelZoom.Sdk.Printing;
 
 namespace LabelZoom.Sdk.Tests.Conformance;
 
@@ -29,6 +30,7 @@ public sealed class ConformanceTests
             "retry" => RunRetryCase(given, expect),
             "validation" => RunValidationCase(given, expect),
             "typecheck" => RunTypecheckCase(given),
+            "print" => RunPrintCase(given, expect),
             var kind => throw new InvalidOperationException($"Unknown case kind '{kind}'."),
         };
 
@@ -80,8 +82,12 @@ public sealed class ConformanceTests
 
         await BuildRequest(client, given).ExecuteAsync();
 
-        var request = handler.LastRequest;
+        AssertRequest(handler.LastRequest, expect);
+    }
 
+    /// <summary>Asserts a recorded request against the request vocabulary (CONFORMANCE.md section 2).</summary>
+    private static void AssertRequest(RecordedRequest request, JsonElement expect)
+    {
         if (expect.TryGetProperty("method", out var method))
         {
             Assert.Equal(method.GetString(), request.Method);
@@ -174,6 +180,305 @@ public sealed class ConformanceTests
         if (expect.TryGetProperty("bodyText", out var bodyText))
         {
             Assert.Equal(bodyText.GetString(), request.BodyText);
+        }
+
+        if (expect.TryGetProperty("query", out var query))
+        {
+            foreach (var entry in query.EnumerateObject())
+            {
+                Assert.Equal(entry.Value.GetString(), request.QueryValue(entry.Name));
+            }
+        }
+
+        if (expect.TryGetProperty("bodyJson", out var bodyJson))
+        {
+            using var actual = JsonDocument.Parse(request.BodyText);
+            AssertJsonEquivalent(bodyJson, actual.RootElement, "body");
+        }
+    }
+
+    // -------------------------------------------------------------------- print
+
+    private async Task RunPrintCase(JsonElement given, JsonElement expect)
+    {
+        var handler = new StubHttpMessageHandler();
+        EnqueueScripted(handler, given);
+
+        var sleeps = new List<double>();
+        using var client = BuildClient(given, handler, delay =>
+        {
+            sleeps.Add(delay.TotalSeconds);
+            return Task.CompletedTask;
+        }, defaultMaxRetries: 0);
+
+        if (expect.TryGetProperty("validationError", out var validationError))
+        {
+            var thrown = await Assert.ThrowsAsync<LabelZoomValidationException>(() => RunPrintOperation(client, given));
+            Assert.Equal(validationError.GetProperty("parameter").GetString(), thrown.ParamName);
+            Assert.Equal(expect.GetProperty("requestsSent").GetInt32(), handler.Requests.Count);
+            return;
+        }
+
+        if (expect.TryGetProperty("error", out var expectedError))
+        {
+            var actual = await Assert.ThrowsAnyAsync<LabelZoomException>(() => RunPrintOperation(client, given));
+            AssertError(expectedError, actual);
+        }
+        else
+        {
+            var result = await RunPrintOperation(client, given);
+            using var actual = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var expectedResult = expect.GetProperty("result").EnumerateObject().Single();
+            AssertSubset(expectedResult.Value, actual.RootElement, expectedResult.Name);
+        }
+
+        if (expect.TryGetProperty("request", out var request))
+        {
+            AssertRequest(handler.Requests[0], request);
+        }
+
+        if (expect.TryGetProperty("attempts", out var attempts))
+        {
+            Assert.Equal(attempts.GetInt32(), handler.Requests.Count);
+        }
+
+        if (expect.TryGetProperty("sleepsSeconds", out var expectedSleeps))
+        {
+            Assert.Equal(expectedSleeps.EnumerateArray().Select(e => e.GetDouble()).ToList(), sleeps);
+        }
+
+        foreach (var header in EnumerateStrings(expect, "sameHeaderAcrossAttempts"))
+        {
+            var values = handler.Requests.Select(r => r.Header(header)).ToList();
+            Assert.NotNull(values[0]);
+            Assert.All(values, value => Assert.Equal(values[0], value));
+        }
+    }
+
+    /// <summary>Runs the fixture's print call and projects its result into the fixture's naming.</summary>
+    private static async Task<object> RunPrintOperation(LabelZoomClient client, JsonElement given)
+    {
+        switch (given.GetProperty("operation").GetString())
+        {
+            case "print":
+            {
+                var source = ParseSource(given.GetProperty("source").GetString()!);
+                var body = given.GetProperty("bodyText").GetString()!;
+                var sourceStage = given.TryGetProperty("sourceEncoding", out var encoding) && encoding.GetString() == "base64text"
+                    ? client.Convert().FromBase64Text(source, body)
+                    : client.Convert().From(source, body);
+                var hasOptions = given.TryGetProperty("options", out var options);
+                if (hasOptions)
+                {
+                    ApplyPrintSourceOptions(sourceStage, options);
+                }
+
+                var builder = sourceStage.ToPrinter(given.GetProperty("printerId").GetString()!);
+                if (hasOptions && options.TryGetProperty("rotation", out var rotation))
+                {
+                    builder.WithRotation(rotation.GetInt32());
+                }
+
+                if (given.TryGetProperty("copies", out var copies))
+                {
+                    builder.WithCopies(copies.GetInt32());
+                }
+
+                if (given.TryGetProperty("idempotencyKey", out var key))
+                {
+                    builder.WithIdempotencyKey(key.GetString()!);
+                }
+
+                return Project(await builder.ExecuteAsync());
+            }
+
+            case "printTemplate":
+            {
+                var source = client.Convert().FromTemplate(given.GetProperty("templateId").GetString()!);
+                if (given.TryGetProperty("data", out var data))
+                {
+                    source.WithData(data.EnumerateArray()
+                        .Select(record => record.ValueKind == JsonValueKind.String
+                            ? (object?)record.GetString()
+                            : record.Clone())
+                        .ToArray());
+                }
+
+                if (given.TryGetProperty("validate", out var validate))
+                {
+                    source.WithValidate(validate.GetBoolean());
+                }
+
+                var builder = source.ToPrinter(given.GetProperty("printerId").GetString()!);
+                if (given.TryGetProperty("copies", out var copies))
+                {
+                    builder.WithCopies(copies.GetInt32());
+                }
+
+                if (given.TryGetProperty("idempotencyKey", out var key))
+                {
+                    builder.WithIdempotencyKey(key.GetString()!);
+                }
+
+                var batch = await builder.ExecuteAsync();
+                return new Dictionary<string, object?>
+                {
+                    ["jobs"] = batch.Jobs.Select(Project).ToList(),
+                    ["remaining"] = batch.Remaining,
+                    ["message"] = batch.Message,
+                };
+            }
+
+            case "getJob":
+            {
+                var job = await client.Jobs.GetAsync(given.GetProperty("jobId").GetString()!);
+                return new Dictionary<string, object?>
+                {
+                    ["id"] = job.Id,
+                    ["printerId"] = job.PrinterId,
+                    ["agentId"] = job.AgentId,
+                    ["sourceFormat"] = job.SourceFormat,
+                    ["copies"] = job.Copies,
+                    ["status"] = job.Status,
+                    ["error"] = job.Error,
+                    ["retryCount"] = job.RetryCount,
+                    ["createdDate"] = job.CreatedDate,
+                    ["dispatchedDate"] = job.DispatchedDate,
+                    ["completedDate"] = job.CompletedDate,
+                    ["retriedDate"] = job.RetriedDate,
+                };
+            }
+
+            case "getQuota":
+            {
+                var quota = await client.GetPrintQuotaAsync();
+                return new Dictionary<string, object?>
+                {
+                    ["plan"] = quota.Plan,
+                    ["agents"] = new Dictionary<string, object?>
+                    {
+                        ["used"] = quota.Agents.Used, ["pending"] = quota.Agents.Pending,
+                        ["limit"] = quota.Agents.Limit, ["remaining"] = quota.Agents.Remaining,
+                    },
+                    ["printers"] = new Dictionary<string, object?>
+                    {
+                        ["used"] = quota.Printers.Used, ["limit"] = quota.Printers.Limit,
+                        ["remaining"] = quota.Printers.Remaining,
+                    },
+                    ["jobsToday"] = new Dictionary<string, object?>
+                    {
+                        ["used"] = quota.JobsToday.Used, ["limit"] = quota.JobsToday.Limit,
+                        ["remaining"] = quota.JobsToday.Remaining, ["resetAt"] = quota.JobsToday.ResetAt,
+                    },
+                    ["limits"] = new Dictionary<string, object?>
+                    {
+                        ["maxPayloadBytes"] = quota.Limits.MaxPayloadBytes,
+                        ["maxStoredPayloadBytes"] = quota.Limits.MaxStoredPayloadBytes,
+                        ["maxBatchSize"] = quota.Limits.MaxBatchSize,
+                    },
+                };
+            }
+
+            case var operation:
+                throw new InvalidOperationException($"Unknown print operation '{operation}'.");
+        }
+    }
+
+    private static Dictionary<string, object?> Project(PrintJob job) => new Dictionary<string, object?>
+    {
+        ["jobId"] = job.JobId,
+        ["status"] = job.Status,
+        ["copies"] = job.Copies,
+        ["idempotent"] = job.Idempotent,
+    };
+
+    private static void ApplyPrintSourceOptions(DynamicSourceBuilder builder, JsonElement options)
+    {
+        foreach (var option in options.EnumerateObject())
+        {
+            switch (option.Name)
+            {
+                case "label":
+                    builder.WithLabelSize(
+                        option.Value.GetProperty("width").GetSingle(),
+                        option.Value.GetProperty("height").GetSingle());
+                    break;
+                case "pdf":
+                    if (option.Value.TryGetProperty("pageNumber", out var page))
+                    {
+                        builder.WithPdfPage(page.GetInt32());
+                    }
+
+                    break;
+                case "split":
+                    builder.WithSplit(split =>
+                    {
+                        if (option.Value.TryGetProperty("rows", out var rows))
+                        {
+                            split.Rows(rows.GetInt32());
+                        }
+
+                        if (option.Value.TryGetProperty("columns", out var columns))
+                        {
+                            split.Columns(columns.GetInt32());
+                        }
+                    });
+                    break;
+                case "rotation":
+                    // A target option: applied to the printer target stage.
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"The print runner has no mapping for source option '{option.Name}'. Add one.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Asserts every member the fixture gives, and only those. Timestamps compare as instants.
+    /// </summary>
+    private static void AssertSubset(JsonElement expected, JsonElement actual, string path)
+    {
+        switch (expected.ValueKind)
+        {
+            case JsonValueKind.Object:
+                Assert.True(actual.ValueKind == JsonValueKind.Object, $"{path}: expected an object.");
+                foreach (var property in expected.EnumerateObject())
+                {
+                    Assert.True(actual.TryGetProperty(property.Name, out var value), $"{path}.{property.Name} is missing.");
+                    AssertSubset(property.Value, value, $"{path}.{property.Name}");
+                }
+
+                break;
+            case JsonValueKind.Array:
+                var expectedItems = expected.EnumerateArray().ToList();
+                var actualItems = actual.EnumerateArray().ToList();
+                Assert.Equal(expectedItems.Count, actualItems.Count);
+                for (var i = 0; i < expectedItems.Count; i++)
+                {
+                    AssertSubset(expectedItems[i], actualItems[i], $"{path}[{i}]");
+                }
+
+                break;
+            case JsonValueKind.Number:
+                Assert.Equal(expected.GetDouble(), actual.GetDouble(), 6);
+                break;
+            case JsonValueKind.String
+                when DateTimeOffset.TryParse(expected.GetString(), out var expectedInstant) &&
+                     expected.GetString()!.Contains('T'):
+                Assert.True(
+                    DateTimeOffset.TryParse(actual.GetString(), out var actualInstant),
+                    $"{path}: expected a timestamp but got '{actual}'.");
+                Assert.Equal(expectedInstant.ToUniversalTime(), actualInstant.ToUniversalTime());
+                break;
+            default:
+                Assert.True(expected.ValueKind == actual.ValueKind, $"{path}: expected {expected} but got {actual}.");
+                if (expected.ValueKind == JsonValueKind.String)
+                {
+                    Assert.Equal(expected.GetString(), actual.GetString());
+                }
+
+                break;
         }
     }
 
@@ -685,9 +990,14 @@ public sealed class ConformanceTests
             Assert.Equal(paid.GetBoolean(), forbidden.IsPaidFeature);
         }
 
+        if (expected.TryGetProperty("code", out var code))
+        {
+            Assert.Equal(code.ValueKind == JsonValueKind.Null ? null : code.GetString(), actual.Code);
+        }
+
         if (expected.TryGetProperty("retryAfterSeconds", out var retryAfter))
         {
-            var limited = Assert.IsType<LabelZoomRateLimitedException>(actual);
+            var limited = Assert.IsAssignableFrom<LabelZoomRateLimitedException>(actual);
             Assert.Equal(retryAfter.GetInt32(), limited.RetryAfterSeconds);
         }
     }
@@ -701,6 +1011,8 @@ public sealed class ConformanceTests
         "PayloadTooLarge" => typeof(LabelZoomPayloadTooLargeException),
         "RateLimited" => typeof(LabelZoomRateLimitedException),
         "ServerError" => typeof(LabelZoomServerException),
+        "Unprocessable" => typeof(LabelZoomUnprocessableException),
+        "PrintQuotaExceeded" => typeof(LabelZoomPrintQuotaExceededException),
         _ => throw new InvalidOperationException($"Unknown error kind '{kind}'."),
     };
 

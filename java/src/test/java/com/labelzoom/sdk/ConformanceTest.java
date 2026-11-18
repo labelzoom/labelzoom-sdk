@@ -66,6 +66,7 @@ class ConformanceTest {
             case "retry" -> runRetryCase(given, expect);
             case "validation" -> runValidationCase(given, expect);
             case "typecheck" -> runTypecheckCase(given);
+            case "print" -> runPrintCase(given, expect);
             default -> fail("Unknown case kind for " + caseId);
         }
     }
@@ -102,7 +103,11 @@ class ConformanceTest {
         LabelZoomClient client = newClient(given, transport, null, null);
         buildRequest(client, given).execute();
 
-        HttpTransport.Request request = transport.lastRequest();
+        assertRequest(transport.lastRequest(), expect);
+    }
+
+    /** Asserts a recorded request against the request vocabulary (CONFORMANCE.md section 2). */
+    private static void assertRequest(HttpTransport.Request request, JsonNode expect) {
         URI uri = URI.create(request.uri());
 
         if (expect.has("method")) {
@@ -175,6 +180,231 @@ class ConformanceTest {
         if (expect.has("bodyText")) {
             assertEquals(expect.get("bodyText").asText(),
                     new String(request.body(), StandardCharsets.UTF_8));
+        }
+        if (expect.has("query")) {
+            expect.get("query").properties().forEach(e ->
+                    assertEquals(e.getValue().asText(), query.get(e.getKey()),
+                            "query parameter " + e.getKey()));
+        }
+        if (expect.has("bodyJson")) {
+            assertNotNull(request.body(), "request body");
+            assertJsonEquivalent(expect.get("bodyJson"),
+                    parse(new String(request.body(), StandardCharsets.UTF_8)), "body");
+        }
+    }
+
+    // -------------------------------------------------------------------- print
+
+    private void runPrintCase(JsonNode given, JsonNode expect) {
+        RecordingTransport transport = new RecordingTransport();
+        enqueueScripted(transport, given);
+
+        List<Double> sleeps = new ArrayList<>();
+        // given.maxRetries defaults to 0 for print cases (CONFORMANCE.md, "print").
+        LabelZoomClient client = newClient(given, transport, millis -> sleeps.add(millis / 1000.0), 0);
+
+        if (expect.has("validationError")) {
+            LabelZoomValidationException thrown = assertThrows(LabelZoomValidationException.class,
+                    () -> runPrintOperation(client, given));
+            assertEquals(expect.get("validationError").get("parameter").asText(), thrown.parameter());
+            assertEquals(expect.get("requestsSent").asInt(), transport.requests.size());
+            return;
+        }
+
+        if (expect.has("error")) {
+            LabelZoomException error = assertThrows(LabelZoomException.class,
+                    () -> runPrintOperation(client, given));
+            assertError(expect.get("error"), error);
+        } else {
+            JsonNode result = expect.get("result");
+            assertEquals(1, result.size(), "a print result names exactly one shape");
+            Map.Entry<String, JsonNode> expected = result.properties().iterator().next();
+            assertEquals(RESULT_SHAPES.get(given.get("operation").asText()), expected.getKey());
+            JsonNode actual = MAPPER.valueToTree(runPrintOperation(client, given));
+            assertSubset(expected.getValue(), actual, expected.getKey());
+        }
+
+        if (expect.has("request")) {
+            assertRequest(transport.requests.get(0), expect.get("request"));
+        }
+        if (expect.has("attempts")) {
+            assertEquals(expect.get("attempts").asInt(), transport.requests.size(), "attempts");
+        }
+        if (expect.has("sleepsSeconds")) {
+            List<Double> expectedSleeps = new ArrayList<>();
+            expect.get("sleepsSeconds").forEach(n -> expectedSleeps.add(n.asDouble()));
+            assertEquals(expectedSleeps, sleeps, "sleeps");
+        }
+        for (JsonNode header : optionalArray(expect, "sameHeaderAcrossAttempts")) {
+            String name = header.asText().toLowerCase();
+            List<String> values = transport.requests.stream()
+                    .map(r -> lowercaseHeaders(r.headers()).get(name))
+                    .collect(Collectors.toList());
+            assertNotNull(values.get(0), "header " + name);
+            for (String value : values) {
+                assertEquals(values.get(0), value, "header " + name + " must be the same on every attempt");
+            }
+        }
+    }
+
+    private static final Map<String, String> RESULT_SHAPES = Map.of(
+            "print", "printJob", "printTemplate", "printBatch", "getJob", "job", "getQuota", "quota");
+
+    /** Runs the fixture's print call and projects its result into the fixture's naming. */
+    private static Map<String, Object> runPrintOperation(LabelZoomClient client, JsonNode given) {
+        String operation = given.get("operation").asText();
+        switch (operation) {
+            case "print" -> {
+                SourceFormat source = SourceFormat.fromToken(given.get("source").asText());
+                String body = given.get("bodyText").asText();
+                boolean base64Text = given.has("sourceEncoding")
+                        && "base64text".equals(given.get("sourceEncoding").asText());
+                DynamicSourceBuilder sourceStage = base64Text
+                        ? client.convert().fromBase64Text(source, body)
+                        : client.convert().from(source, body);
+                JsonNode options = given.has("options") ? given.get("options") : MAPPER.createObjectNode();
+                applySourceOptions(sourceStage, options, PRINTER_TARGET_OPTIONS);
+                PrinterTargetBuilder builder = sourceStage.toPrinter(given.get("printerId").asText());
+                if (options.has("rotation")) {
+                    builder.withRotation(options.get("rotation").asInt());
+                }
+                if (given.has("copies")) {
+                    builder.withCopies(given.get("copies").asInt());
+                }
+                if (given.has("idempotencyKey")) {
+                    builder.withIdempotencyKey(given.get("idempotencyKey").asText());
+                }
+                return project(builder.execute());
+            }
+            case "printTemplate" -> {
+                TemplateSourceBuilder source = client.convert().fromTemplate(given.get("templateId").asText());
+                if (given.has("data")) {
+                    List<Object> records = new ArrayList<>();
+                    given.get("data").forEach(n ->
+                            records.add(n.isObject() ? toMap(n) : MAPPER.convertValue(n, Object.class)));
+                    source.withData(erased(records));
+                }
+                if (given.has("validate")) {
+                    source.withValidate(given.get("validate").asBoolean());
+                }
+                TemplatePrinterTargetBuilder builder = source.toPrinter(given.get("printerId").asText());
+                if (given.has("copies")) {
+                    builder.withCopies(given.get("copies").asInt());
+                }
+                if (given.has("idempotencyKey")) {
+                    builder.withIdempotencyKey(given.get("idempotencyKey").asText());
+                }
+                PrintBatch batch = builder.execute();
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("jobs", batch.jobs().stream().map(ConformanceTest::project).collect(Collectors.toList()));
+                out.put("remaining", batch.remaining());
+                out.put("message", batch.message().orElse(null));
+                return out;
+            }
+            case "getJob" -> {
+                PrintJobDetails job = client.jobs().get(given.get("jobId").asText());
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("id", job.id());
+                out.put("printerId", job.printerId().orElse(null));
+                out.put("agentId", job.agentId().orElse(null));
+                out.put("sourceFormat", job.sourceFormat().orElse(null));
+                out.put("copies", job.copies().isPresent() ? job.copies().getAsInt() : null);
+                out.put("status", job.status());
+                out.put("error", job.error().orElse(null));
+                out.put("retryCount", job.retryCount());
+                out.put("createdDate", instant(job.createdDate()));
+                out.put("dispatchedDate", instant(job.dispatchedDate()));
+                out.put("completedDate", instant(job.completedDate()));
+                out.put("retriedDate", instant(job.retriedDate()));
+                return out;
+            }
+            case "getQuota" -> {
+                PrintQuota quota = client.getPrintQuota();
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("plan", quota.plan());
+                out.put("agents", counter(quota.agents()));
+                out.put("printers", counter(quota.printers()));
+                out.put("jobsToday", counter(quota.jobsToday()));
+                Map<String, Object> limits = new LinkedHashMap<>();
+                limits.put("maxPayloadBytes", quota.limits().maxPayloadBytes());
+                limits.put("maxStoredPayloadBytes", quota.limits().maxStoredPayloadBytes());
+                limits.put("maxBatchSize", quota.limits().maxBatchSize());
+                out.put("limits", limits);
+                return out;
+            }
+            default -> throw new IllegalStateException("Unknown print operation '" + operation + "'");
+        }
+    }
+
+    private static Map<String, Object> project(PrintJob job) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("jobId", job.jobId());
+        out.put("status", job.status());
+        out.put("copies", job.copies().isPresent() ? job.copies().getAsInt() : null);
+        out.put("idempotent", job.isIdempotent());
+        return out;
+    }
+
+    private static Map<String, Object> counter(PrintQuotaCounter counter) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("used", counter.used());
+        out.put("limit", counter.limit());
+        out.put("remaining", counter.remaining());
+        out.put("pending", counter.pending().isPresent() ? counter.pending().getAsInt() : null);
+        out.put("resetAt", instant(counter.resetAt()));
+        return out;
+    }
+
+    private static String instant(java.util.Optional<java.time.Instant> value) {
+        return value.map(java.time.Instant::toString).orElse(null);
+    }
+
+    /**
+     * A fixture's template records as the typed list {@code withData} takes.
+     *
+     * <p>A fixture can hold a record that isn't an object, which the signature can't express. Erasure
+     * lets such a list through, as it does for a caller passing decoded JSON, so this exercises the
+     * SDK's run-time check rather than skipping the case.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, ?>> erased(List<Object> records) {
+        return (List<Map<String, ?>>) (List<?>) records;
+    }
+
+    /**
+     * Asserts every member the fixture gives, and only those. Timestamps compare as instants, so
+     * {@code 2026-10-11T15:00:00.000Z} matches {@code 2026-10-11T15:00:00Z}.
+     */
+    private static void assertSubset(JsonNode expected, JsonNode actual, String path) {
+        if (expected.isObject()) {
+            assertTrue(actual.isObject(), path + ": expected an object but got " + actual);
+            expected.properties().forEach(e -> {
+                assertTrue(actual.has(e.getKey()), path + "." + e.getKey() + " is missing");
+                assertSubset(e.getValue(), actual.get(e.getKey()), path + "." + e.getKey());
+            });
+        } else if (expected.isArray()) {
+            assertTrue(actual.isArray(), path + ": expected an array but got " + actual);
+            assertEquals(expected.size(), actual.size(), path + ": length");
+            for (int i = 0; i < expected.size(); i++) {
+                assertSubset(expected.get(i), actual.get(i), path + "[" + i + "]");
+            }
+        } else if (expected.isNumber()) {
+            assertTrue(actual.isNumber(), path + ": expected a number but got " + actual);
+            assertEquals(expected.asDouble(), actual.asDouble(), 1e-6, path);
+        } else if (expected.isTextual() && timestamp(expected.asText()) != null) {
+            assertTrue(actual.isTextual(), path + ": expected a timestamp but got " + actual);
+            assertEquals(timestamp(expected.asText()), timestamp(actual.asText()), path);
+        } else {
+            assertEquals(expected.getNodeType(), actual.getNodeType(), path + ": " + actual);
+            assertEquals(expected.asText(), actual.asText(), path);
+        }
+    }
+
+    private static java.time.Instant timestamp(String text) {
+        try {
+            return java.time.OffsetDateTime.parse(text).toInstant();
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
         }
     }
 
@@ -344,7 +574,7 @@ class ConformanceTest {
                 : client.convert().from(source, body);
 
         JsonNode options = given.has("options") ? given.get("options") : MAPPER.createObjectNode();
-        applySourceOptions(sourceStage, options);
+        applySourceOptions(sourceStage, options, TARGET_OPTIONS);
         DynamicTargetBuilder targetStage = sourceStage.to(target);
         applyTargetOptions(targetStage, options);
         return targetStage;
@@ -353,7 +583,16 @@ class ConformanceTest {
     private static final Set<String> TARGET_OPTIONS =
             Set.of("targetDpi", "rotation", "watermark", "dialect", "layout");
 
-    private static void applySourceOptions(DynamicSourceBuilder builder, JsonNode options) {
+    /** The one target option the printer target stage takes (contract P2). */
+    private static final Set<String> PRINTER_TARGET_OPTIONS = Set.of("rotation");
+
+    /**
+     * @param targetOptions the target options the case's target stage takes, which this skips: all
+     *     of them for a request case, whose options mix both stages, and only {@code rotation} for a
+     *     print case, so any other target option there is a fixture error
+     */
+    private static void applySourceOptions(
+            DynamicSourceBuilder builder, JsonNode options, Set<String> targetOptions) {
         Iterator<Map.Entry<String, JsonNode>> it = options.properties().iterator();
         while (it.hasNext()) {
             Map.Entry<String, JsonNode> option = it.next();
@@ -415,7 +654,7 @@ class ConformanceTest {
                     builder.withData(records);
                 }
                 default -> {
-                    if (!TARGET_OPTIONS.contains(option.getKey())) {
+                    if (!targetOptions.contains(option.getKey())) {
                         throw new IllegalStateException(
                                 "Fixture sets option '" + option.getKey() + "', which the Java runner "
                                         + "does not map. Add it to buildRequest rather than skipping the case.");
@@ -530,6 +769,10 @@ class ConformanceTest {
                     LabelZoomForbiddenException.class, actual);
             assertEquals(expected.get("isPaidFeature").asBoolean(), forbidden.isPaidFeature());
         }
+        if (expected.has("code")) {
+            JsonNode code = expected.get("code");
+            assertEquals(code.isNull() ? null : code.asText(), actual.code().orElse(null), "code");
+        }
         if (expected.has("retryAfterSeconds")) {
             LabelZoomRateLimitedException limited = assertInstanceOf(
                     LabelZoomRateLimitedException.class, actual);
@@ -547,6 +790,8 @@ class ConformanceTest {
             case "PayloadTooLarge" -> LabelZoomPayloadTooLargeException.class;
             case "RateLimited" -> LabelZoomRateLimitedException.class;
             case "ServerError" -> LabelZoomServerException.class;
+            case "Unprocessable" -> LabelZoomUnprocessableException.class;
+            case "PrintQuotaExceeded" -> LabelZoomPrintQuotaExceededException.class;
             default -> throw new IllegalArgumentException("Unknown error kind " + kind);
         };
     }

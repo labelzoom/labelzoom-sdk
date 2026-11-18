@@ -171,8 +171,20 @@ namespace LabelZoom.Sdk.Conversion
             }
 
             return new DynamicSourceBuilder(
-                new ConversionDraft(_client, format, Encoding.UTF8.GetBytes(base64), "text/plain"));
+                new ConversionDraft(_client, format, Encoding.UTF8.GetBytes(base64), "text/plain")
+                {
+                    IsBase64Text = true,
+                });
         }
+
+        /// <summary>
+        /// Uses a template published from LabelZoom Studio or the web designer as the source. Supply its
+        /// merge-field values with <see cref="Printing.TemplateSourceBuilder.WithData"/>, then print it with
+        /// <see cref="Printing.TemplateSourceBuilder.ToPrinter"/>.
+        /// </summary>
+        /// <param name="templateId">The template's id, from the Print templates page.</param>
+        public Printing.TemplateSourceBuilder FromTemplate(string templateId) => new Printing.TemplateSourceBuilder(
+            _client, Printing.PrintWriters.RequireId(templateId, nameof(templateId)));
 
         /// <summary>
         /// Has the <em>server</em> fetch a URL and convert whatever it finds there.

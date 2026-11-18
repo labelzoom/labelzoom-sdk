@@ -11,12 +11,17 @@ __all__ = [
     "LabelZoomValidationError",
     "NotFoundError",
     "PayloadTooLargeError",
+    "PrintQuotaExceededError",
     "RateLimitedError",
     "ServerError",
     "UnauthorizedError",
+    "UnprocessableError",
 ]
 
 MAX_MESSAGE_LENGTH = 512
+
+#: The ``code`` of the 429 the daily print job limit returns.
+DAILY_JOB_LIMIT_CODE = "daily_job_limit_reached"
 
 
 class LabelZoomError(Exception):
@@ -33,6 +38,7 @@ class LabelZoomError(Exception):
         status: int,
         request_id: str | None = None,
         raw_body: str | None = None,
+        code: str | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -44,6 +50,9 @@ class LabelZoomError(Exception):
         #: The raw response body, untruncated. ``message`` is derived from it and capped at
         #: 512 characters; this is not.
         self.raw_body = raw_body
+        #: The error body's ``code``, such as ``agent_update_required``, or ``None`` when it has
+        #: none. Codes are stable, so branch on this rather than on :attr:`message`.
+        self.code = code
 
 
 class BadRequestError(LabelZoomError):
@@ -64,9 +73,12 @@ class ForbiddenError(LabelZoomError):
         status: int,
         request_id: str | None = None,
         raw_body: str | None = None,
+        code: str | None = None,
         is_paid_feature: bool = False,
     ) -> None:
-        super().__init__(message, status=status, request_id=request_id, raw_body=raw_body)
+        super().__init__(
+            message, status=status, request_id=request_id, raw_body=raw_body, code=code
+        )
         #: True when this 403 is a paywall rather than a permissions problem -- "JSON export
         #: is a paid feature" and friends. By far the most common anonymous-tier failure, so
         #: it gets a flag instead of leaving callers to match strings.
@@ -91,12 +103,32 @@ class RateLimitedError(LabelZoomError):
         status: int,
         request_id: str | None = None,
         raw_body: str | None = None,
+        code: str | None = None,
         retry_after_seconds: float | None = None,
     ) -> None:
-        super().__init__(message, status=status, request_id=request_id, raw_body=raw_body)
+        super().__init__(
+            message, status=status, request_id=request_id, raw_body=raw_body, code=code
+        )
         #: ``Retry-After`` in seconds, when the server sent one. The SDK already honors this
         #: during its own retries; this exposes it for callers doing their own.
         self.retry_after_seconds = retry_after_seconds
+
+
+class PrintQuotaExceededError(RateLimitedError):
+    """HTTP 429 with code ``daily_job_limit_reached``: the daily print job limit is used up.
+
+    The limit resets at 00:00 UTC, which :attr:`retry_after_seconds` points at. Never retried
+    automatically, because the wait is hours. Call ``client.get_print_quota()`` to check what
+    remains before printing.
+    """
+
+
+class UnprocessableError(LabelZoomError):
+    """HTTP 422. The request is well formed but can't be carried out.
+
+    Print returns it with a :attr:`code`, such as ``agent_update_required`` or
+    ``idempotency_key_reused``, and for a template print with missing merge fields.
+    """
 
 
 class ServerError(LabelZoomError):
@@ -146,12 +178,28 @@ def extract_message(raw_body: str | None, reason_phrase: str | None) -> str:
     return "The LabelZoom API returned an error with no response body."
 
 
+def extract_code(raw_body: str | None) -> str | None:
+    """The error body's top-level ``code`` string, or ``None`` (contract rule E3)."""
+    if raw_body is None or not raw_body.strip():
+        return None
+    try:
+        parsed = json.loads(raw_body)
+    except ValueError:
+        return None
+    if isinstance(parsed, dict):
+        code = parsed.get("code")
+        if isinstance(code, str):
+            return code
+    return None
+
+
 def error_for_status(
     *,
     status: int,
     message: str,
     request_id: str | None = None,
     raw_body: str | None = None,
+    code: str | None = None,
     retry_after_seconds: float | None = None,
 ) -> LabelZoomError:
     """Map an HTTP status onto the typed error it becomes (contract rule E4)."""
@@ -161,16 +209,22 @@ def error_for_status(
             status=status,
             request_id=request_id,
             raw_body=raw_body,
+            code=code,
             # The most common anonymous-tier failure, so it gets a flag rather than leaving
             # every caller to match the string themselves.
             is_paid_feature="paid feature" in message.lower(),
         )
     if status == 429:
-        return RateLimitedError(
+        # A kind of RateLimitedError, so a handler for that still catches the daily limit.
+        limited: type[RateLimitedError] = (
+            PrintQuotaExceededError if code == DAILY_JOB_LIMIT_CODE else RateLimitedError
+        )
+        return limited(
             message,
             status=status,
             request_id=request_id,
             raw_body=raw_body,
+            code=code,
             retry_after_seconds=retry_after_seconds,
         )
 
@@ -183,6 +237,8 @@ def error_for_status(
         cls = NotFoundError
     elif status == 413:
         cls = PayloadTooLargeError
+    elif status == 422:
+        cls = UnprocessableError
     elif status >= 500:
         cls = ServerError
     else:
@@ -190,4 +246,4 @@ def error_for_status(
         # a 406 from content negotiation is the one that actually shows up in practice.
         cls = LabelZoomError
 
-    return cls(message, status=status, request_id=request_id, raw_body=raw_body)
+    return cls(message, status=status, request_id=request_id, raw_body=raw_body, code=code)

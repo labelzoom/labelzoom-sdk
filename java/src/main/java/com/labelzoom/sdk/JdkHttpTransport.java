@@ -37,7 +37,9 @@ final class JdkHttpTransport implements HttpTransport {
     @Override
     public Response send(Request request) throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(request.uri()))
-                .POST(HttpRequest.BodyPublishers.ofByteArray(request.body()));
+                .method(request.method(), request.body() == null
+                        ? HttpRequest.BodyPublishers.noBody()
+                        : HttpRequest.BodyPublishers.ofByteArray(request.body()));
 
         for (Map.Entry<String, String> header : request.headers().entrySet()) {
             builder.header(header.getKey(), header.getValue());

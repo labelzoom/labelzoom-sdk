@@ -16,7 +16,10 @@ public interface HttpTransport {
     /** Performs one request. Implementations must not retry; the client owns retry policy. */
     Response send(Request request) throws IOException, InterruptedException;
 
-    /** An outgoing request. */
+    /**
+     * An outgoing request. {@code method} is {@code POST} or {@code GET}; {@code body} is null for a
+     * request with none, such as a {@code GET}.
+     */
     record Request(String method, String uri, Map<String, String> headers, byte[] body) {
     }
 

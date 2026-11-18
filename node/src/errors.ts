@@ -4,6 +4,7 @@ export interface LabelZoomErrorInit {
   message: string;
   requestId?: string;
   rawBody?: string;
+  code?: string | null;
 }
 
 /**
@@ -28,12 +29,19 @@ export class LabelZoomError extends Error {
    */
   readonly rawBody?: string;
 
+  /**
+   * The error body's `code`, such as `agent_update_required`, or `null` when it has none. Codes
+   * are stable, so branch on this rather than on `message`.
+   */
+  readonly code: string | null;
+
   constructor(init: LabelZoomErrorInit) {
     super(init.message);
     this.name = new.target.name;
     this.status = init.status;
     this.requestId = init.requestId;
     this.rawBody = init.rawBody;
+    this.code = init.code ?? null;
     // Without this, `instanceof` fails for subclasses when the package is consumed as CJS
     // compiled to an ES5-ish target.
     Object.setPrototypeOf(this, new.target.prototype);
@@ -82,6 +90,19 @@ export class RateLimitedError extends LabelZoomError {
 }
 
 /** HTTP 5xx. Retried automatically before surfacing. */
+/**
+ * HTTP 429 with code `daily_job_limit_reached`: the account's daily print job limit is used up. It
+ * resets at 00:00 UTC, which `retryAfterSeconds` points at. Never retried automatically, because the
+ * wait is hours. Call `client.getPrintQuota()` to check what remains before printing.
+ */
+export class PrintQuotaExceededError extends RateLimitedError {}
+
+/**
+ * HTTP 422: well formed, but it can't be carried out. Print returns it with a `code`:
+ * `agent_update_required` or `idempotency_key_reused`, or for a template print with missing fields.
+ */
+export class UnprocessableError extends LabelZoomError {}
+
 export class ServerError extends LabelZoomError {}
 
 /**
@@ -142,6 +163,20 @@ function truncate(value: string): string {
   return value.length <= MAX_MESSAGE_LENGTH ? value : value.slice(0, MAX_MESSAGE_LENGTH);
 }
 
+/** The error body's top-level `code` string, or null (contract E3). */
+export function extractCode(rawBody: string | undefined): string | null {
+  if (rawBody === undefined || rawBody.trim() === '') return null;
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    if (typeof parsed === 'object' && parsed !== null && typeof (parsed as { code?: unknown }).code === 'string') {
+      return (parsed as { code: string }).code;
+    }
+  } catch {
+    // Not JSON: no code.
+  }
+  return null;
+}
+
 export function errorForStatus(init: LabelZoomErrorInit & { retryAfterSeconds?: number }): LabelZoomError {
   switch (true) {
     case init.status === 400:
@@ -154,6 +189,10 @@ export function errorForStatus(init: LabelZoomErrorInit & { retryAfterSeconds?: 
       return new NotFoundError(init);
     case init.status === 413:
       return new PayloadTooLargeError(init);
+    case init.status === 422:
+      return new UnprocessableError(init);
+    case init.status === 429 && init.code === 'daily_job_limit_reached':
+      return new PrintQuotaExceededError(init);
     case init.status === 429:
       return new RateLimitedError(init);
     case init.status >= 500:

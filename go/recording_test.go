@@ -126,6 +126,24 @@ func (t *recordingTransport) last() (*http.Request, []byte) {
 	return t.requests[len(t.requests)-1], t.bodies[len(t.bodies)-1]
 }
 
+// all returns every request, in the order sent. Print cases assert on the first one and on
+// the headers every attempt shares.
+func (t *recordingTransport) all() []*http.Request {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]*http.Request(nil), t.requests...)
+}
+
+// first returns the first request and its drained body.
+func (t *recordingTransport) first() (*http.Request, []byte) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.requests) == 0 {
+		return nil, nil
+	}
+	return t.requests[0], t.bodies[0]
+}
+
 // recordingSleeper records what the retry backoff asked for instead of waiting. Rule F4
 // makes this seam a requirement: a suite that really slept would cost ten seconds of CI
 // time per language.

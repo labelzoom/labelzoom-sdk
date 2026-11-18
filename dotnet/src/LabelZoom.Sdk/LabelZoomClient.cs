@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using LabelZoom.Sdk.Conversion;
+using LabelZoom.Sdk.Printing;
 
 namespace LabelZoom.Sdk
 {
@@ -118,7 +119,31 @@ namespace LabelZoom.Sdk
             return new ConversionRequestBuilder(this);
         }
 
-        internal async Task<ConversionResult> ExecuteAsync(
+        /// <summary>Print jobs: look one up by id to follow it to completion.</summary>
+        public PrintJobsClient Jobs
+        {
+            get
+            {
+                ThrowIfDisposed();
+                return new PrintJobsClient(this);
+            }
+        }
+
+        /// <summary>
+        /// Gets the account's Cloud Print limits and today's usage, so a caller can stop before it
+        /// hits a <see cref="LabelZoomPrintQuotaExceededException"/>.
+        /// </summary>
+        public Task<PrintQuota> GetPrintQuotaAsync(CancellationToken cancellationToken = default)
+        {
+            ThrowIfDisposed();
+            var uri = ApiUri("/api/v3/print/quota");
+            return SendAsync(
+                () => CreateRequest(HttpMethod.Get, uri, PrintWriters.JsonMediaType),
+                response => PrintResponses.ReadAsync(response, PrintQuota.FromJson),
+                cancellationToken);
+        }
+
+        internal Task<ConversionResult> ExecuteAsync(
             SourceFormat source,
             TargetFormat target,
             byte[] body,
@@ -129,6 +154,55 @@ namespace LabelZoom.Sdk
             ThrowIfDisposed();
 
             var uri = BuildUri(source, target, parameters);
+
+            // Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
+            // image/jpeg, so naming the target's exact media type yields a 406 from content
+            // negotiation before the handler ever runs.
+            return SendAsync(
+                () => CreateRequest(HttpMethod.Post, uri, "*/*", body, contentType),
+                BuildResultAsync,
+                cancellationToken);
+        }
+
+        /// <summary>Builds one attempt's request. Every call shares the identity headers.</summary>
+        internal HttpRequestMessage CreateRequest(
+            HttpMethod method, Uri uri, string accept, byte[]? body = null, string? contentType = null)
+        {
+            var request = new HttpRequestMessage(method, uri);
+            if (body is not null)
+            {
+                var content = new ByteArrayContent(body);
+                content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType!);
+                request.Content = content;
+            }
+
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(accept));
+            request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
+
+            if (_credential is not null)
+            {
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _credential);
+            }
+
+            return request;
+        }
+
+        /// <summary>
+        /// Sends a request with the retry policy (contract §F), building a fresh request for each
+        /// attempt.
+        /// </summary>
+        /// <remarks>
+        /// <paramref name="createRequest"/> runs once per attempt: HttpRequestMessage cannot be reused,
+        /// and a consumed HttpContent cannot be replayed. Anything that must be identical on every
+        /// attempt, such as a print's Idempotency-Key, is fixed before the first one.
+        /// </remarks>
+        internal async Task<T> SendAsync<T>(
+            Func<HttpRequestMessage> createRequest,
+            Func<HttpResponseMessage, Task<T>> readResult,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+
             var attempts = _options.MaxRetries + 1;
 
             for (var attempt = 1; ; attempt++)
@@ -138,34 +212,19 @@ namespace LabelZoom.Sdk
                 HttpResponseMessage? response = null;
                 try
                 {
-                    // A fresh request and content object per attempt: HttpRequestMessage cannot be
-                    // reused, and a consumed HttpContent cannot be replayed.
-                    using var request = new HttpRequestMessage(HttpMethod.Post, uri);
-                    var content = new ByteArrayContent(body);
-                    content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
-                    request.Content = content;
-
-                    // Accept must be */*. The server's `produces` list omits image/gif, image/bmp
-                    // and image/jpeg, so naming the target's exact media type yields a 406 from
-                    // content negotiation before the handler ever runs.
-                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
-                    request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
-
-                    if (_credential is not null)
-                    {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _credential);
-                    }
-
+                    using var request = createRequest();
                     response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
                     if (response.IsSuccessStatusCode)
                     {
-                        return await BuildResultAsync(response).ConfigureAwait(false);
+                        return await readResult(response).ConfigureAwait(false);
                     }
 
                     var error = await BuildExceptionAsync(response).ConfigureAwait(false);
 
-                    if (attempt >= attempts || !IsRetryable(response.StatusCode))
+                    // F5: the daily print limit's Retry-After is the UTC reset, hours away.
+                    if (attempt >= attempts || !IsRetryable(response.StatusCode) ||
+                        error is LabelZoomPrintQuotaExceededException)
                     {
                         throw error;
                     }
@@ -193,6 +252,9 @@ namespace LabelZoom.Sdk
                 }
             }
         }
+
+        /// <summary>The base URL joined with an API path. Ids are escaped by the caller.</summary>
+        internal Uri ApiUri(string pathAndQuery) => new Uri(_options.BaseUrl + pathAndQuery);
 
         internal Uri BuildUri(SourceFormat source, TargetFormat target, ConversionParameters parameters)
         {
@@ -257,7 +319,9 @@ namespace LabelZoom.Sdk
             var requestId = ReadRequestId(response);
             var status = response.StatusCode;
 
-            return (int)status switch
+            var code = ExtractCode(rawBody);
+
+            LabelZoomException error = (int)status switch
             {
                 400 => new LabelZoomBadRequestException(message, requestId, rawBody),
                 401 => new LabelZoomUnauthorizedException(message, requestId, rawBody),
@@ -265,11 +329,41 @@ namespace LabelZoom.Sdk
                     message, requestId, rawBody, IsPaidFeatureMessage(message)),
                 404 => new LabelZoomNotFoundException(message, requestId, rawBody),
                 413 => new LabelZoomPayloadTooLargeException(message, requestId, rawBody),
+                422 => new LabelZoomUnprocessableException(message, requestId, rawBody),
+                429 when code == LabelZoomPrintQuotaExceededException.DailyJobLimitCode =>
+                    new LabelZoomPrintQuotaExceededException(
+                        message, requestId, rawBody, ReadRetryAfterSeconds(response)),
                 429 => new LabelZoomRateLimitedException(
                     message, requestId, rawBody, ReadRetryAfterSeconds(response)),
                 >= 500 => new LabelZoomServerException(status, message, requestId, rawBody),
                 _ => new LabelZoomException(status, message, requestId, rawBody),
             };
+
+            error.Code = code;
+            return error;
+        }
+
+        /// <summary>The error body's top-level <c>code</c> string, or null (contract E3).</summary>
+        internal static string? ExtractCode(string? rawBody)
+        {
+            if (string.IsNullOrWhiteSpace(rawBody))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var document = JsonDocument.Parse(rawBody!);
+                return document.RootElement.ValueKind == JsonValueKind.Object &&
+                       document.RootElement.TryGetProperty("code", out var code) &&
+                       code.ValueKind == JsonValueKind.String
+                    ? code.GetString()
+                    : null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         /// <summary>

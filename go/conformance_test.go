@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -63,6 +64,17 @@ type given struct {
 	Responses      []scriptedResponse         `json:"responses"`
 	Snippet        string                     `json:"snippet"`
 
+	// Print cases name the call in operation and carry its arguments alongside. Data is raw
+	// so an absent "data" stays distinguishable from an explicit one.
+	Operation      string          `json:"operation"`
+	PrinterID      string          `json:"printerId"`
+	TemplateID     string          `json:"templateId"`
+	JobID          string          `json:"jobId"`
+	Data           json.RawMessage `json:"data"`
+	Validate       *bool           `json:"validate"`
+	Copies         *int            `json:"copies"`
+	IdempotencyKey *string         `json:"idempotencyKey"`
+
 	// Response cases inline a single response at the top level rather than in responses[].
 	Status     int               `json:"status"`
 	Headers    map[string]string `json:"headers"`
@@ -70,25 +82,37 @@ type given struct {
 	BodyRepeat []any             `json:"bodyTextRepeat"`
 }
 
+// requestExpectation is the request vocabulary of docs/CONFORMANCE.md section 2. A request
+// case gives it at the top level of expect; a print case nests it under expect.request.
+type requestExpectation struct {
+	Method             string              `json:"method"`
+	URL                string              `json:"url"`
+	Path               string              `json:"path"`
+	Headers            map[string]string   `json:"headers"`
+	HeadersAbsent      []string            `json:"headersAbsent"`
+	HeadersMatch       map[string]string   `json:"headersMatch"`
+	HeadersNotMatch    map[string]string   `json:"headersNotMatch"`
+	QueryJSON          map[string]any      `json:"queryJson"`
+	QueryAbsent        []string            `json:"queryAbsent"`
+	QueryJSONAbsentKey map[string][]string `json:"queryJsonAbsentKeys"`
+	BodyText           *string             `json:"bodyText"`
+	// Query and BodyJSON are print-case additions: plain query parameters with exact values,
+	// and the request body compared structurally.
+	Query    map[string]string `json:"query"`
+	BodyJSON json.RawMessage   `json:"bodyJson"`
+}
+
 type expectation struct {
-	Method             string                      `json:"method"`
-	URL                string                      `json:"url"`
-	Path               string                      `json:"path"`
-	Headers            map[string]string           `json:"headers"`
-	HeadersAbsent      []string                    `json:"headersAbsent"`
-	HeadersMatch       map[string]string           `json:"headersMatch"`
-	HeadersNotMatch    map[string]string           `json:"headersNotMatch"`
-	QueryJSON          map[string]any              `json:"queryJson"`
-	QueryAbsent        []string                    `json:"queryAbsent"`
-	QueryJSONAbsentKey map[string][]string         `json:"queryJsonAbsentKeys"`
-	BodyText           *string                     `json:"bodyText"`
-	Result             *expectedResult             `json:"result"`
-	Error              *expectedError              `json:"error"`
-	Attempts           *int                        `json:"attempts"`
-	SleepsSeconds      []float64                   `json:"sleepsSeconds"`
-	ValidationError    *struct{ Parameter string } `json:"validationError"`
-	RequestsSent       *int                        `json:"requestsSent"`
-	CompileError       bool                        `json:"compileError"`
+	requestExpectation
+	Request                  *requestExpectation         `json:"request"`
+	SameHeaderAcrossAttempts []string                    `json:"sameHeaderAcrossAttempts"`
+	Result                   *expectedResult             `json:"result"`
+	Error                    *expectedError              `json:"error"`
+	Attempts                 *int                        `json:"attempts"`
+	SleepsSeconds            []float64                   `json:"sleepsSeconds"`
+	ValidationError          *struct{ Parameter string } `json:"validationError"`
+	RequestsSent             *int                        `json:"requestsSent"`
+	CompileError             bool                        `json:"compileError"`
 }
 
 type expectedResult struct {
@@ -97,6 +121,11 @@ type expectedResult struct {
 	Text        *string
 	BytesBase64 *string
 	RequestID   *string
+	// Print results: exactly one is set, matching the operation, and compared as a subset.
+	PrintJob   json.RawMessage
+	PrintBatch json.RawMessage
+	Job        json.RawMessage
+	Quota      json.RawMessage
 	// requestIDPresent separates an omitted "requestId" from an explicit null. The null
 	// form is an assertion in its own right: response/request-id-absent requires the SDK
 	// to surface no request id rather than throwing (rule D2).
@@ -118,6 +147,7 @@ func (r *expectedResult) UnmarshalJSON(data []byte) error {
 	for key, into := range map[string]any{
 		"status": &r.Status, "contentType": &r.ContentType, "text": &r.Text,
 		"bytesBase64": &r.BytesBase64, "requestId": &r.RequestID,
+		"printJob": &r.PrintJob, "printBatch": &r.PrintBatch, "job": &r.Job, "quota": &r.Quota,
 	} {
 		if err := read(key, into); err != nil {
 			return fmt.Errorf("expect.result.%s: %w", key, err)
@@ -138,6 +168,9 @@ type expectedError struct {
 	RequestID         *string  `json:"requestId"`
 	IsPaidFeature     *bool    `json:"isPaidFeature"`
 	RetryAfterSeconds *float64 `json:"retryAfterSeconds"`
+	// Code is raw so an explicit null ("the body has no code") stays distinguishable from an
+	// absent member ("not asserted").
+	Code json.RawMessage `json:"code"`
 }
 
 // okResponse is what a request/* case gets back: the assertions are about what went out.
@@ -273,6 +306,8 @@ func runCase(t *testing.T, root, caseID string) {
 		runValidationCase(t, g, e)
 	case "typecheck":
 		runTypecheckCase(t, caseID, g)
+	case "print":
+		runPrintCase(t, g, e)
 	default:
 		t.Fatalf("unknown case kind for %q", caseID)
 	}
@@ -403,6 +438,26 @@ func execute(t *testing.T, g given, script []scriptedResponse, defaultMaxRetries
 ) {
 	t.Helper()
 
+	client, transport, sleeper, env := newClient(t, g, script, defaultMaxRetries)
+
+	request := labelzoom.ConvertRequest{
+		From:         labelzoom.SourceFormat(g.Source),
+		To:           labelzoom.TargetFormat(g.Target),
+		Body:         []byte(g.BodyText),
+		Options:      buildOptions(t, g.Options),
+		AsBase64Text: g.SourceEncoding == "base64text",
+	}
+
+	result, err := client.Convert(context.Background(), request)
+	return result, err, transport, sleeper, env
+}
+
+// newClient builds the client a fixture describes, wired to the recording seams.
+func newClient(t *testing.T, g given, script []scriptedResponse, defaultMaxRetries *int) (
+	*labelzoom.Client, *recordingTransport, *recordingSleeper, *recordingEnv,
+) {
+	t.Helper()
+
 	transport := newRecordingTransport(script)
 	sleeper := &recordingSleeper{}
 	env := &recordingEnv{values: map[string]string{}}
@@ -455,17 +510,7 @@ func execute(t *testing.T, g given, script []scriptedResponse, defaultMaxRetries
 	if err != nil {
 		t.Fatalf("could not construct the client: %v", err)
 	}
-
-	request := labelzoom.ConvertRequest{
-		From:         labelzoom.SourceFormat(g.Source),
-		To:           labelzoom.TargetFormat(g.Target),
-		Body:         []byte(g.BodyText),
-		Options:      buildOptions(t, g.Options),
-		AsBase64Text: g.SourceEncoding == "base64text",
-	}
-
-	result, err := client.Convert(context.Background(), request)
-	return result, err, transport, sleeper, env
+	return client, transport, sleeper, env
 }
 
 // ------------------------------------------------------------------ case runners
@@ -482,6 +527,22 @@ func runRequestCase(t *testing.T, g given, e expectation) {
 	if request == nil {
 		t.Fatal("no request was sent")
 	}
+
+	assertRequest(t, e.requestExpectation, request, body)
+
+	// Rule G2's negative half: an explicitly anonymous client must not consult the
+	// environment at all. No other language's suite can assert this, because they read the
+	// real process environment rather than an injected lookup.
+	if raw, present := g.Client["apiKey"]; present && string(raw) == `""` && len(env.lookups) > 0 {
+		t.Errorf("an empty API key must force anonymous without an environment lookup, "+
+			"but the SDK looked up %v", env.lookups)
+	}
+}
+
+// assertRequest applies the request vocabulary to one recorded request. Request cases and
+// print cases share it, so the two cannot drift apart on what an assertion means.
+func assertRequest(t *testing.T, e requestExpectation, request *http.Request, body []byte) {
+	t.Helper()
 
 	if e.Method != "" && request.Method != e.Method {
 		t.Errorf("method = %q, want %q", request.Method, e.Method)
@@ -562,12 +623,28 @@ func runRequestCase(t *testing.T, g given, e expectation) {
 		t.Errorf("body = %q, want %q", string(body), *e.BodyText)
 	}
 
-	// Rule G2's negative half: an explicitly anonymous client must not consult the
-	// environment at all. No other language's suite can assert this, because they read the
-	// real process environment rather than an injected lookup.
-	if raw, present := g.Client["apiKey"]; present && string(raw) == `""` && len(env.lookups) > 0 {
-		t.Errorf("an empty API key must force anonymous without an environment lookup, "+
-			"but the SDK looked up %v", env.lookups)
+	for name, want := range e.Query {
+		values, present := query[name]
+		if !present {
+			t.Errorf("query parameter %s is missing, want %q", name, want)
+			continue
+		}
+		if len(values) != 1 || values[0] != want {
+			t.Errorf("query %s = %q, want %q", name, values, want)
+		}
+	}
+	if e.BodyJSON != nil {
+		var want, got any
+		if err := json.Unmarshal(e.BodyJSON, &want); err != nil {
+			t.Fatalf("could not parse expect bodyJson: %v", err)
+		}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("the request body is not JSON: %v\n%s", err, body)
+		}
+		// Structural, for the same reason as queryJson.
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("body = %#v, want %#v", got, want)
+		}
 	}
 }
 
@@ -688,6 +765,11 @@ var errorKinds = map[string]func(error) bool{
 	"PayloadTooLarge": func(err error) bool { var e *labelzoom.PayloadTooLargeError; return errors.As(err, &e) },
 	"RateLimited":     func(err error) bool { var e *labelzoom.RateLimitedError; return errors.As(err, &e) },
 	"ServerError":     func(err error) bool { var e *labelzoom.ServerError; return errors.As(err, &e) },
+	"Unprocessable":   func(err error) bool { var e *labelzoom.UnprocessableError; return errors.As(err, &e) },
+	"PrintQuotaExceeded": func(err error) bool {
+		var e *labelzoom.PrintQuotaExceededError
+		return errors.As(err, &e)
+	},
 }
 
 func assertError(t *testing.T, want expectedError, err error) {
@@ -736,6 +818,28 @@ func assertError(t *testing.T, want expectedError, err error) {
 		}
 		if forbidden.IsPaidFeature != *want.IsPaidFeature {
 			t.Errorf("isPaidFeature = %v, want %v", forbidden.IsPaidFeature, *want.IsPaidFeature)
+		}
+	}
+	if want.Kind != nil && *want.Kind == "RateLimited" {
+		// PrintQuotaExceeded is a RateLimited, so the kind check above cannot tell them
+		// apart. An ordinary 429 must not come back as the daily limit, which is never retried.
+		var quota *labelzoom.PrintQuotaExceededError
+		if errors.As(err, &quota) {
+			t.Error("an ordinary 429 must not be a *PrintQuotaExceededError")
+		}
+	}
+	if want.Code != nil {
+		var wantCode *string
+		if err := json.Unmarshal(want.Code, &wantCode); err != nil {
+			t.Fatalf("could not parse expect.error.code: %v", err)
+		}
+		// Go reports "no code" as the empty string, as it does for RequestID.
+		expected := ""
+		if wantCode != nil {
+			expected = *wantCode
+		}
+		if api.Code != expected {
+			t.Errorf("code = %q, want %q", api.Code, expected)
 		}
 	}
 	if want.RetryAfterSeconds != nil {

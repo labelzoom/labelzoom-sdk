@@ -18,8 +18,9 @@ final class ForbiddenException extends LabelZoomException
         ?string $requestId = null,
         string $rawBody = '',
         private readonly bool $paidFeature = false,
+        ?string $errorCode = null,
     ) {
-        parent::__construct($status, $message, $requestId, $rawBody);
+        parent::__construct($status, $message, $requestId, $rawBody, $errorCode);
     }
 
     /**

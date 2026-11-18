@@ -48,7 +48,7 @@ public final class ConversionRequestBuilder {
         return from(format, utf8(body));
     }
 
-    private static byte[] utf8(String body) {
+    static byte[] utf8(String body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source body cannot be null.");
         }
@@ -65,7 +65,7 @@ public final class ConversionRequestBuilder {
         return from(format, readAll(body));
     }
 
-    private static byte[] readAll(InputStream body) {
+    static byte[] readAll(InputStream body) {
         if (body == null) {
             throw new LabelZoomValidationException("body", "Source stream cannot be null.");
         }
@@ -99,8 +99,22 @@ public final class ConversionRequestBuilder {
         if (base64 == null || base64.isEmpty()) {
             throw new LabelZoomValidationException("body", "Base64 body cannot be null or empty.");
         }
-        return new DynamicSourceBuilder(new ConversionDraft(
-                client, format, base64.getBytes(StandardCharsets.UTF_8), "text/plain"));
+        ConversionDraft draft = new ConversionDraft(
+                client, format, base64.getBytes(StandardCharsets.UTF_8), "text/plain");
+        draft.base64Text = true;
+        return new DynamicSourceBuilder(draft);
+    }
+
+    /**
+     * Uses a template published from LabelZoom Studio or the web designer as the source. Supply its
+     * merge-field values with {@link TemplateSourceBuilder#withData(java.util.Map[])}, then print it
+     * with {@link TemplateSourceBuilder#toPrinter(String)}.
+     *
+     * @param templateId the template's id, from the Print templates page
+     * @throws LabelZoomValidationException if {@code templateId} is null or blank
+     */
+    public TemplateSourceBuilder fromTemplate(String templateId) {
+        return new TemplateSourceBuilder(client, PrintWriters.requireId(templateId, "templateId"));
     }
 
     /** Converts from ZPL. */

@@ -186,6 +186,15 @@ impl SourceFormat {
         }
     }
 
+    /// Whether [`LabelZoomClient::print`](crate::LabelZoomClient::print) accepts this source.
+    ///
+    /// Every source format prints except [`Url`](Self::Url): LabelZoom converts the document
+    /// to the printer's configured language first, but print doesn't fetch, so a URL has no
+    /// document to convert. Fetch it yourself and print the bytes as their own format.
+    pub fn is_printable(self) -> bool {
+        !matches!(self, Self::Url)
+    }
+
     /// The lowercase name of this format, before `jpg` normalization.
     pub fn name(self) -> &'static str {
         match self {

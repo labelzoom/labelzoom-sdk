@@ -34,6 +34,9 @@ type APIError struct {
 	RequestID string
 	// RawBody is the response body, untruncated.
 	RawBody string
+	// Code is the error body's top-level "code" string, such as "agent_update_required", or ""
+	// when the body has none. Codes are stable, so branch on Code rather than on Message.
+	Code string
 }
 
 func (e *APIError) Error() string {
@@ -91,6 +94,29 @@ type RateLimitedError struct {
 // Unwrap exposes the embedded [APIError] to errors.As.
 func (e *RateLimitedError) Unwrap() error { return &e.APIError }
 
+// UnprocessableError is HTTP 422: the request is well formed but can't be carried out. Print
+// returns it with a [APIError.Code], such as "agent_update_required" or "idempotency_key_reused",
+// and for a template print whose records are missing fields.
+type UnprocessableError struct{ APIError }
+
+// Unwrap exposes the embedded [APIError] to errors.As.
+func (e *UnprocessableError) Unwrap() error { return &e.APIError }
+
+// PrintQuotaExceededError is HTTP 429 with code "daily_job_limit_reached": the account's daily
+// print job limit is used up.
+//
+// It is a kind of [RateLimitedError]: it embeds one and unwraps to it, so a handler written for
+// *RateLimitedError still catches it, and errors.As reaches *APIError through it as well.
+// RetryAfterSeconds points at the reset, 00:00 UTC. The client never retries it automatically,
+// because that wait is hours. Call [Client.GetPrintQuota] to check what remains before printing.
+type PrintQuotaExceededError struct{ RateLimitedError }
+
+// Unwrap exposes the embedded [RateLimitedError], and through it [APIError], to errors.As.
+func (e *PrintQuotaExceededError) Unwrap() error { return &e.RateLimitedError }
+
+// dailyJobLimitCode is the 429 code that makes a rate limit a [PrintQuotaExceededError].
+const dailyJobLimitCode = "daily_job_limit_reached"
+
 // ServerError is HTTP 5xx. Retried automatically before it surfaces.
 type ServerError struct{ APIError }
 
@@ -112,8 +138,8 @@ func (e *ValidationError) Error() string {
 }
 
 // errorForStatus maps a response onto the typed error for its status.
-func errorForStatus(status int, message, requestID, rawBody string, retryAfter *float64) error {
-	base := APIError{Status: status, Message: message, RequestID: requestID, RawBody: rawBody}
+func errorForStatus(status int, message, code, requestID, rawBody string, retryAfter *float64) error {
+	base := APIError{Status: status, Message: message, RequestID: requestID, RawBody: rawBody, Code: code}
 
 	switch {
 	case status == 400:
@@ -129,6 +155,10 @@ func errorForStatus(status int, message, requestID, rawBody string, retryAfter *
 		return &NotFoundError{APIError: base}
 	case status == 413:
 		return &PayloadTooLargeError{APIError: base}
+	case status == 422:
+		return &UnprocessableError{APIError: base}
+	case status == 429 && code == dailyJobLimitCode:
+		return &PrintQuotaExceededError{RateLimitedError{APIError: base, RetryAfterSeconds: retryAfter}}
 	case status == 429:
 		return &RateLimitedError{APIError: base, RetryAfterSeconds: retryAfter}
 	case status >= 500:
@@ -167,6 +197,17 @@ func truncate(value string) string {
 		return value
 	}
 	return string(runes[:maxMessageLength])
+}
+
+// extractCode returns the error body's top-level "code" string (contract E3), or "" when the
+// body is not a JSON object or has no string there.
+func extractCode(rawBody string) string {
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(rawBody), &parsed); err != nil {
+		return ""
+	}
+	code, _ := parsed["code"].(string)
+	return code
 }
 
 // jsonMessage returns the "message" field of a JSON object body, if the body is a JSON

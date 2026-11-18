@@ -66,6 +66,19 @@ namespace LabelZoom.Sdk.Conversion
         /// <summary>Selects the target format at run time. Every target option is available.</summary>
         public DynamicTargetBuilder To(TargetFormat target) => new DynamicTargetBuilder(Draft, target);
 
+        /// <summary>
+        /// Prints the document on a Cloud Print printer instead of returning it. The printer's own
+        /// configuration sets the output language, and LabelZoom converts the document to it, so a PDF
+        /// prints on a ZPL printer. Printing needs an API key with the <c>print</c> scope.
+        /// </summary>
+        /// <param name="printerId">The printer's id, from the Printers page.</param>
+        /// <exception cref="LabelZoomValidationException">
+        /// The source is a URL or base64 text, which can't be printed, or the printer id is empty.
+        /// </exception>
+        public Printing.PrinterTargetBuilder ToPrinter(string printerId) => new Printing.PrinterTargetBuilder(
+            Printing.PrintWriters.RequirePrintable(Draft),
+            Printing.PrintWriters.RequireId(printerId, nameof(printerId)));
+
         /// <summary>Converts to ZPL. All labels are concatenated into one document.</summary>
         public ZplTargetBuilder ToZpl() => new ZplTargetBuilder(Draft);
 

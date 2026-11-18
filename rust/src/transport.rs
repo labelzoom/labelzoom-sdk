@@ -9,7 +9,7 @@ use crate::error::TransportError;
 /// One outgoing HTTP request.
 #[derive(Debug, Clone)]
 pub struct HttpRequest {
-    /// Always `POST` today.
+    /// `POST` for a conversion or a print, `GET` for reading a print job or the print quota.
     pub method: &'static str,
     /// The fully resolved URL, query string included.
     pub url: String,
@@ -150,14 +150,20 @@ mod ureq_transport {
             }
             let agent: ureq::Agent = config.build().into();
 
-            let mut outgoing = agent.post(&request.url);
-            for (name, value) in &request.headers {
-                outgoing = outgoing.header(name.as_str(), value.as_str());
-            }
-
             // A non-2xx is a response, not a transport failure: rule E1 requires the body
             // to reach the caller rather than being swallowed by the HTTP client.
-            let response = outgoing.send(&request.body[..]).map_err(|error| {
+            let sent = match request.method {
+                "GET" => with_headers(agent.get(&request.url), &request.headers).call(),
+                "POST" => {
+                    with_headers(agent.post(&request.url), &request.headers).send(&request.body[..])
+                }
+                other => {
+                    return Err(TransportError::new(format!(
+                        "the bundled transport does not send {other} requests"
+                    )))
+                }
+            };
+            let response = sent.map_err(|error| {
                 TransportError::with_source(
                     format!("request to {} failed: {error}", request.url),
                     error,
@@ -186,6 +192,16 @@ mod ureq_transport {
                 body,
             })
         }
+    }
+
+    fn with_headers<B>(
+        mut builder: ureq::RequestBuilder<B>,
+        headers: &[(String, String)],
+    ) -> ureq::RequestBuilder<B> {
+        for (name, value) in headers {
+            builder = builder.header(name.as_str(), value.as_str());
+        }
+        builder
     }
 }
 

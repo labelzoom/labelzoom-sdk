@@ -64,6 +64,23 @@ module LabelZoom
       label_index: "labelIndex"
     }.freeze
 
+    # The options that change how the source document is read (contract section 1).
+    # +color_mode+ and +darkness+ are here because they also reduce an image or PDF source to
+    # black and white. +extra+ stays available as the forward-compatibility hatch.
+    SOURCE_KEYS = %i[
+      source_dpi label label_index data pdf split scaling position darkness color_mode zpl extra
+    ].freeze
+
+    # What a print takes: every source option, plus +rotation+, the one target option a printer
+    # target offers. Rotation turns the finished label whatever the output language; every other
+    # target option depends on a language the request doesn't name, because the printer's
+    # configuration picks it.
+    PRINT_KEYS = (SOURCE_KEYS + %i[rotation]).freeze
+
+    # +zpl+ mixes the two stages: +commands_to_ignore+ acts on the ZPL being read, and the rest
+    # on ZPL being written.
+    SOURCE_ZPL_KEYS = %i[commands_to_ignore].freeze
+
     module_function
 
     # @return [String, nil] the params JSON, or nil when nothing was set -- in which case
@@ -92,6 +109,53 @@ module LabelZoom
       params.merge!(stringify(extra)) unless UNSET.equal?(extra)
 
       params.empty? ? nil : JSON.generate(params)
+    end
+
+    # {serialize}, restricted to what a print takes ({PRINT_KEYS}). One serialization path:
+    # this only rejects what print cannot take, then defers, so +rotation+ is validated and
+    # written exactly as for convert.
+    #
+    # @return [String, nil] the params JSON, or nil when no option was set -- in which case
+    #   print sends no +params+ at all, so the server sends the document as is.
+    def serialize_print(**options)
+      base64_text = options.delete(:base64_text)
+      if base64_text
+        # Print reads the body as the format's own bytes (contract P2).
+        raise ValidationError.new("source",
+                                  "Print does not accept base64 text; send the document's bytes.")
+      end
+
+      options.each do |key, value|
+        next if PRINT_KEYS.include?(key) || UNSET.equal?(value)
+
+        raise_not_a_print_option(key)
+      end
+
+      zpl = options.fetch(:zpl, UNSET)
+      if zpl.is_a?(Hash)
+        rejected = zpl.keys.map(&:to_sym) - SOURCE_ZPL_KEYS
+        unless rejected.empty?
+          raise ValidationError.new("zpl",
+                                    "zpl[#{rejected.first.inspect}] is not an option print " \
+                                    "takes; only #{SOURCE_ZPL_KEYS.join(", ")} acts on the " \
+                                    "document being read.")
+        end
+      end
+
+      serialize(**options)
+    end
+
+    def raise_not_a_print_option(key)
+      if SCALAR_KEYS.key?(key) || NESTED_KEYS.key?(key)
+        raise ValidationError.new(SCALAR_KEYS.fetch(key, key.to_s),
+                                  "#{key} is a target option a printer doesn't take: the " \
+                                  "printer's configuration picks the output language. Of the " \
+                                  "target options, print takes only rotation.")
+      end
+
+      raise ValidationError.new(key.to_s,
+                                "#{key} is not a recognized option. Expected one of: " \
+                                "#{PRINT_KEYS.join(", ")}.")
     end
 
     def validate_scalar(key, value)

@@ -20,6 +20,8 @@ import {
   NotFoundError,
   PayloadTooLargeError,
   RateLimitedError,
+  PrintQuotaExceededError,
+  UnprocessableError,
   ServerError,
   TARGET_FORMATS,
   type ConversionOptions,
@@ -234,6 +236,8 @@ const ERROR_KINDS: Record<string, new (...args: any[]) => LabelZoomError> = {
   PayloadTooLarge: PayloadTooLargeError,
   RateLimited: RateLimitedError,
   ServerError: ServerError,
+  Unprocessable: UnprocessableError,
+  PrintQuotaExceeded: PrintQuotaExceededError,
 };
 
 function assertError(expected: any, actual: LabelZoomError): void {
@@ -250,6 +254,8 @@ function assertError(expected: any, actual: LabelZoomError): void {
   if (expected.isPaidFeature !== undefined) {
     expect((actual as ForbiddenError).isPaidFeature).toBe(expected.isPaidFeature);
   }
+  if ('code' in expected) expect(actual.code).toBe(expected.code);
+  if (expected.kind === 'RateLimited') expect(actual).not.toBeInstanceOf(PrintQuotaExceededError);
   if (expected.retryAfterSeconds !== undefined) {
     expect((actual as RateLimitedError).retryAfterSeconds).toBe(expected.retryAfterSeconds);
   }
@@ -269,7 +275,11 @@ async function runRequestCase(given: any, expect_: any): Promise<void> {
 
   await buildRequest(client, given).execute();
 
-  const request = requests[requests.length - 1]!;
+  assertRequest(requests[requests.length - 1]!, expect_);
+}
+
+/** The request vocabulary (CONFORMANCE.md section 2), shared by request and print cases. */
+function assertRequest(request: RecordedRequest, expect_: any): void {
 
   if (expect_.method !== undefined) expect(request.method).toBe(expect_.method);
   if (expect_.url !== undefined) expect(request.url.origin + request.url.pathname).toBe(expect_.url);
@@ -308,6 +318,107 @@ async function runRequestCase(given: any, expect_: any): Promise<void> {
   }
 
   if (expect_.bodyText !== undefined) expect(request.bodyText).toBe(expect_.bodyText);
+
+  for (const [name, value] of Object.entries(expect_.query ?? {})) {
+    expect(request.url.searchParams.get(name), `query parameter ${name}`).toBe(value);
+  }
+  if (expect_.bodyJson !== undefined) expect(JSON.parse(request.bodyText)).toEqual(expect_.bodyJson);
+}
+
+// ------------------------------------------------------------------------ print
+
+async function runPrintOperation(client: LabelZoomClient, given: any): Promise<unknown> {
+  switch (given.operation) {
+    case 'print': {
+      const source = given.source as SourceFormat;
+      const sourceStage = given.sourceEncoding === 'base64text'
+        ? client.convert().fromBase64Text(source, given.bodyText)
+        : client.convert().from(source, given.bodyText);
+      const options = (given.options ?? {}) as Record<string, any>;
+      for (const [key, value] of Object.entries(options)) {
+        switch (key) {
+          case 'label': sourceStage.withLabelSize(value.width, value.height); break;
+          case 'pdf': if (value.pageNumber !== undefined) sourceStage.withPdfPage(value.pageNumber); break;
+          case 'split': sourceStage.withSplit(value); break;
+          case 'rotation': break; // a target option, applied to the printer stage below
+          default: throw new Error(`The print runner has no mapping for option '${key}'. Add one.`);
+        }
+      }
+      const builder = sourceStage.toPrinter(given.printerId as string);
+      if (options.rotation !== undefined) builder.withRotation(options.rotation);
+      if (given.copies !== undefined) builder.withCopies(given.copies);
+      if (given.idempotencyKey !== undefined) builder.withIdempotencyKey(given.idempotencyKey);
+      return builder.execute();
+    }
+    case 'printTemplate': {
+      const source = client.convert().fromTemplate(given.templateId);
+      if (given.data !== undefined) source.withData(...given.data);
+      if (given.validate !== undefined) source.withValidate(given.validate);
+      const builder = source.toPrinter(given.printerId as string);
+      if (given.copies !== undefined) builder.withCopies(given.copies);
+      if (given.idempotencyKey !== undefined) builder.withIdempotencyKey(given.idempotencyKey);
+      return builder.execute();
+    }
+    case 'getJob': return client.jobs.get(given.jobId);
+    case 'getQuota': return client.getPrintQuota();
+    default: throw new Error(`Unknown print operation '${String(given.operation)}'.`);
+  }
+}
+
+/** Asserts every member the fixture gives, and only those. Timestamps compare as instants. */
+function assertSubset(expected: unknown, actual: unknown, path: string): void {
+  if (expected !== null && typeof expected === 'object' && !Array.isArray(expected)) {
+    expect(actual, path).toBeTypeOf('object');
+    for (const [key, value] of Object.entries(expected)) {
+      expect(Object.hasOwn(actual as object, key), `${path}.${key} is missing`).toBe(true);
+      assertSubset(value, (actual as Record<string, unknown>)[key], `${path}.${key}`);
+    }
+  } else if (Array.isArray(expected)) {
+    expect(Array.isArray(actual), path).toBe(true);
+    expect((actual as unknown[]).length, `${path}.length`).toBe(expected.length);
+    expected.forEach((item, i) => assertSubset(item, (actual as unknown[])[i], `${path}[${i}]`));
+  } else if (typeof expected === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(expected)) {
+    expect(actual, path).toBeInstanceOf(Date);
+    expect((actual as Date).getTime(), path).toBe(new Date(expected).getTime());
+  } else {
+    expect(actual, path).toEqual(expected);
+  }
+}
+
+async function runPrintCase(given: any, expect_: any): Promise<void> {
+  const { fetch, requests } = stubFetch(given.responses);
+  const sleeps: number[] = [];
+  const client = newClient(given, fetch, (ms) => sleeps.push(ms / 1000), 0);
+
+  const outcome = await runPrintOperation(client, given).then(
+    (result) => ({ result, error: undefined as unknown }),
+    (error: unknown) => ({ result: undefined, error }),
+  );
+
+  if (expect_.validationError !== undefined) {
+    expect(outcome.error).toBeInstanceOf(LabelZoomValidationError);
+    expect((outcome.error as LabelZoomValidationError).parameter).toBe(expect_.validationError.parameter);
+    expect(requests.length, 'requests sent').toBe(expect_.requestsSent);
+    return;
+  }
+
+  if (expect_.error !== undefined) {
+    expect(outcome.error).toBeInstanceOf(LabelZoomError);
+    assertError(expect_.error, outcome.error as LabelZoomError);
+  } else {
+    if (outcome.error !== undefined) throw outcome.error;
+    const [name, expectedResult] = Object.entries(expect_.result)[0]!;
+    assertSubset(expectedResult, outcome.result, name);
+  }
+
+  if (expect_.request !== undefined) assertRequest(requests[0]!, expect_.request);
+  if (expect_.attempts !== undefined) expect(requests.length, 'attempts').toBe(expect_.attempts);
+  if (expect_.sleepsSeconds !== undefined) expect(sleeps).toEqual(expect_.sleepsSeconds);
+  for (const name of expect_.sameHeaderAcrossAttempts ?? []) {
+    const values = requests.map((r) => r.headers[name]);
+    expect(values[0], `header ${name}`).toBeDefined();
+    expect(new Set(values).size, `header ${name} must be identical on every attempt`).toBe(1);
+  }
 }
 
 async function runResponseCase(given: any, expect_: any): Promise<void> {
@@ -428,6 +539,7 @@ describe('conformance', () => {
         case 'retry': await runRetryCase(given, expected); break;
         case 'validation': await runValidationCase(given, expected); break;
         case 'typecheck': runTypecheckCase(given); break;
+        case 'print': await runPrintCase(given, expected); break;
         default: throw new Error(`Unknown case kind for '${caseId}'.`);
       }
 

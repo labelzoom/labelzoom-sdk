@@ -9,21 +9,26 @@ use LabelZoom\Sdk\Exception\ForbiddenException;
 use LabelZoom\Sdk\Exception\LabelZoomException;
 use LabelZoom\Sdk\Exception\NotFoundException;
 use LabelZoom\Sdk\Exception\PayloadTooLargeException;
+use LabelZoom\Sdk\Exception\PrintQuotaExceededException;
 use LabelZoom\Sdk\Exception\RateLimitedException;
 use LabelZoom\Sdk\Exception\ServerErrorException;
 use LabelZoom\Sdk\Exception\TransportException;
 use LabelZoom\Sdk\Exception\UnauthorizedException;
+use LabelZoom\Sdk\Exception\UnprocessableException;
 use LabelZoom\Sdk\Http\CurlHttpClient;
+use LabelZoom\Sdk\Internal\Json;
+use LabelZoom\Sdk\Internal\PrintWriters;
 use LabelZoom\Sdk\Internal\RealSleeper;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
+use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 
 /**
- * Client for the LabelZoom conversion API.
+ * Client for the LabelZoom conversion and Cloud Print APIs.
  *
  * Stateless once constructed and safe to keep for the life of the process — create one per
  * application, not one per request.
@@ -42,6 +47,18 @@ use Psr\Http\Message\StreamFactoryInterface;
  *     ->execute();
  *
  * $result->save('label.png');
+ * ```
+ *
+ * Printing is the same chain with a printer as the target, through {@see SourceStage::toPrinter()},
+ * and needs an API key with the `print` scope:
+ *
+ * ```php
+ * $job = $client->convert()
+ *     ->fromPdf($pdf)
+ *         ->withPage(0)
+ *     ->toPrinter($printerId)
+ *         ->withCopies(2)
+ *     ->execute();
  * ```
  */
 final class LabelZoomClient
@@ -158,10 +175,31 @@ final class LabelZoomClient
         return $this->credential !== null;
     }
 
-    /** Starts building a conversion. */
+    /**
+     * Starts building a conversion or a print: the source first, then a target format, or a printer
+     * with {@see SourceStage::toPrinter()}.
+     */
     public function convert(): ConversionRequestBuilder
     {
         return new ConversionRequestBuilder($this);
+    }
+
+    /** Print jobs: look one up by id to follow it to completion. */
+    public function jobs(): PrintJobsClient
+    {
+        return new PrintJobsClient($this);
+    }
+
+    /**
+     * Gets the account's Cloud Print limits and today's usage, so you can stop before a print
+     * fails with a {@see PrintQuotaExceededException}.
+     *
+     * @throws LabelZoomException on any non-2xx response
+     * @throws TransportException when no response was ever produced
+     */
+    public function getPrintQuota(): PrintQuota
+    {
+        return PrintQuota::fromJson($this->requestJson('GET', '/api/v3/print/quota'));
     }
 
     /**
@@ -183,21 +221,120 @@ final class LabelZoomClient
         array $params,
         array $rawQuery,
     ): ConversionResult {
-        $request = $this->requestFactory
-            ->createRequest('POST', $this->buildUri($source, $target, $params, $rawQuery))
-            ->withHeader('Content-Type', $contentType)
+        $request = $this->createRequest(
+            'POST',
+            $this->buildUri($source, $target, $params, $rawQuery),
             // Accept must be */*. The server's `produces` list omits image/gif, image/bmp and
             // image/jpeg, so naming the target's exact media type yields a 406 from content
             // negotiation before the handler ever runs (rule B2).
-            ->withHeader('Accept', '*/*')
-            ->withHeader('User-Agent', $this->userAgent)
-            ->withBody($this->streamFactory->createStream($body));
+            '*/*',
+            $body,
+            $contentType,
+        );
+
+        $response = $this->send($request);
+
+        return new ConversionResult(
+            (string) $response->getBody(),
+            $this->headerOrNull($response, 'Content-Type'),
+            $response->getStatusCode(),
+            $this->headerOrNull($response, self::REQUEST_ID_HEADER),
+        );
+    }
+
+    /**
+     * Sends a print API request and decodes its JSON response. Called by the printer target stages.
+     *
+     * Every print call accepts `application/json`, because every success response is JSON (rule
+     * P1). Headers given here, such as the Idempotency-Key, are set once, so every retry of the
+     * call sends the same ones (rule P4).
+     *
+     * @param string                $path    the path under the base URL, ids already percent-encoded
+     * @param array<string, string> $query   literal query parameters, encoded here
+     * @param array<string, string> $headers extra request headers
+     *
+     * @return array<mixed> the decoded response body
+     *
+     * @throws LabelZoomException on any non-2xx response
+     * @throws TransportException when no response was ever produced
+     *
+     * @internal
+     */
+    public function requestJson(
+        string $method,
+        string $path,
+        array $query = [],
+        ?string $body = null,
+        ?string $contentType = null,
+        array $headers = [],
+    ): array {
+        $pairs = [];
+        foreach ($query as $key => $value) {
+            $pairs[] = rawurlencode($key) . '=' . rawurlencode($value);
+        }
+        $uri = $this->baseUrl . $path . ($pairs === [] ? '' : '?' . implode('&', $pairs));
+
+        $request = $this->createRequest($method, $uri, PrintWriters::JSON_MEDIA_TYPE, $body, $contentType);
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
+
+        $response = $this->send($request);
+        $decoded = json_decode((string) $response->getBody(), true);
+        if (!is_array($decoded)) {
+            throw new \UnexpectedValueException(
+                'The LabelZoom API returned a success response that is not a JSON object (request '
+                . ($this->headerOrNull($response, self::REQUEST_ID_HEADER) ?? 'unknown') . ').',
+            );
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Builds a request with the headers every call shares: Accept, User-Agent and the credential.
+     *
+     * A null body sends none, and a null content type sends no `Content-Type`, as the print GETs
+     * require (rule P1).
+     */
+    private function createRequest(
+        string $method,
+        string $uri,
+        string $accept,
+        ?string $body = null,
+        ?string $contentType = null,
+    ): RequestInterface {
+        $request = $this->requestFactory
+            ->createRequest($method, $uri)
+            ->withHeader('Accept', $accept)
+            ->withHeader('User-Agent', $this->userAgent);
+
+        if ($contentType !== null) {
+            $request = $request->withHeader('Content-Type', $contentType);
+        }
+        if ($body !== null) {
+            $request = $request->withBody($this->streamFactory->createStream($body));
+        }
 
         // Absent, not empty: never `Bearer `, never `Bearer null` (rule B3).
         if ($this->credential !== null) {
             $request = $request->withHeader('Authorization', 'Bearer ' . $this->credential);
         }
 
+        return $request;
+    }
+
+    /**
+     * Sends a request under the retry policy (contract section F) and returns the 2xx response.
+     *
+     * The same immutable PSR-7 request goes out on every attempt, so anything that must not change
+     * between attempts, such as a print's Idempotency-Key, is already fixed on it.
+     *
+     * @throws LabelZoomException on any non-2xx response that is not retried, or the last one
+     * @throws TransportException when no response was ever produced
+     */
+    private function send(RequestInterface $request): ResponseInterface
+    {
         $attempts = $this->maxRetries + 1;
 
         for ($attempt = 1;; ++$attempt) {
@@ -215,17 +352,18 @@ final class LabelZoomClient
             $status = $response->getStatusCode();
 
             if ($status >= 200 && $status < 300) {
-                return new ConversionResult(
-                    (string) $response->getBody(),
-                    $this->headerOrNull($response, 'Content-Type'),
-                    $status,
-                    $this->headerOrNull($response, self::REQUEST_ID_HEADER),
-                );
+                return $response;
             }
 
             $error = $this->toException($response);
 
-            if ($attempt >= $attempts || !self::isRetryable($status)) {
+            // F5: the daily print limit's Retry-After is the 00:00 UTC reset, hours away, so it is
+            // never retried. Every other 429 is.
+            if (
+                $attempt >= $attempts
+                || !self::isRetryable($status)
+                || $error instanceof PrintQuotaExceededException
+            ) {
                 throw $error;
             }
 
@@ -251,7 +389,7 @@ final class LabelZoomClient
 
         $pairs = [];
         if ($params !== []) {
-            $pairs[] = 'params=' . rawurlencode(self::encodeParams($params));
+            $pairs[] = 'params=' . rawurlencode(Json::encode($params));
         }
         foreach ($rawQuery as $key => $value) {
             $pairs[] = rawurlencode($key) . '=' . rawurlencode($value);
@@ -261,51 +399,65 @@ final class LabelZoomClient
         return $pairs === [] ? $uri : $uri . '?' . implode('&', $pairs);
     }
 
-    /**
-     * @param array<string, mixed> $params
-     */
-    private static function encodeParams(array $params): string
-    {
-        // PRESERVE_ZERO_FRACTION keeps `label.width: 4.0` a float rather than collapsing it to 4;
-        // UNESCAPED_SLASHES and UNESCAPED_UNICODE keep the JSON legible in server logs.
-        $json = json_encode(
-            $params,
-            JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        );
-
-        return $json;
-    }
-
     private function toException(ResponseInterface $response): LabelZoomException
     {
         $rawBody = (string) $response->getBody();
         $message = self::extractMessage($rawBody);
         $requestId = $this->headerOrNull($response, self::REQUEST_ID_HEADER);
         $status = $response->getStatusCode();
+        $code = self::extractCode($rawBody);
+        $dailyPrintLimit = $status === 429 && $code === PrintQuotaExceededException::DAILY_JOB_LIMIT_CODE;
 
         return match (true) {
-            $status === 400 => new BadRequestException($status, $message, $requestId, $rawBody),
-            $status === 401 => new UnauthorizedException($status, $message, $requestId, $rawBody),
+            $status === 400 => new BadRequestException($status, $message, $requestId, $rawBody, $code),
+            $status === 401 => new UnauthorizedException($status, $message, $requestId, $rawBody, $code),
             $status === 403 => new ForbiddenException(
                 $status,
                 $message,
                 $requestId,
                 $rawBody,
                 preg_match('/paid feature/i', $message) === 1,
+                $code,
             ),
-            $status === 404 => new NotFoundException($status, $message, $requestId, $rawBody),
-            $status === 413 => new PayloadTooLargeException($status, $message, $requestId, $rawBody),
+            $status === 404 => new NotFoundException($status, $message, $requestId, $rawBody, $code),
+            $status === 413 => new PayloadTooLargeException($status, $message, $requestId, $rawBody, $code),
+            $status === 422 => new UnprocessableException($status, $message, $requestId, $rawBody, $code),
+            $dailyPrintLimit => new PrintQuotaExceededException(
+                $status,
+                $message,
+                $requestId,
+                $rawBody,
+                self::retryAfterSeconds($response),
+                $code,
+            ),
             $status === 429 => new RateLimitedException(
                 $status,
                 $message,
                 $requestId,
                 $rawBody,
                 self::retryAfterSeconds($response),
+                $code,
             ),
-            $status >= 500 => new ServerErrorException($status, $message, $requestId, $rawBody),
+            $status >= 500 => new ServerErrorException($status, $message, $requestId, $rawBody, $code),
             // 406, 415 and friends: still a typed LabelZoomException, just not a named subclass.
-            default => new LabelZoomException($status, $message, $requestId, $rawBody),
+            default => new LabelZoomException($status, $message, $requestId, $rawBody, $code),
         };
+    }
+
+    /**
+     * The error body's top-level `code` string, or null when it has none (rule E3).
+     *
+     * Read from the full body rather than the truncated message, and never fails: a body that
+     * is not JSON, or whose `code` is not a string, simply has no code.
+     */
+    private static function extractCode(string $rawBody): ?string
+    {
+        $decoded = json_decode(trim($rawBody), true);
+        if (is_array($decoded) && isset($decoded['code']) && is_string($decoded['code'])) {
+            return $decoded['code'];
+        }
+
+        return null;
     }
 
     /**

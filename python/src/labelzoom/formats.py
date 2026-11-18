@@ -75,8 +75,40 @@ TargetFormat = Literal[
     "jpeg",
 ]
 
+#: The formats print accepts: every :data:`SourceFormat` except ``url``.
+#:
+#: The printer's configuration picks the output language, and LabelZoom converts the document
+#: to it, so a PDF or a BarTender file prints on a ZPL printer. ``url`` is absent because print
+#: doesn't fetch, and ``mypy`` rejects it. Fetch the document and print its bytes instead.
+PrintSource = Literal[
+    "zpl",
+    "epl",
+    "ipl",
+    "tspl",
+    "dpl",
+    "sbpl",
+    "esclabel",
+    "fingerprint",
+    "ezpl",
+    "cpcl",
+    "tpcl",
+    "nlbl",
+    "lbl",
+    "btw",
+    "dymo",
+    "xml",
+    "json",
+    "pdf",
+    "png",
+    "bmp",
+    "gif",
+    "jpeg",
+    "jpg",
+]
+
 SOURCE_FORMATS: tuple[SourceFormat, ...] = get_args(SourceFormat)
 TARGET_FORMATS: tuple[TargetFormat, ...] = get_args(TargetFormat)
+PRINT_SOURCES: tuple[PrintSource, ...] = get_args(PrintSource)
 
 #: Color handling when rasterizing or tracing images.
 ColorMode = Literal["BW", "GRAYSCALE", "COLOR"]
@@ -166,4 +198,25 @@ def validate_formats(source: str, target: str) -> None:
             f"{target!r} is not a target format. Valid values: "
             + ", ".join(repr(f) for f in TARGET_FORMATS)
             + f".{extra}",
+        )
+
+
+def validate_print_source(source: str) -> None:
+    """Reject a source print can't send, locally (contract rule P2).
+
+    Every source format prints except ``url``, because print doesn't fetch. The check runs when
+    the call does, so it also catches a ``url`` that reached the call without a type check.
+    """
+    if source == "url":
+        raise LabelZoomValidationError(
+            "source",
+            "A URL can't be printed: print doesn't fetch. Fetch the document and print its "
+            "bytes.",
+        )
+    if source not in PRINT_SOURCES:
+        raise LabelZoomValidationError(
+            "source",
+            f"{source!r} is not a source format print takes. Valid values: "
+            + ", ".join(repr(f) for f in PRINT_SOURCES)
+            + ".",
         )

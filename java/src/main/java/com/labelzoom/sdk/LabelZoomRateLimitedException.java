@@ -2,16 +2,19 @@ package com.labelzoom.sdk;
 
 import java.util.OptionalInt;
 
-/** HTTP 429. Too many requests. */
-public final class LabelZoomRateLimitedException extends LabelZoomException {
+/**
+ * HTTP 429. Too many requests. Retried automatically before surfacing, except for
+ * {@link LabelZoomPrintQuotaExceededException}.
+ */
+public class LabelZoomRateLimitedException extends LabelZoomException {
 
     private static final long serialVersionUID = 1L;
 
     private final Integer retryAfterSeconds;
 
     LabelZoomRateLimitedException(
-            String message, String requestId, String rawBody, Integer retryAfterSeconds) {
-        super(429, message, requestId, rawBody);
+            String message, String requestId, String rawBody, String code, Integer retryAfterSeconds) {
+        super(429, message, requestId, rawBody, code);
         this.retryAfterSeconds = retryAfterSeconds;
     }
 

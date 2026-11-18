@@ -3,8 +3,9 @@
 # LabelZoom Ruby SDK
 
 Official Ruby client for the [LabelZoom API](https://api.labelzoom.com). Converts barcode labels
-between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, and reads
-ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files.
+between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, LabelZoom XML/JSON, and raster images, reads
+ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and prints labels through
+LabelZoom Cloud Print.
 
 Ruby 3.1+. **No runtime dependencies** — `net/http`, `json`, `uri` and `openssl` are all standard
 library.
@@ -123,6 +124,49 @@ A misspelled key raises rather than vanishing. Ruby has no compiler to catch
 `label: { widht: 4 }`, and the server ignores keys it does not recognize, so a silent drop would
 hand you a wrong label and no signal.
 
+## Print
+
+Send a document to a printer connected through the LabelZoom Print Agent. A printer is a target:
+`print` takes the same arguments as `convert`, with the printer where the target format goes. The
+printer's own configuration sets its language, and LabelZoom converts the document to it, so a PDF
+prints on a ZPL printer. Printing needs an API key with the `print` scope.
+
+```ruby
+client = LabelZoom::Client.new(api_key: "lz_live_...")
+
+job = client.print(:pdf, printer_id, File.binread("label.pdf"),
+                   pdf: { page_number: 0 },       # any source options
+                   rotation: 90,
+                   copies: 2,
+                   idempotency_key: order_number)
+job.job_id                                         # also job.status, job.copies, job.idempotent?
+
+batch = client.print_template(template_id, printer_id,
+                              data: [{ orderNumber: "SO-1001", sku: "A-100" }])
+batch.jobs                                         # one LabelZoom::PrintJob per record
+
+details = client.jobs.get(job.job_id)
+details.status                                     # queued, dispatched, printing, completed, failed
+
+client.print_quota.jobs_today.remaining
+```
+
+- Every source format prints, including NiceLabel, BarTender and DYMO files. A URL and base64 text
+  can't: fetch or decode the document and print its bytes. `:url` and `base64_text: true` raise
+  `LabelZoom::ValidationError`.
+- `print` takes every source option, and `rotation:` is the only target option it takes. The other
+  target options, such as `target_dpi:`, depend on the output language, which the printer sets, so
+  they raise `LabelZoom::ValidationError`.
+- `copies:` sends the whole job that many times, from 1 to 9999, and multiplies any quantity in the
+  document: `^PQ3` with 5 copies prints 15 labels.
+- Every print carries an `Idempotency-Key`. Pass your own `idempotency_key:` to make a repeated
+  call return the original job instead of printing again; without one, the SDK generates a key per
+  call, so its own retries can't print twice.
+- A template batch that runs out of time returns a nonzero `remaining`, the number of records not
+  yet submitted. Send the same request with the same key to submit them.
+- The daily job limit raises `LabelZoom::PrintQuotaExceededError`, which is never retried, because
+  the limit resets at 00:00 UTC.
+
 ## Errors
 
 Every non-2xx response becomes a typed error carrying the status, the message, the raw body, and
@@ -139,8 +183,12 @@ end
 ```
 
 `BadRequestError`, `UnauthorizedError`, `ForbiddenError`, `NotFoundError`, `PayloadTooLargeError`,
-`RateLimitedError` and `ServerError` all descend from `LabelZoom::APIError`, so one `rescue`
-catches the lot.
+`UnprocessableError` (422), `RateLimitedError` and `ServerError` all descend from
+`LabelZoom::APIError`, so one `rescue` catches the lot. `PrintQuotaExceededError` descends from
+`RateLimitedError`, so a `rescue LabelZoom::RateLimitedError` catches it too.
+
+Each error carries `code`, the error's stable code such as `"agent_update_required"`, or `nil`
+when it has none. Branch on `code` rather than on the message.
 
 `LabelZoom::ValidationError` deliberately does **not**: it reports a request rejected locally,
 before any network call, which is a bug in the calling code rather than a server response. It
@@ -150,7 +198,8 @@ descends from `ArgumentError`, so rescuing `APIError` to implement a fallback wi
 
 429s, 5xx responses and transport failures are retried automatically — twice by default, for three
 attempts — with a 1s/2s/4s backoff under full jitter. A `Retry-After` header is honored on any
-retryable status when it asks for longer than the backoff would wait. No other 4xx is ever retried.
+retryable status when it asks for longer than the backoff would wait. The daily print limit is the
+exception: its 429 is raised at once. No other 4xx is ever retried.
 
 ```ruby
 client = LabelZoom::Client.new(max_retries: 0)   # disable retrying

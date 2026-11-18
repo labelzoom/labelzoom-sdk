@@ -211,6 +211,47 @@ format-prefixed names.
 Only options you actually set are sent. The SDK never fills in a client-side default, so a change
 to a server default reaches you without an SDK upgrade.
 
+## Print
+
+Send a document to a printer connected through the LabelZoom Print Agent. A printer is a target,
+like `ToZpl()`: the printer's own configuration sets its language, and LabelZoom converts the
+document to it, so a PDF prints on a ZPL printer. Printing needs an API key with the `print` scope.
+
+```csharp
+using LabelZoom.Sdk.Printing;
+
+var job = await client.Convert()
+    .FromPdf(pdf)
+        .WithPage(0)                       // any source options
+    .ToPrinter(printerId)
+        .WithCopies(2)
+        .WithIdempotencyKey(orderNumber)
+    .ExecuteAsync();                       // PrintJob { JobId, Status, Copies, Idempotent }
+
+var batch = await client.Convert()
+    .FromTemplate(templateId)
+        .WithData(new { orderNumber = "SO-1001", sku = "A-100" })
+    .ToPrinter(printerId)
+    .ExecuteAsync();                       // PrintBatch { Jobs, Remaining }
+
+var details = await client.Jobs.GetAsync(job.JobId);   // queued, dispatched, printing, completed, failed
+var quota = await client.GetPrintQuotaAsync();         // quota.JobsToday.Remaining
+```
+
+- Every source format prints, including NiceLabel, BarTender and DYMO files. A URL and base64 text
+  can't: decode or fetch the document and print its bytes.
+- The printer target offers `WithRotation`. Other target options depend on the output language, which
+  the printer sets.
+- `WithCopies(n)` sends the whole job `n` times, from 1 to 9999. It multiplies a quantity in the
+  document: `^PQ3` with 5 copies prints 15 labels.
+- Every print carries an `Idempotency-Key`. Set your own with `WithIdempotencyKey` to make a repeated
+  call return the original job instead of printing again. Without one, the SDK generates a key per
+  call, so its own retries can't print twice.
+- A template batch that runs out of time returns `Remaining`, the number of records not yet
+  submitted. Send the same request with the same key to submit them.
+- The daily job limit raises `LabelZoomPrintQuotaExceededException`, which is never retried: it
+  resets at 00:00 UTC.
+
 ## Errors
 
 Every non-2xx becomes a typed exception carrying the server's own message, the raw body, and the
@@ -234,8 +275,11 @@ catch (LabelZoomException ex)
 ```
 
 `LabelZoomBadRequestException`, `LabelZoomUnauthorizedException`, `LabelZoomForbiddenException`,
-`LabelZoomNotFoundException`, `LabelZoomPayloadTooLargeException`, `LabelZoomRateLimitedException`
-and `LabelZoomServerException` all derive from `LabelZoomException`.
+`LabelZoomNotFoundException`, `LabelZoomPayloadTooLargeException`, `LabelZoomUnprocessableException`
+(422), `LabelZoomRateLimitedException` and `LabelZoomServerException` all derive from
+`LabelZoomException`. `LabelZoomPrintQuotaExceededException` derives from
+`LabelZoomRateLimitedException`. Each carries `Code`, the error's stable code such as
+`agent_update_required`, or `null`; branch on it rather than on the message.
 
 `LabelZoomValidationException` deliberately does **not** — it means the calling code is wrong, it
 never reaches the network, and it should not be swallowed by a `catch (LabelZoomException)` written
@@ -244,7 +288,8 @@ to handle server failures.
 ## Retries
 
 429, 5xx and transport failures are retried automatically: 3 attempts, 1s/2s/4s with full jitter,
-honoring a longer `Retry-After`. Other 4xx responses are returned immediately — a malformed
+honoring a longer `Retry-After`. The daily print limit is the exception: its 429 is thrown at once.
+Other 4xx responses are returned immediately — a malformed
 request will not become valid on a second attempt.
 
 ```csharp

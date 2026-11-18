@@ -71,11 +71,10 @@ final class CurlHttpClient implements ClientInterface
 
         $responseHeaders = [];
 
-        curl_setopt_array($handle, [
+        $options = [
             CURLOPT_URL => $url,
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_POSTFIELDS => (string) $request->getBody(),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_TIMEOUT_MS => (int) round($this->timeoutSeconds * 1000),
@@ -92,9 +91,19 @@ final class CurlHttpClient implements ClientInterface
 
                 return $length;
             },
-        ]);
+        ];
 
-        $body = curl_exec($handle);
+        // A bodiless GET or HEAD sends no body at all. Setting POSTFIELDS, even to '', makes cURL
+        // add `Content-Type: application/x-www-form-urlencoded` and `Content-Length: 0`, and the
+        // print API's GETs must send no Content-Type (contract P1).
+        $body = (string) $request->getBody();
+        if ($body !== '' || !in_array(strtoupper($method), ['GET', 'HEAD'], true)) {
+            $options[CURLOPT_POSTFIELDS] = $body;
+        }
+
+        curl_setopt_array($handle, $options);
+
+        $responseBody = curl_exec($handle);
         $errorNumber = curl_errno($handle);
         $errorMessage = curl_error($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
@@ -102,14 +111,14 @@ final class CurlHttpClient implements ClientInterface
         // collector, the call has done nothing at all, and 8.5 deprecates it — which means
         // calling it emits a notice on every single conversion.
 
-        if ($errorNumber !== 0 || $body === false) {
+        if ($errorNumber !== 0 || $responseBody === false) {
             // A PSR-18 ClientExceptionInterface, which is what the retry policy treats as a
             // retryable transport failure.
             throw new CurlTransportException("cURL error {$errorNumber}: {$errorMessage}");
         }
 
         $response = $this->responseFactory->createResponse($status)
-            ->withBody($this->streamFactory->createStream((string) $body));
+            ->withBody($this->streamFactory->createStream((string) $responseBody));
 
         foreach ($responseHeaders as $name => $values) {
             $response = $response->withHeader($name, $values);

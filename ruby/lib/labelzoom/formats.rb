@@ -30,6 +30,10 @@ module LabelZoom
     # writes graphics as hex, so its output is plain text.
     TARGET_FORMATS = %i[zpl epl ipl tspl dpl sbpl cpcl xml json pdf png bmp gif jpeg].freeze
 
+    # The sources print takes (contract P2): every source but +:url+, because print does not
+    # fetch. LabelZoom converts each one to the printer's language, design files included.
+    PRINT_SOURCE_FORMATS = (SOURCE_FORMATS - %i[url]).freeze
+
     MEDIA_TYPES = {
       zpl: "text/plain",
       epl: "text/plain",
@@ -93,6 +97,18 @@ module LabelZoom
                                 "produces. Expected one of: #{TARGET_FORMATS.join(", ")}.")
     end
 
+    # @return [Symbol] the validated print source.
+    # @raise [ValidationError] named +source+, if it is not a source format at all, or if it is
+    #   +:url+, which print cannot take.
+    def print_source!(format)
+      symbol = source!(format)
+      return symbol if PRINT_SOURCE_FORMATS.include?(symbol)
+
+      raise ValidationError.new("source",
+                                "A URL can't be printed: print doesn't fetch. Download the " \
+                                "document and print its bytes.")
+    end
+
     # The path segment for a source. +:jpg+ normalizes to "jpeg" (rule A2).
     def source_token(format) = format == :jpg ? "jpeg" : format.to_s
 
@@ -105,4 +121,5 @@ module LabelZoom
 
   SOURCE_FORMATS = Formats::SOURCE_FORMATS
   TARGET_FORMATS = Formats::TARGET_FORMATS
+  PRINT_SOURCE_FORMATS = Formats::PRINT_SOURCE_FORMATS
 end
