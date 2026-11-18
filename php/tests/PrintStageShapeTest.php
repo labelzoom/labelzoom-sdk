@@ -91,7 +91,13 @@ final class PrintStageShapeTest extends TestCase
     public function testTheClientHasNoSeparatePrintEntry(): void
     {
         // Printing starts from convert(). A second entry point would be a second chain to keep in step.
-        self::assertFalse(method_exists(LabelZoomClient::class, 'print'));
+        // Reflection rather than method_exists(): PHPStan proves the literal call false and rejects it.
+        $methods = array_map(
+            static fn (\ReflectionMethod $method): string => $method->getName(),
+            (new \ReflectionClass(LabelZoomClient::class))->getMethods(\ReflectionMethod::IS_PUBLIC),
+        );
+        self::assertNotContains('print', $methods);
+        self::assertContains('convert', $methods);
     }
 
     public function testAUrlAndBase64TextAreRefusedLocally(): void
