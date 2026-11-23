@@ -205,9 +205,9 @@ The printer languages round-trip: `pdf` to `epl` and `zpl` to `tspl` are real co
 ## Options by stage
 
 Each option is a keyword argument to `convert`. Grouped options are nested hashes, such as
-`label: { width: 4, height: 6 }`. A misspelled key inside a nested hash raises
-`LabelZoom::ValidationError`. `convert` doesn't check top-level keyword names, so a misspelled
-one, such as `taget_dpi:`, has no effect; `print` raises for one.
+`label: { width: 4, height: 6 }`. A misspelled keyword, such as `taget_dpi:`, or a misspelled
+key inside a nested hash raises `LabelZoom::ValidationError` before anything is sent. To send a
+parameter the SDK doesn't model, use `extra:`.
 
 ### Source options
 
@@ -359,7 +359,7 @@ change:
 | 1.x | 2.0 |
 | --- | --- |
 | `gem "labelzoom", "~> 1.0"` | `gem "labelzoom", "~> 2.0"` |
-| `dpi: 300` | `source_dpi: 300` for the resolution the source was made for, `target_dpi: 300` for the output's, or both. Drop `source_dpi:` for a PDF, design-file, XML, or JSON source, and `target_dpi:` for a PDF target: each returns `400` there. 2.0 doesn't read `dpi:`, and ignores it without an error. |
+| `dpi: 300` | `source_dpi: 300` for the resolution the source was made for, `target_dpi: 300` for the output's, or both. Drop `source_dpi:` for a PDF, design-file, XML, or JSON source, and `target_dpi:` for a PDF target: each returns `400` there. 2.0 raises `LabelZoom::ValidationError` for `dpi:`, naming both. |
 | `rescue LabelZoom::APIError` for a `422` | `rescue LabelZoom::UnprocessableError`, which is still an `APIError`. |
 | Matching `e.message` | `e.code` |
 | None | `client.print`, `client.print_template`, `client.jobs.get`, and `client.print_quota`. |

@@ -86,6 +86,7 @@ module LabelZoom
     # @return [String, nil] the params JSON, or nil when nothing was set -- in which case
     #   no query parameter is emitted at all (rule C7).
     def serialize(**options)
+      reject_unknown_keys(options)
       params = {}
 
       SCALAR_KEYS.each do |key, wire_key|
@@ -143,6 +144,31 @@ module LabelZoom
       end
 
       serialize(**options)
+    end
+
+    # Every keyword {serialize} reads. +extra+ is the hatch for a parameter the SDK doesn't
+    # model yet.
+    KNOWN_KEYS = (SCALAR_KEYS.keys + NESTED_KEYS.keys + %i[data extra]).freeze
+
+    # A misspelled top-level keyword raises, as a misspelled nested key does. The server
+    # ignores unknown parameters, so a silent drop would turn `taget_dpi: 300` into a label at
+    # the default resolution with no error.
+    def reject_unknown_keys(options)
+      options.each_key do |key|
+        next if KNOWN_KEYS.include?(key)
+
+        if key == :dpi
+          # 1.x took dpi:. 2.0 names the side it applies to (contract C8).
+          raise ValidationError.new("dpi",
+                                    "dpi: was split in 2.0: use source_dpi: for the resolution " \
+                                    "the source was made for, or target_dpi: for the output's.")
+        end
+
+        raise ValidationError.new(key.to_s,
+                                  "#{key} is not a recognized option. Expected one of: " \
+                                  "#{KNOWN_KEYS.join(", ")}. To send a parameter the SDK " \
+                                  "doesn't model, use extra:.")
+      end
     end
 
     def raise_not_a_print_option(key)
