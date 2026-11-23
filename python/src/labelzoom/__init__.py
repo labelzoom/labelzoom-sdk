@@ -1,7 +1,8 @@
 """Official Python SDK for the `LabelZoom <https://www.labelzoom.com>`_ API.
 
-Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, PDF, LabelZoom XML/JSON and
-raster images, and prints them on Cloud Print printers.
+Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, images, and
+LabelZoom XML/JSON; reads ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender, and DYMO
+files; and prints them on Cloud Print printers.
 
 ```python
 from labelzoom import LabelZoomClient
