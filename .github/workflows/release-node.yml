@@ -138,9 +138,19 @@ jobs:
 
       # No NODE_AUTH_TOKEN and no --provenance flag: trusted publishing supplies the
       # credential via OIDC and attaches provenance automatically.
+      #
+      # A prerelease (2.0.0-rc.1) goes to the `next` dist-tag. npm puts every publish on
+      # `latest` unless told otherwise, and `npm install @labelzoom/sdk` installs `latest`, so
+      # a release candidate published plainly would become every user's default.
       - name: Publish to npm
         if: ${{ !inputs.dry-run }}
-        run: npm publish --access public
+        run: |
+          set -euo pipefail
+          pkg_version="$(node -p "require('./package.json').version")"
+          case "$pkg_version" in
+            *-*) npm publish --access public --tag next ;;
+            *)   npm publish --access public ;;
+          esac
         working-directory: ./node
 
       - name: Dry run summary

@@ -21,7 +21,7 @@ Use the package rather than a sample. It handles retries, typed errors and binar
 | Java and other JVM languages | [`com.labelzoom:labelzoom-sdk`](../java/) |
 | Python | [`labelzoom-sdk`](../python/) |
 | PHP | [`labelzoom/sdk`](../php/) |
-| Go | [`github.com/labelzoom/labelzoom-sdk/go`](../go/) |
+| Go | [`github.com/labelzoom/labelzoom-sdk/go/v2`](../go/) |
 | Ruby | [`labelzoom`](../ruby/) |
 | Rust | [`labelzoom`](../rust/) |
 
