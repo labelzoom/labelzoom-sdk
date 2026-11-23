@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go/v2"
 )
 
 // runPrintCase executes one print/* fixture: the "print" kind of docs/CONFORMANCE.md.

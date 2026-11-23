@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go/v2"
 )
 
 var uuidV4 = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)

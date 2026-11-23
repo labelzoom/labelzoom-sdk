@@ -9,8 +9,10 @@ name: Release Go
 # subdirectory to be tagged `<subdir>/vX.Y.Z`; `v1.0.0` alone would resolve to a module at
 # the repository root, which does not exist.
 #
-# At v2 and beyond the module path itself has to gain the major suffix
-# (github.com/labelzoom/labelzoom-sdk/go/v2) and the tags become go/v2/vX.Y.Z.
+# At v2 and beyond the module path in go/go.mod gains the major suffix
+# (github.com/labelzoom/labelzoom-sdk/go/v2), but the code stays in go/, so the tag is still
+# go/vX.Y.Z: go/v2.0.0, not go/v2/v2.0.0. That longer form is only for a module that moves
+# into a go/v2/ subdirectory.
 
 on:
   workflow_dispatch:
@@ -95,7 +97,15 @@ jobs:
         run: |
           set -euo pipefail
           version="v${RELEASE_TAG#go/v}"
-          module="github.com/labelzoom/labelzoom-sdk/go"
+          # Read from go.mod, never hard-coded: from v2 on the path carries the major suffix.
+          module="$(awk '/^module /{print $2}' go/go.mod)"
+          major="${version%%.*}"
+          # A v2+ tag on a module path without the matching /vN suffix is invisible to
+          # `go get .../go/vN`, and the proxy would cache it that way permanently.
+          if [ "$major" != "v0" ] && [ "$major" != "v1" ] && [ "${module##*/}" != "$major" ]; then
+            echo "::error::Tag ${RELEASE_TAG} is ${major}, but go/go.mod declares ${module}"
+            exit 1
+          fi
           probe="$(mktemp -d)"
           cd "$probe"
           go mod init labelzoomreleaseprobe

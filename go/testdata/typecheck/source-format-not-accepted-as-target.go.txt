@@ -9,7 +9,7 @@ package main
 import (
 	"context"
 
-	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go/v2"
 )
 
 func main() {

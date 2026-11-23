@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	labelzoom "github.com/labelzoom/labelzoom-sdk/go"
+	labelzoom "github.com/labelzoom/labelzoom-sdk/go/v2"
 )
 
 const language = "go"

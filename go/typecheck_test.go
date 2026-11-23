@@ -89,8 +89,8 @@ func buildSnippet(t *testing.T, name string) (stderr string, built bool) {
 	// A replace directive against the local module, and the SDK has no dependencies of its
 	// own, so this resolves with GOPROXY=off -- the probe never touches the network.
 	write("go.mod", "module labelzoomtypecheckprobe\n\ngo 1.23\n\n"+
-		"require github.com/labelzoom/labelzoom-sdk/go v0.0.0\n\n"+
-		"replace github.com/labelzoom/labelzoom-sdk/go => "+sdk+"\n")
+		"require github.com/labelzoom/labelzoom-sdk/go/v2 v2.0.0\n\n"+
+		"replace github.com/labelzoom/labelzoom-sdk/go/v2 => "+sdk+"\n")
 
 	command := exec.Command(goTool(t), "build", "-o", os.DevNull, ".") //nolint:gosec // fixed argv, temp dir
 	command.Dir = dir
