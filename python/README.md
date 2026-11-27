@@ -77,7 +77,7 @@ the response charset, defaulting to UTF-8.
 
 `client.is_authenticated` reports whether the client has a credential. A key the server doesn't
 recognize doesn't fail: the request converts anonymously. Anonymous requests get watermarked
-output, the first label only, a 1 MB request limit, and no multi-page, JSON-target, or
+output, one label per request, and no multi-page, JSON-target, or
 image-to-image conversion. To convert a label other than the first on the free tier, set
 `label_index`.
 
@@ -230,10 +230,10 @@ These change how the source document is read. `print` takes all of them.
 | `pdf_page_number` | `pdf.pageNumber` | PDF | Converts one page, 0-based. Omit it to convert every page. |
 | `pdf_conversion_mode` | `pdf.conversionMode` | PDF | `"IMAGE"` (default) rasterizes each page, and `"NATIVE"` extracts text and vector content. |
 | `zpl_commands_to_ignore` | `zpl.commandsToIgnore` | ZPL and ESC/Label | Commands to skip, such as `["^PQ"]`. |
-| `split_rows`, `split_columns` | `split.rows`, `split.columns` | Image or PDF to ZPL, `IMAGE` mode | Cuts each page into a grid of labels, 1 to 20 each. |
-| `split_width`, `split_height` | `split.width`, `split.height` | Image or PDF to ZPL, `IMAGE` mode | One label's size on the page, in inches. Omit both to divide the page equally. |
-| `split_left`, `split_top`, `split_column_gap`, `split_row_gap` | `split.left`, `split.top`, `split.columnGap`, `split.rowGap` | Image or PDF to ZPL, `IMAGE` mode | Margins and gaps on the page, in inches. |
-| `split_skip_blank` | `split.skipBlank` | Image or PDF to ZPL, `IMAGE` mode | Leaves out labels with nothing printable. |
+| `split_rows`, `split_columns` | `split.rows`, `split.columns` | Image or PDF to a printer language, `IMAGE` mode | Cuts each page into a grid of labels, 1 to 20 each. |
+| `split_width`, `split_height` | `split.width`, `split.height` | Image or PDF to a printer language, `IMAGE` mode | One label's size on the page, in inches. Omit both to divide the page equally. |
+| `split_left`, `split_top`, `split_column_gap`, `split_row_gap` | `split.left`, `split.top`, `split.columnGap`, `split.rowGap` | Image or PDF to a printer language, `IMAGE` mode | Margins and gaps on the page, in inches. |
+| `split_skip_blank` | `split.skipBlank` | Image or PDF to a printer language, `IMAGE` mode | Leaves out labels with nothing printable. |
 | `scaling` | `scaling` | Image and PDF | The size, in percent, the picture is rendered at. Default `100`. |
 | `position_x`, `position_y` | `position.x`, `position.y` | Image or PDF to a printer language | The picture's offset on the label, in dots. A negative value crops it. |
 | `color_mode` | `colorMode` | Image and PDF | `"BW"`, `"GRAYSCALE"` (default), or `"COLOR"`. Also a target option for image targets. |
@@ -251,7 +251,7 @@ These change what is written. A printer target takes only `rotation`.
 | `dialect` | `dialect` | ZPL | An output dialect, such as `"moca"`. Paid plans only. |
 | `zpl_image_compression` | `zpl.imageCompression` | ZPL | `"Z64"` (default) or `"COMPRESSED_HEX"`. |
 | `zpl_collapse_copies` | `zpl.collapseCopies` | Image or PDF to ZPL, `IMAGE` mode | Writes each run of identical labels as one label with a `^PQ` count. |
-| `layout_across`, `layout_gap`, `layout_fill` | `layout.across`, `layout.gap`, `layout.fill` | Image or PDF to ZPL, `IMAGE` mode | Labels side by side in each row, 1 to 10; the gap between them in inches; and `"SEQUENTIAL"` (default) or `"REPEAT"`. |
+| `layout_across`, `layout_gap`, `layout_fill` | `layout.across`, `layout.gap`, `layout.fill` | Image or PDF to a printer language, `IMAGE` mode | Labels side by side in each row, 1 to 10; the gap between them in inches; and `"SEQUENTIAL"` (default) or `"REPEAT"`. |
 | `color_mode`, `darkness` | `colorMode`, `darkness` | PNG, BMP, GIF, and JPEG | `color_mode="BW"` returns a black-and-white image at the `darkness` threshold. |
 
 To change a label's density at the same physical size, set both `source_dpi` and `target_dpi`.

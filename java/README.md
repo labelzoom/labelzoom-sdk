@@ -45,9 +45,9 @@ Maven:
 
 ### Create a client
 
-An API key is optional. Without one, the client uses the free tier: output is watermarked, only the
-first label converts, the request body is limited to 1 MB, and multi-page, JSON-target, dialect, and
-image-to-image conversions are rejected.
+An API key is optional. Without one, the client uses the free tier: output is watermarked, one label
+converts per request (the first, or the one `withLabelIndex` selects), and multi-page, JSON-target,
+dialect, and image-to-image conversions are not available.
 
 ```java
 LabelZoomClient.builder().build();              // reads LABELZOOM_API_KEY
@@ -253,7 +253,7 @@ Set these after `from*` and before `to*`.
 | `withDpi(int)` | `fromZpl`, `fromEscLabel`, the other printer languages, and images | Sets the resolution the job or image was made for. The server default is 203. |
 | `withPage(int)` | `fromPdf` | Converts only this page, counted from 0. Omit it to convert every page. |
 | `withConversionMode(PdfConversionMode)` | `fromPdf` | `IMAGE` (the default) or `NATIVE`. |
-| `withSplit(s -> ...)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, for a ZPL target in `IMAGE` mode. Fields: `rows`, `columns`, `labelSize`, `margins`, `gaps` (all in inches), and `skipBlank`. |
+| `withSplit(s -> ...)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, for a printer-language target in `IMAGE` mode. Fields: `rows`, `columns`, `labelSize`, `margins`, `gaps` (all in inches), and `skipBlank`. |
 | `withRaster(r -> ...)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Sets how the picture is rasterized. Fields: `scaling` (percent), `position` (output dots from the label's top-left corner; a negative offset crops), `darkness` (0 to 100, default 70), and `colorMode` (`GRAYSCALE`, the default, dithers). |
 | `withCommandsToIgnore(String...)` | `fromZpl`, `fromEscLabel` | Skips these commands, for example `"^PQ"`. |
 

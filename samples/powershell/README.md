@@ -28,8 +28,8 @@ They run in Windows PowerShell 5.1 and PowerShell 7 or later, with no modules to
 | `-PdfPage` | No | Converts one PDF page. Pages are numbered from 0. Leave it out to convert every page |
 | `-ApiKey` | No | Your API key. Defaults to the `LABELZOOM_API_KEY` environment variable |
 
-An API key is optional. Without one you get the free tier: watermarked output, first label only,
-and a 1 MB request cap. A request that needs a paid plan fails with a message such as
+An API key is optional. Without one you get the free tier: watermarked output and the
+first label per request. A request that needs a paid plan fails with a message such as
 `HTTP 403: JSON export is a paid feature`.
 
 If Windows blocks the script, run it with

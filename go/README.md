@@ -41,8 +41,9 @@ The module lives in the `go/` directory of a multi-language repository, so its p
 
 ### Set an API key
 
-An API key is optional. Without one, the client uses the free tier: watermarked output, the first
-label only, a 1 MB request limit, and no multi-page, JSON-target, or image-to-image conversion.
+An API key is optional. Without one, the client uses the free tier: watermarked output, one label
+per request (the first, or the one `LabelIndex` selects), and no multi-page, JSON-target, or
+image-to-image conversion.
 
 | Call | Credential |
 | --- | --- |
@@ -259,12 +260,12 @@ Targets:
 | --- | --- | --- |
 | `SourceDPI` | The density the source was made for, which sets how its dots or pixels map to inches. Server default 203. A value below 1 returns a `*ValidationError`. | Printer-language and image sources. A PDF, NiceLabel, BarTender, XML, or JSON source returns `400`. |
 | `Label` (`LabelSize`) | The media size, in inches. Set `Width`, `Height`, or both. An axis you leave nil comes from the size the code declares, else from the content. Omit `Label` to detect both. | Every source |
-| `LabelIndex` | The 0-based index of the one label to convert. Omit it to convert every label. For an image or PDF to ZPL, it counts the labels after `Split`, page by page. Out of range returns `404`. | Every source |
+| `LabelIndex` | The 0-based index of the one label to convert. Omit it to convert every label. For an image or PDF to a printer language, it counts the labels after `Split`, page by page. Out of range returns `404`. | Every source |
 | `Data` | The variable-field values, one record per output label. A single `DataRecord` is sent as one record. An element that isn't an object returns a `*ValidationError`. | Every source |
 | `PDF.PageNumber` | The 0-based page to convert. Omit it to convert every page. | PDF |
 | `PDF.ConversionMode` | `PDFConversionModeImage` rasterizes the page (server default). `PDFConversionModeNative` extracts its text and vectors. | PDF |
 | `ZPL.CommandsToIgnore` | Skips the named commands while reading, such as `[]string{"^PQ"}`. | ZPL, ESC/Label |
-| `Split` (`SplitOptions`) | Cuts each page into a grid of `Rows` by `Columns` labels, 1 to 20 each and at most 100 in all, read left to right and then down. Every length is in inches on the page. Leave `Width` and `Height` nil to divide the page equally. `SkipBlank` leaves out empty labels. | Image or PDF to ZPL |
+| `Split` (`SplitOptions`) | Cuts each page into a grid of `Rows` by `Columns` labels, 1 to 20 each and at most 100 in all, read left to right and then down. Every length is in inches on the page. Leave `Width` and `Height` nil to divide the page equally. `SkipBlank` leaves out empty labels. | Image or PDF to a printer language |
 | `Scaling` | The size the picture is rendered at, as a percentage. Server default 100. | Image, PDF |
 | `Position` | The picture's `X` and `Y` offset on the label. A negative offset crops it. | Image, PDF |
 | `ColorMode` | `ColorModeBW`, `ColorModeGrayscale` (server default), or `ColorModeColor`. | Image, PDF; also a target option |
@@ -282,7 +283,7 @@ Targets:
 | `Darkness` | The threshold for `ColorModeBW`. | PNG, BMP, GIF, JPEG |
 | `ZPL.ImageCompression` | `ZPLImageCompressionZ64` (server default) or `ZPLImageCompressionCompressedHex`, for older printer firmware. | ZPL |
 | `ZPL.CollapseCopies` | Sends each run of identical labels as one label with a `^PQ` count. | Image or PDF to ZPL |
-| `Layout` (`LayoutOptions`) | Puts `Across` labels, 1 to 10, side by side in each row, `Gap` inches apart, for multi-column label stock. `Fill` is `LayoutFillSequential` (server default), which puts each page in the next column, or `LayoutFillRepeat`, which fills a whole row with each page. | Image or PDF to ZPL |
+| `Layout` (`LayoutOptions`) | Puts `Across` labels, 1 to 10, side by side in each row, `Gap` inches apart, for multi-column label stock. `Fill` is `LayoutFillSequential` (server default), which puts each page in the next column, or `LayoutFillRepeat`, which fills a whole row with each page. | Image or PDF to a printer language |
 
 `ColorMode` and `Darkness` are one field each, so a conversion from an image to an image uses the
 same value for both stages.

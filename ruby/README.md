@@ -69,8 +69,8 @@ The client reads your API key from the `LABELZOOM_API_KEY` environment variable.
 empty string; the client then ignores the environment variable. `client.authenticated?` returns
 whether the client has a key.
 
-Without a key, the API serves the free tier: watermarked output, the first label only, a 1 MB
-request limit, and no multi-page, JSON-target, or image-to-image conversion.
+Without a key, the API serves the free tier: watermarked output, one label per request (the first,
+or the one `label_index:` selects), and no multi-page, JSON-target, or image-to-image conversion.
 
 ### Read the result
 
@@ -214,13 +214,13 @@ parameter the SDK doesn't model, use `extra:`.
 | Keyword | Source formats | What it does |
 | --- | --- | --- |
 | `label: { width:, height: }` | All | The label size, in inches, not dots. It replaces the size the label code declares. Omit it to use the declared size, or the size of the content. |
-| `label_index:` | All | Converts only this label, 0-based, on every plan. For image or PDF to ZPL, it counts the labels after `split:`, page by page. |
+| `label_index:` | All | Converts only this label, 0-based, on every plan. For image or PDF to a printer language, it counts the labels after `split:`, page by page. |
 | `data:` | All | Merge-field values, one Hash per output label. A single Hash is one label. |
 | `source_dpi:` | Printer languages and images | The resolution the source was made for. A PDF, design-file, XML, or JSON source returns `400`. |
 | `pdf: { page_number: }` | PDF | Converts one page, 0-based. Omit it to convert every page. |
 | `pdf: { conversion_mode: }` | PDF | `"IMAGE"` (the default) rasterizes each page; `"NATIVE"` extracts the text and vector content. |
 | `zpl: { commands_to_ignore: }` | ZPL and ESC/Label | ZPL commands to skip, such as `["^PQ"]`. |
-| `split: { rows:, columns:, width:, height:, left:, top:, column_gap:, row_gap:, skip_blank: }` | Image or PDF to ZPL | Cuts each page into a grid of labels. Lengths are in inches. Omit `width:` and `height:` to divide the page equally. |
+| `split: { rows:, columns:, width:, height:, left:, top:, column_gap:, row_gap:, skip_blank: }` | Image or PDF to a printer language | Cuts each page into a grid of labels. Lengths are in inches. Omit `width:` and `height:` to divide the page equally. |
 | `scaling:` | Image and PDF | The size the picture is rendered at, in percent. The server default is 100. |
 | `position: { x:, y: }` | Image and PDF | The picture's offset on the label, in output dots from the top-left corner. A negative value crops it. |
 | `color_mode:` | Image and PDF | `"BW"`, `"GRAYSCALE"` (the default), or `"COLOR"`. |
@@ -236,7 +236,7 @@ parameter the SDK doesn't model, use `extra:`.
 | `dialect:` | ZPL | The output dialect, such as `"moca"`. Paid plans only. |
 | `zpl: { image_compression: }` | ZPL | `"Z64"` (the default) or `"COMPRESSED_HEX"`. |
 | `zpl: { collapse_copies: true }` | Image or PDF to ZPL | Writes each run of identical labels as one label with a `^PQ` count. |
-| `layout: { across:, gap:, fill: }` | Image or PDF to ZPL | Places labels side by side in each printed row. `gap:` is in inches. `fill:` is `"SEQUENTIAL"` (the default) or `"REPEAT"`. |
+| `layout: { across:, gap:, fill: }` | Image or PDF to a printer language | Places labels side by side in each printed row. `gap:` is in inches. `fill:` is `"SEQUENTIAL"` (the default) or `"REPEAT"`. |
 | `color_mode:`, `darkness:` | PNG, BMP, GIF, and JPEG | `color_mode: "BW"` returns a black-and-white image at the `darkness:` threshold. |
 
 `color_mode:` and `darkness:` are one keyword each, so a value you set acts on an image or PDF

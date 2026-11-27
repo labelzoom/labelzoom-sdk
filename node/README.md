@@ -78,8 +78,9 @@ const result = await client.convert({
 
 ### Authenticate
 
-An API key is optional. Without one, you get the free tier: watermarked output, the first label
-only, a 1 MB request limit, and no multi-page, JSON-target, or image-to-image conversion.
+An API key is optional. Without one, you get the free tier: watermarked output, one label per
+request (the first, or the one `withLabelIndex` selects), and no multi-page, JSON-target, or
+image-to-image conversion.
 
 ```ts
 const client = new LabelZoomClient({ apiKey: 'API_KEY' });
@@ -227,7 +228,7 @@ server default reaches you without an SDK upgrade. In the object form, each opti
 | `withPage(page)` | `pdf.pageNumber` | `fromPdf` | The 0-based page to convert. Omit it to convert every page. |
 | `withConversionMode(mode)` | `pdf.conversionMode` | `fromPdf` | `'IMAGE'` (default) or `'NATIVE'`. Splitting and layout need `IMAGE`. |
 | `withCommandsToIgnore(...commands)` | `zpl.commandsToIgnore` | `fromZpl`, `fromEscLabel` | ZPL commands to skip, such as `'^PQ'`. |
-| `withSplit({ ... })` | `split` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, read left to right and then down. ZPL target in `IMAGE` mode only. Fields: `rows` and `columns` (1 to 20 each), `width`, `height`, `left`, `top`, `columnGap`, and `rowGap`, all in inches, and `skipBlank`. Omit `width` and `height` to divide the page equally. |
+| `withSplit({ ... })` | `split` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, read left to right and then down. Printer-language target in `IMAGE` mode only. Fields: `rows` and `columns` (1 to 20 each), `width`, `height`, `left`, `top`, `columnGap`, and `rowGap`, all in inches, and `skipBlank`. Omit `width` and `height` to divide the page equally. |
 | `withRaster({ ... })` | `scaling`, `position`, `darkness`, `colorMode` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | How the picture is rasterized. `scaling` is a percent (server default 100). `position` is `{ x, y }` in output dots from the label's top-left corner, and a negative value crops. `darkness` is the black-and-white threshold from 0 to 100 (server default 70). `colorMode` is `'BW'`, `'GRAYSCALE'` (default), or `'COLOR'`. In `NATIVE` mode, only `scaling` applies. |
 
 To crop a picture, set a negative position and the size of the label it's cut to:
@@ -297,7 +298,7 @@ Every non-2xx response rejects with a subclass of `LabelZoomError`:
 | `UnauthorizedError` | 401 | The credential was rejected. |
 | `ForbiddenError` | 403 | `isPaidFeature` is `true` when the 403 is a paid feature, such as a JSON target on the free tier. |
 | `NotFoundError` | 404 | The conversion path doesn't exist, or the label index is past the last label. |
-| `PayloadTooLargeError` | 413 | The body is over your plan's limit: 1 MB on the free tier. |
+| `PayloadTooLargeError` | 413 | The request body is larger than the API accepts. |
 | `UnprocessableError` | 422 | Well formed, but it can't be carried out. Print returns it with a `code` such as `agent_update_required` or `idempotency_key_reused`, and for a template record with missing fields. |
 | `RateLimitedError` | 429 | `retryAfterSeconds` holds `Retry-After`, when the server sent it. |
 | `PrintQuotaExceededError` | 429 | The daily print job limit, code `daily_job_limit_reached`. Extends `RateLimitedError`. |

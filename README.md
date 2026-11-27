@@ -9,7 +9,8 @@ any printer connected through the LabelZoom Print Agent.
 The SDKs call the same conversion pipeline that serves labelzoom.com. Every SDK reads ZPL, EPL,
 IPL, TSPL, DPL, SBPL, CPCL, ESC/Label, Fingerprint, EZPL, and TPCL printer code; NiceLabel,
 BarTender, and DYMO label designs; PDF; PNG, BMP, GIF, and JPEG images; and LabelZoom XML and
-JSON. It writes the printer languages, PDF, images, and LabelZoom XML and JSON.
+JSON. It writes ZPL, EPL, IPL, TSPL, DPL, SBPL, and CPCL printer code; PDF; images; and LabelZoom
+XML and JSON.
 
 ## Packages
 

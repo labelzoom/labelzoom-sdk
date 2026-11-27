@@ -3,8 +3,9 @@
 # LabelZoom PHP SDK
 
 The LabelZoom PHP SDK is the official PHP client for the [LabelZoom API](https://api.labelzoom.com).
-Use it to convert barcode labels between printer languages, PDF, and images, and to print labels
-through LabelZoom Cloud Print.
+Use it to convert barcode labels between printer languages, PDF, images, and LabelZoom XML and JSON,
+to read NiceLabel, BarTender, and DYMO label designs, and to print labels through LabelZoom Cloud
+Print.
 
 ## What the SDK handles
 
@@ -71,10 +72,11 @@ static analysis. See [Options by stage](#options-by-stage).
 | `new LabelZoomClient('API_KEY')` | The key you pass: an `lz_live_` or `lz_test_` key, or a JWT |
 | `new LabelZoomClient(null)` or `new LabelZoomClient('')` | Anonymous; the environment variable isn't read |
 
-Without a key, requests use the free tier: watermarked output, the first label only, a 1 MB request
-limit, and no multi-page, JSON-target, dialect, or image-to-image conversion. Passing `null` or `''`
-forces anonymous mode, so a configuration value that resolves to empty can't pick up an unrelated
-key from the environment. `isAuthenticated()` reports whether the client resolved a key.
+Without a key, requests use the free tier: watermarked output, one label per request (the first, or
+the one `withLabelIndex` selects), and no multi-page, JSON-target, dialect, or image-to-image
+conversion. Passing `null` or `''` forces anonymous mode, so a configuration value that resolves to
+empty can't pick up an unrelated key from the environment. `isAuthenticated()` reports whether the
+client resolved a key.
 
 The client is stateless once constructed. Create one for the application and reuse it, not one per
 request.
@@ -266,7 +268,7 @@ Set these after `from*` and before `to*`.
 | `withDpi(int)` | `fromZpl`, `fromEscLabel`, the other printer-language sources, and image sources | The resolution the job or image was made for. The server default is 203. |
 | `withPage(int)` | `fromPdf` | The page to convert, **0-based**. Omit it to convert every page. |
 | `withConversionMode(PdfConversionMode)` | `fromPdf` | `Image`, the default, or `Native`. |
-| `withSplit(fn (SplitOptions $s) => …)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, for a ZPL target in `Image` mode: `rows`, `columns`, `labelSize`, `margins`, `gaps` (all in **inches**), and `skipBlank`. |
+| `withSplit(fn (SplitOptions $s) => …)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | Cuts each page into a grid of labels, for a printer-language target in `Image` mode: `rows`, `columns`, `labelSize`, `margins`, `gaps` (all in **inches**), and `skipBlank`. |
 | `withRaster(fn (RasterOptions $r) => …)` | `fromPdf`, `fromPng`, `fromBmp`, `fromGif`, `fromJpeg` | How the picture is rasterized: `scaling` (percent), `position` (output dots from the label's top-left corner; a negative offset crops), `darkness` (0 to 100, default 70), and `colorMode` (`Grayscale`, the default, dithers). |
 | `withCommandsToIgnore(array)` | `fromZpl`, `fromEscLabel` | ZPL commands to skip, such as `['^PQ']`. |
 
