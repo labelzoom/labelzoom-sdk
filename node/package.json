@@ -1,6 +1,6 @@
 {
   "name": "@labelzoom/sdk",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Official Node.js/TypeScript SDK for the LabelZoom API. Converts barcode labels between ZPL, EPL, IPL, TSPL, DPL, SBPL, CPCL, PDF, images and LabelZoom XML/JSON, reads ESC/Label, Fingerprint, EZPL, TPCL, NiceLabel, BarTender and DYMO files, and prints them with Cloud Print.",
   "keywords": [
     "labelzoom",
