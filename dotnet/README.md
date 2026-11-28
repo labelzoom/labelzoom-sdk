@@ -4,7 +4,7 @@
 
 The LabelZoom .NET SDK is the official C# client for the [LabelZoom API](https://api.labelzoom.com).
 Use it to convert barcode labels between printer languages, PDF, images, and LabelZoom XML and JSON,
-and to print labels on Cloud Print printers.
+to read NiceLabel, BarTender, and DYMO label designs, and to print labels on Cloud Print printers.
 
 ## What the SDK handles
 
@@ -70,8 +70,9 @@ asynchronous and takes an optional `CancellationToken`.
 ### Pass an API key
 
 The client reads the `LABELZOOM_API_KEY` environment variable when you don't pass a key. Without a
-key, it calls the API anonymously, on the free tier: watermarked output, the first label only, a 1 MB
-request limit, and no multi-page, JSON-target, or image-to-image conversion.
+key, it calls the API anonymously, on the free tier: watermarked output, one label per request (the
+first, or the one `WithLabelIndex` selects), and no multi-page, JSON-target, or image-to-image
+conversion.
 
 ```csharp
 using var client = new LabelZoomClient("API_KEY");      // an lz_live_ or lz_test_ key, or a JWT
@@ -250,7 +251,7 @@ Set these after `From*` and before `To*`.
 | `WithPage(int)` | `FromPdf` | Converts one page. 0-based; omit it to convert every page. |
 | `WithConversionMode(PdfConversionMode)` | `FromPdf` | `Image`, the default, rasterizes the page; `Native` reads its drawing operations. Split and layout need `Image`. |
 | `WithCommandsToIgnore(params string[])` | `FromZpl`, `FromEscLabel` | ZPL commands the parser skips, for example `"^PQ"`. |
-| `WithSplit(s => ...)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | Cuts each page or image into a grid of labels, read left to right and then down. ZPL target in `Image` mode only. |
+| `WithSplit(s => ...)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | Cuts each page or image into a grid of labels, read left to right and then down. Printer-language target in `Image` mode only. |
 | `WithRaster(r => ...)` | `FromPdf`, `FromPng`, `FromBmp`, `FromGif`, `FromJpeg` | How the picture is rasterized. In `Native` mode, only `Scaling` applies. |
 
 | `WithSplit` field | What it does |

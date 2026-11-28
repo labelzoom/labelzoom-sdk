@@ -18,8 +18,8 @@ dotnet run -- print label.zpl 192.168.0.44
 
 The optional last argument to `convert` is the output resolution in dpi.
 
-An API key is optional. Without one you get the free tier: watermarked output, first label only,
-and a 1 MB request cap. Set the `LABELZOOM_API_KEY` environment variable to use your key.
+An API key is optional. Without one you get the free tier: watermarked output and the
+first label per request. Set the `LABELZOOM_API_KEY` environment variable to use your key.
 
 ## Use it in your own project
 

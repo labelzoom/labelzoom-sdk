@@ -111,8 +111,8 @@ let client = LabelZoomClient::builder()
 | `user_agent_suffix(token)` | Appends a token to the SDK's `User-Agent`. |
 | `max_retries(n)` | Sets the retries after the first attempt. See [Retries](#retries). |
 
-Without a key, the API serves the free tier: watermarked output, the first label only, a 1 MB
-request cap, and no multi-page, JSON-target, or image-to-image conversion.
+Without a key, the API serves the free tier: watermarked output, one label per request (the first,
+or the one `label_index` selects), and no multi-page, JSON-target, or image-to-image conversion.
 `client.is_authenticated()` tells you whether the client resolved a key. `LabelZoomClient` is
 `Clone`, `Send`, and `Sync`, so you can build one and share it across threads.
 
@@ -250,8 +250,8 @@ Target options change what's written:
 | `color_mode(mode)`, `darkness(n)` | Image targets | `ColorMode::Bw` renders a black-and-white image at the `darkness` threshold. |
 | `zpl_image_compression(mode)` | ZPL | Sets how embedded images are encoded: `ZplImageCompression::Z64`, the default, or `CompressedHex`. |
 | `zpl_collapse_copies(true)` | ZPL from an image or PDF | Sends each run of identical labels as one label with a `^PQ` count. |
-| `layout(across, gap)` | ZPL from an image or PDF | Puts `across` labels (1 to 10) side by side in each printed row, `gap` inches apart. |
-| `layout_fill(fill)` | ZPL from an image or PDF | `LayoutFill::Sequential`, the default, puts each page in the next column. `Repeat` fills the whole row with each page. |
+| `layout(across, gap)` | A printer language from an image or PDF | Puts `across` labels (1 to 10) side by side in each printed row, `gap` inches apart. |
+| `layout_fill(fill)` | A printer language from an image or PDF | `LayoutFill::Sequential`, the default, puts each page in the next column. `Repeat` fills the whole row with each page. |
 
 `color_mode` and `darkness` are one setting each. On an image or PDF source they shape the picture
 that's read, and on an image target they shape the output.

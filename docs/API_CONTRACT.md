@@ -109,7 +109,7 @@ Rust);
 Do not contort a language to get compile-time enforcement it does not natively offer.
 
 > `EPL`, `TSPL` and `DPL` became targets when the printer-language writers shipped
-> (`labelzoom-io-{epl,tspl,dpl}` 1.1.0, wired into the conversion pipeline 2026-08-23). They were
+> (on 2026-08-23). They were
 > source-only for the whole of `0.x`, and the SDKs asserted that in four `typecheck/*` cases. Those
 > assertions are gone; do not reintroduce them.
 >
@@ -401,7 +401,7 @@ decoded string.
 ### G — Anonymous mode
 
 - **G1** Constructing a client with no credential **must succeed**. The API has a working anonymous
-  free tier (watermarked, first label only per request, 1 MB body cap, no multi-page, no JSON target, no
+  free tier (watermarked, first label only per request, no multi-page, no JSON target, no
   dialect, no image-to-image). Requiring a token in the constructor is a bug.
 - **G2** `LABELZOOM_API_KEY` is the default credential source when none is passed. Explicitly
   passing null or empty **forces** anonymous mode and must not fall back to the environment.
@@ -559,12 +559,12 @@ sets one of its fields — `request/param-collapse-copies` pins this for `zpl`.
   identical labels in reading order, and `labelIndex` counts labels.
 - **`labelIndex`** selects one label of a multi-label input, and converts it on every plan, which
   is how a free-tier caller reaches any label but the first. It sits at the top level rather than
-  under `pdf` because it counts labels, and a split page holds several. For image or PDF → ZPL it
-  counts labels page by page, within `pdf.pageNumber`'s page when that is set. It names a place in
-  the grid, blank or not: `split.skipBlank` only drops blank labels from a response that converts
-  them all, so the index a caller reads off the page always means the same label, and the server
-  renders only the page that holds it. The response carries `X-Total-Count` with every label in
-  scope, and an out-of-range index is a **404** that still carries the count.
+  under `pdf` because it counts labels, and a split page holds several. For image or PDF → a
+  printer-language target it counts labels page by page, within `pdf.pageNumber`'s page when that is
+  set. It names a place in the grid, blank or not: `split.skipBlank` only drops blank labels from a
+  response that converts them all, so the index a caller reads off the page always means the same
+  label, and the server renders only the page that holds it. The response carries `X-Total-Count`
+  with every label in scope, and an out-of-range index is a **404** that still carries the count.
 - **`zpl.collapseCopies`** is off on the server because it changes the label count of the output,
   so an SDK must not turn it on for a caller (**C1**). It is what turns a marketplace PDF that
   repeats one label per unit into one label and a print quantity.
@@ -578,16 +578,16 @@ sets one of its fields — `request/param-collapse-copies` pins this for `zpl`.
   `zpl.collapseCopies` writes
 - maximum rasterizable label is 15in x 15in at 203 dpi
 - `layout.across` is 1–10 and `layout.gap` is ≥ 0; `layout.across` > 1 is a **400** for anything
-  but image or PDF → ZPL in `IMAGE` mode
+  but image or PDF → a printer-language target in `IMAGE` mode
 - `split.rows` and `split.columns` are 1–20 each, with at most 100 labels a page; `split.width` /
   `split.height` are > 0 when set, and the margins and gaps are ≥ 0
 - a `split` grid that runs off the page it is checked against (the first page, or the
   `pdf.pageNumber` page when that is set), or any grid other than 1 × 1 outside image or
-  PDF → ZPL in `IMAGE` mode, is a **400**
+  PDF → a printer-language target in `IMAGE` mode, is a **400**
 - a negative `labelIndex` is a **400**; one past the last label is a **404** with `X-Total-Count`
-- one image or PDF → ZPL request may hold at most 20,000 labels (pages × labels per page) and
-  128 MiB of ZPL; past either is a **400**, so a caller with a larger file converts it in parts
-- anonymous free-tier request body cap is 1 MB
+- one image or PDF → printer-language request may hold at most 20,000 labels (pages × labels per
+  page) and 128 MiB of output; past either is a **400**, so a caller with a larger file converts it
+  in parts
 - `application/x-www-form-urlencoded` and `multipart/form-data` are **not** supported
 
 The SDKs check none of the `layout`, `split` or `labelIndex` limits locally. They are server
